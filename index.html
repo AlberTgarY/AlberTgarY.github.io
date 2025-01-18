@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,39 +12,45 @@
         <nav>
             <ul>
                 <li><a href="#about">About</a></li>
-                <li><a href="#contact">Contact</a></li>
+                <li><a href="#music">Music</a></li>
             </ul>
         </nav>
     </header>
 
-    <main>
+    <main id="content">
         <section id="about">
             <h2>About Me</h2>
             <div class="about-content">
-                <div class="interests">
-                    <p>Yicheng Zhan (弈诚 战) is a Ph.D. candidate at University College London, 
+                <div class="text">
+                    <p>As shown in <a href="#photo" class="fig-link">Fig. 1</a>, Yicheng Zhan (弈诚 战) is a Ph.D. candidate at University College London, 
                         affiliated with the <a href="https://complightlab.com/" target="_blank">Computational Light Laboratory</a>, 
                         under the supervision of Dr. Kaan Akşit. His research primarily focuses on Computer-Generated Holography, Computational Display, and Physics-aware Deep Learning. 
-                        His academic interests lie at the intersection of computer vision, deep learning, and advanced display technologies.<br> 
-                        Prior to his doctoral studies, Yicheng completed his M.Sc. in the Department of Computer Graphics and Vision Imaging at University College London and obtained his B.Sc. from King's College London. </p>
-
+                        His academic interests lie at the intersection of computer vision, deep learning, and advanced display technologies.<br> <br> 
+                        Prior to his doctoral studies, Yicheng completed his M.Sc. in the Department of Computer Graphics and Vision Imaging at University College London and obtained his B.Sc. from King's College London.</p>
+                    <div class="social-links">
+                        <a href="https://scholar.google.com/citations?user=x2ptSYUAAAAJ" target="_blank">Google Scholar</a>
+                        <a href="https://github.com/AlberTgarY" target="_blank">GitHub</a>
+                    </div>
                 </div>
-                    <p>Beyond dive deep into band-limited angular spectrum, he enjoys composing music.</p>
-                
-
-                <div class="social-links">
-                    <a href="https://scholar.google.com/citations?user=x2ptSYUAAAAJ" target="_blank">Google Scholar</a>
-                    <a href="https://github.com/AlberTgarY" target="_blank">GitHub</a>
-                    <a href="https://music.163.com/#/artist?id=34534345" target="_blank">NetEase Music</a>
+                <div id="photo" class="photo">
+                    <img src="Img/photo_yicheng.jpg" alt="Photo of Yicheng Zhan">
+                    <p class="photo-caption">Fig. 1: Yicheng Zhan arrives at Haneda Airport (HND) to participate in SIGGRAPH Asia 2024.</p>
                 </div>
             </div>
-        </section>
-
-        <section id="contact">
+        
             <h2>Contact</h2>
             <div class="contact-info">
                 <p>Email: yicheng_zhan2001@outlook.com</p>
+                <p><a href="CV/cv_yicheng_zhan.pdf" target="_blank">View My CV</a></p>
             </div>
+        </section>
+        
+        <section id="music" style="display:none;">
+            <h2>His Music Journey</h2>
+            <p>Beyond diving deep into band-limited angular spectrum, yicheng possesses profound insights into hip-hop music and a deep passion for composing his own works. 
+                If you're interested, you're warmly invited to explore his works on
+                <a href="https://music.163.com/#/album?id=149198979" target="_blank">NetEase Music</a>.
+            </p>
         </section>
     </main>
 
