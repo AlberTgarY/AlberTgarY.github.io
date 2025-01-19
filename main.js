@@ -7,6 +7,11 @@ document.addEventListener('DOMContentLoaded', function () {
             document.querySelectorAll('main > section').forEach(section => {
                 section.style.display = section.id === target || target === "about" && section.id === "about" ? "block" : "none";
             });
+            // Add smooth scroll to target section
+            const targetSection = document.getElementById(target);
+            if (targetSection) {
+                targetSection.scrollIntoView({ behavior: 'smooth' });
+            }
         });
     });
 

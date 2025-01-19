@@ -17,7 +17,7 @@ body {
 
 /* Header styles */
 header {
-    background: linear-gradient(to right, #3498db, #2c3e50);
+    background: linear-gradient(to right, #1abc9c, #3498db);
     color: white;
     text-align: center;
     padding: 40px 20px;
@@ -26,9 +26,10 @@ header {
 }
 
 header h1 {
-    font-size: 3em;
+    font-size: 2.5em;
     font-weight: 700;
     margin-bottom: 10px;
+    word-wrap: break-word;
 }
 
 nav ul {
@@ -44,21 +45,12 @@ nav a {
     text-decoration: none;
     font-weight: 500;
     transition: color 0.3s ease;
+    padding: 5px 0;
 }
 
 nav a:hover {
     color: #1abc9c;
     border-bottom: 2px solid #1abc9c;
-}
-
-/* Hero section */
-.hero {
-    text-align: center;
-    background: white;
-    padding: 40px;
-    margin-bottom: 40px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Section styles */
@@ -71,16 +63,50 @@ section {
     animation: fadeInUp 0.8s ease;
 }
 
+.about-content {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.text {
+    flex: 1 1 300px;
+    min-width: 0;
+}
+
 .about-content p {
     margin-bottom: 20px;
     font-size: 1.1em;
+}
+
+.photo {
+    flex: 0 0 300px;
+    text-align: center;
+}
+
+.photo img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.photo .photo-caption {
+    margin-top: 10px;
+    font-size: 0.8em !important;
+    color: #7f8c8d;
+    font-style: italic;
+    line-height: 1.4;
 }
 
 .social-links {
     margin-top: 30px;
     display: flex;
     gap: 15px;
-    justify-content: center;
+    flex-wrap: wrap;
+    justify-content: flex-start;
 }
 
 .social-links a {
@@ -95,13 +121,33 @@ section {
 }
 
 .social-links a:hover {
-    transform: scale(1.1);
+    transform: scale(1.05);
     background-color: #1abc9c;
 }
 
 .contact-info {
     text-align: center;
     font-size: 1.1em;
+}
+
+.fig-link {
+    text-decoration: none;
+    color: #3498db;
+    font-weight: bold;
+    transition: color 0.3s ease;
+}
+
+.fig-link:hover {
+    color: #1abc9c;
+}
+
+#music {
+    margin: 40px auto;
+    text-align: center;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 /* Footer */
@@ -124,83 +170,73 @@ footer {
     }
 }
 
-/* Responsive */
+/* Responsive styles */
 @media (max-width: 768px) {
     body {
-        padding: 10px;
+        padding: 15px;
+    }
+
+    header {
+        padding: 30px 15px;
+    }
+
+    header h1 {
+        font-size: 2em;
     }
 
     nav ul {
-        flex-direction: column;
+        flex-direction: row;
+        gap: 20px;
+    }
+
+    section {
+        padding: 20px 15px;
+    }
+
+    .about-content {
+        flex-direction: column-reverse;
+    }
+
+    .text {
+        flex: 1 1 100%;
+    }
+
+    .photo {
+        flex: 1 1 100%;
+        margin-bottom: 20px;
+    }
+
+    .social-links {
+        justify-content: center;
         gap: 10px;
+    }
+
+    .social-links a {
+        padding: 8px 16px;
+        font-size: 0.95em;
+    }
+}
+
+@media (max-width: 480px) {
+    header h1 {
+        font-size: 1.8em;
+    }
+
+    nav ul {
+        gap: 15px;
+    }
+
+    .about-content p {
+        font-size: 1em;
     }
 
     .social-links {
         flex-direction: column;
-        align-items: center;
+        align-items: stretch;
     }
 
-    section {
-        padding: 20px;
+    .social-links a {
+        text-align: center;
+        justify-content: center;
     }
-}
-
-
-.about-content {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-}
-
-.text {
-    flex: 1;
-}
-
-.photo {
-    flex: 0 0 300px;
-    text-align: center;
-}
-
-.photo img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.photo .photo-caption {
-    margin-top: 10px;
-    font-size: 0.8em !important; /* Ensures the smaller font size is applied */
-    color: #7f8c8d;
-    font-style: italic;
-    line-height: 1.4;
-}
-
-.fig-link {
-    text-decoration: none;
-    color: #3498db;
-    font-weight: bold;
-    transition: color 0.3s ease;
-}
-
-.fig-link:hover {
-    color: #1abc9c;
-}
-
-header {
-    background: linear-gradient(to right, #1abc9c, #3498db);
-    color: white;
-    text-align: center;
-    padding: 40px;
-    border-radius: 8px;
-}
-
-#music {
-    margin: 40px auto;
-    text-align: center;
-    padding: 20px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
