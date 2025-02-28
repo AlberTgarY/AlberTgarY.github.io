@@ -1,0 +1,45 @@
+/* Dark mode styles */
+.dark-mode {
+  background: linear-gradient(135deg, #1a1f2b, #2d3748) !important;
+  color: #e0e0e0 !important;
+}
+
+.dark-mode header {
+  background: linear-gradient(to right, #1d3557, #457b9d) !important;
+}
+
+.dark-mode section {
+  background-color: #2d3748 !important;
+  color: #e0e0e0 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark-mode h2 {
+  color: #81e6d9 !important;
+}
+
+.dark-mode a {
+  color: #90cdf4 !important;
+}
+
+.dark-mode .social-links a {
+  background-color: #2c5282 !important;
+  color: #e0e0e0 !important;
+}
+
+.dark-mode .social-links a:hover {
+  background-color: #2b6cb0 !important;
+}
+
+.dark-mode .photo-caption {
+  color: #a0aec0 !important;
+}
+
+.dark-mode footer {
+  color: #a0aec0 !important;
+}
+
+/* Smooth transition between modes */
+body, header, section, h2, a, .social-links a, .photo-caption, footer {
+  transition: background 0.3s ease, background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
