@@ -33,6 +33,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Start typing after a short delay
-    setTimeout(typeWriter, 500);
+    setTimeout(typeWriter, 100);
   }
 });
