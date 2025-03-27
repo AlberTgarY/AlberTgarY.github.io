@@ -8,6 +8,27 @@
   background: linear-gradient(to right, #1d3557, #457b9d) !important;
 }
 
+.dark-mode header::before {
+  background: linear-gradient(135deg, #1d3557, #457b9d);
+}
+
+.dark-mode .wave {
+  opacity: 0.6;
+  filter: hue-rotate(40deg) brightness(0.8);
+}
+
+.dark-mode .wave1 {
+  opacity: 0.7;
+}
+
+.dark-mode .wave2 {
+  opacity: 0.5;
+}
+
+.dark-mode .wave3 {
+  opacity: 0.3;
+}
+
 .dark-mode section {
   background-color: #2d3748 !important;
   color: #e0e0e0 !important;

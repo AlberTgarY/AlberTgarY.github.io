@@ -1,0 +1,114 @@
+/* Ocean wave animation for header background */
+header {
+  position: relative;
+  overflow: hidden;
+  padding-bottom: 60px !important; /* Increased padding for more wave space */
+}
+
+.wave-container {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+header h1, header nav {
+  position: relative;
+  z-index: 2;
+}
+
+/* Ensure header background remains visible */
+header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #1abc9c, #3498db);
+  z-index: 0;
+}
+
+.wave {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  height: 60%;  /* Increased from 40% to 60% */
+  background-size: 50% 100%;
+  transform-origin: center bottom;
+  will-change: transform; /* Optimization for smoother animations */
+  backface-visibility: hidden; /* Further optimization */
+  perspective: 1000px; /* 3D acceleration */
+}
+
+.wave1 {
+  background: url('../Img/wave.svg') repeat-x;
+  animation: silkWave 25s cubic-bezier(0.445, 0.05, 0.55, 0.95) infinite alternate;
+  z-index: 3;
+  opacity: 0.8;
+  height: 65%;
+}
+
+.wave2 {
+  background: url('../Img/wave.svg') repeat-x;
+  animation: silkWave 20s cubic-bezier(0.445, 0.05, 0.55, 0.95) infinite alternate-reverse;
+  animation-delay: -5s;
+  z-index: 2;
+  opacity: 0.6;
+  height: 70%;
+  background-position: 50px bottom;
+}
+
+.wave3 {
+  background: url('../Img/wave.svg') repeat-x;
+  animation: silkWave 30s cubic-bezier(0.445, 0.05, 0.55, 0.95) infinite alternate;
+  animation-delay: -10s;
+  z-index: 1;
+  opacity: 0.4;
+  height: 75%;
+  background-position: -80px bottom;
+}
+
+@keyframes silkWave {
+  0% {
+    transform: translateX(0) scaleY(1) translateZ(0);
+  }
+  25% {
+    transform: translateX(-12.5%) scaleY(1.02) translateZ(0);
+  }
+  50% {
+    transform: translateX(-25%) scaleY(1.05) translateZ(0);
+  }
+  75% {
+    transform: translateX(-37.5%) scaleY(1.02) translateZ(0);
+  }
+  100% {
+    transform: translateX(-50%) scaleY(1) translateZ(0);
+  }
+}
+
+/* Add a subtle glow effect to the waves */
+.wave::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+  pointer-events: none;
+}
+
+/* Make sure the animation is visible on mobile */
+@media (max-width: 768px) {
+  .wave {
+    height: 45%;
+  }
+  
+  header {
+    padding-bottom: 40px !important;
+  }
+}
