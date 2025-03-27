@@ -111,7 +111,8 @@ section {
     justify-content: flex-start;
 }
 
-.social-links a {
+/* Remove the old styling for social links as we've moved it to social-icons.css */
+/* .social-links a {
     display: inline-flex;
     align-items: center;
     padding: 10px 20px;
@@ -126,7 +127,7 @@ section {
 .social-links a:hover {
     transform: scale(1.05);
     background-color: #1abc9c;
-}
+} */
 
 .contact-info {
     text-align: center;
