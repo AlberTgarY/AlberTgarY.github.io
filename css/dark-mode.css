@@ -54,5 +54,8 @@
 
 /* Smooth transition between modes */
 body, header, section, h2, a, .social-links a, .photo-caption, footer {
-  transition: background 0.3s ease, background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+  transition: background 0.3s ease, 
+              background-color 0.3s ease, 
+              color 0.3s ease, 
+              box-shadow 0.3s ease;
 }

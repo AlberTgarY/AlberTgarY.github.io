@@ -15,15 +15,21 @@ document.addEventListener('DOMContentLoaded', function() {
     toggleBtn.title = 'Toggle dark/light mode';
     
     // Style the toggle button
-    toggleBtn.style.background = 'none';
-    toggleBtn.style.border = 'none';
-    toggleBtn.style.color = 'white';
-    toggleBtn.style.fontSize = '1.2rem';
-    toggleBtn.style.cursor = 'pointer';
-    toggleBtn.style.padding = '0';
-    toggleBtn.style.display = 'flex';
-    toggleBtn.style.alignItems = 'center';
-    toggleBtn.style.justifyContent = 'center';
+    toggleBtn.style.cssText = `
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      transition: transform 0.3s ease, opacity 0.2s ease;
+    `;
     
     // Append button to list item
     toggleLi.appendChild(toggleBtn);
@@ -38,13 +44,45 @@ document.addEventListener('DOMContentLoaded', function() {
       toggleBtn.innerHTML = '☀️';
     }
     
+    // Add CSS for smooth animations
+    const style = document.createElement('style');
+    style.textContent = `
+      #theme-toggle:hover {
+        transform: scale(1.1);
+      }
+      
+      #theme-toggle.rotating {
+        animation: clockwiseRotate 0.8s ease-in-out;
+      }
+      
+      @keyframes clockwiseRotate {
+        from { transform: scale(1.1) rotate(0deg); }
+        to { transform: scale(1.1) rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+    
     // Toggle theme on click
     toggleBtn.addEventListener('click', function() {
+      // Prevent multiple clicks during animation
+      if (toggleBtn.classList.contains('rotating')) return;
+      
+      // Add rotation class
+      toggleBtn.classList.add('rotating');
+      
+      // Toggle theme immediately
       document.body.classList.toggle('dark-mode');
       const isDark = document.body.classList.contains('dark-mode');
       
-      // Update button icon
-      toggleBtn.innerHTML = isDark ? '☀️' : '🌙';
+      // Change icon during rotation (at 180 degrees)
+      setTimeout(() => {
+        toggleBtn.innerHTML = isDark ? '☀️' : '🌙';
+      }, 400);
+      
+      // Remove rotation class after animation
+      setTimeout(() => {
+        toggleBtn.classList.remove('rotating');
+      }, 800);
       
       // Save preference
       localStorage.setItem('darkMode', isDark);
