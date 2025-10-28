@@ -12,6 +12,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (targetSection) {
                 targetSection.scrollIntoView({ behavior: 'smooth' });
             }
+            // Initialize map when map section is shown
+            if (target === 'map' && window.initializeMap) {
+                setTimeout(() => window.initializeMap(), 100);
+            }
         });
     });
 

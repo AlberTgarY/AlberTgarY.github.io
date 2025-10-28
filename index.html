@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="css/dark-mode.css">
     <link rel="stylesheet" href="css/social-icons.css">
     <link rel="stylesheet" href="css/wave-animation.css">
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
     <header>
@@ -17,6 +19,7 @@
             <ul>
                 <li><a href="#about">About</a></li>
                 <li><a href="#music">Music</a></li>
+                <li><a href="#map">Map</a></li>
             </ul>
         </nav>
     </header>
@@ -90,6 +93,12 @@
                 Live in the along.</p>
             </blockquote>
         </section>
+
+        <section id="map" style="display:none;">
+            <h2>Starred Places Around the World</h2>
+            <p>Explore the places that have been meaningful in my journey. Zoom in to see specific locations, or zoom out for a global view.</p>
+            <div id="map-container"></div>
+        </section>
     </main>
 
     <footer>
@@ -100,5 +109,8 @@
     <script src="js/typing-effect.js"></script>
     <script src="js/theme-toggle.js"></script>
     <script src="js/wave-animation.js"></script>
+    <!-- Leaflet JS for Map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/map.js"></script>
 </body>
 </html>
