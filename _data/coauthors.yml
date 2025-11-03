@@ -1,34 +1,81 @@
-"adams":
-  - firstname: ["Edwin", "E.", "E. P.", "Edwin Plimpton"]
-    url: https://en.wikipedia.org/wiki/Edwin_Plimpton_Adams
+"akşit":"adams":
 
-"podolsky":
-  - firstname: ["Boris", "B.", "B. Y.", "Boris Yakovlevich"]
-    url: https://en.wikipedia.org/wiki/Boris_Podolsky
+  - firstname: ["Kaan"]  - firstname: ["Edwin", "E.", "E. P.", "Edwin Plimpton"]
 
-"rosen":
-  - firstname: ["Nathan", "N."]
-    url: https://en.wikipedia.org/wiki/Nathan_Rosen
+    url: https://kaanaksit.com/    url: https://en.wikipedia.org/wiki/Edwin_Plimpton_Adams
 
-"bach":
-  - firstname: ["Johann Sebastian", "J. S."]
-    url: https://en.wikipedia.org/wiki/Johann_Sebastian_Bach
 
-  - firstname: ["Carl Philipp Emanuel", "C. P. E."]
-    url: https://en.wikipedia.org/wiki/Carl_Philipp_Emanuel_Bach
+
+"sun":"podolsky":
+
+  - firstname: ["Qi"]  - firstname: ["Boris", "B.", "B. Y.", "Boris Yakovlevich"]
+
+    url: https://qisun.me/    url: https://en.wikipedia.org/wiki/Boris_Podolsky
+
+
+
+"shi":"rosen":
+
+  - firstname: ["Liang"]  - firstname: ["Nathan", "N."]
+
+    url: https://people.csail.mit.edu/liangs/    url: https://en.wikipedia.org/wiki/Nathan_Rosen
+
+
+
+"matusik":"bach":
+
+  - firstname: ["Wojciech"]  - firstname: ["Johann Sebastian", "J. S."]
+
+    url: https://cdfg.mit.edu/wojciech    url: https://en.wikipedia.org/wiki/Johann_Sebastian_Bach
+
+
+
+"kavaklı":  - firstname: ["Carl Philipp Emanuel", "C. P. E."]
+
+  - firstname: ["Koray"]    url: https://en.wikipedia.org/wiki/Carl_Philipp_Emanuel_Bach
+
+    url: https://scholar.google.com/citations?user=rn6XtO4AAAAJ
 
 "przibram":
-  - firstname: ["Karl"]
-    url: https://link.springer.com/article/10.1007/s00016-019-00242-z
+
+"urey":  - firstname: ["Karl"]
+
+  - firstname: ["Hakan"]    url: https://link.springer.com/article/10.1007/s00016-019-00242-z
+
+    url: https://mysite.ku.edu.tr/hurey/
 
 "schrodinger":
-  - firstname: ["Erwin"]
-    url: https://en.wikipedia.org/wiki/Erwin_Schr%C3%B6dinger
+
+"zheng":  - firstname: ["Erwin"]
+
+  - firstname: ["Chuanjun"]    url: https://en.wikipedia.org/wiki/Erwin_Schr%C3%B6dinger
+
+    url: https://complightlab.com/people/chuanjun_zheng/
 
 "lorentz":
-  - firstname: ["Hendrik Antoon"]
-    url: https://en.wikipedia.org/wiki/Hendrik_Lorentz
+
+"cakmakci":  - firstname: ["Hendrik Antoon"]
+
+  - firstname: ["Ozan"]    url: https://en.wikipedia.org/wiki/Hendrik_Lorentz
+
+    url: https://www.ozcakmakci.com/
 
 "planck":
-  - firstname: ["Max"]
-    url: https://en.wikipedia.org/wiki/Max_Planck
+
+"peng":  - firstname: ["Max"]
+
+  - firstname: ["Zicong"]    url: https://en.wikipedia.org/wiki/Max_Planck
+
+    url: https://complightlab.com/people/zicong_peng/
+
+"spjut":
+  - firstname: ["Josef"]
+    url: https://josef.spjut.me/
+
+"shin":
+  - firstname: ["Dong-Ha"]
+    url: https://scholar.google.com/citations?user=VLqPH6cAAAAJ
+
+"baek":
+  - firstname: ["Seung-Hwan"]
+    url: https://seung-hwan-baek.github.io/
