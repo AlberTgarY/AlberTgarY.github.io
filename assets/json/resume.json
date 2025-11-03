@@ -1,4 +1,4 @@
-﻿{
+{
   "basics": {
     "name": "Yicheng (Albert) Zhan",
     "label": "Ph.D. Candidate",
@@ -125,31 +125,31 @@
       "name": "Complex-Valued Holographic Radiance Fields",
       "publisher": "In preparation",
       "releaseDate": "2025",
-      "summary": "Yicheng Zhan, Dong-Ha Shin, Seung-Hwan Baek, and Kaan Akşit"
+      "summary": "Yicheng Zhan, Dong-Ha Shin, Seung-Hwan Baek, and Kaan Aksit"
     },
     {
       "name": "Towards Configurable Learned Holography",
       "publisher": "In preparation",
       "releaseDate": "2024",
-      "summary": "Yicheng Zhan, Qi Sun, Liang Shi, Wojciech Matusik, and Kaan Akşit"
+      "summary": "Yicheng Zhan, Qi Sun, Liang Shi, Wojciech Matusik, and Kaan Aksit"
     },
     {
       "name": "AutoColor: Learned Light Power Control for Multi-Color Holograms",
       "publisher": "SPIE VR/AR/MR 2024",
       "releaseDate": "2024",
-      "summary": "Yicheng Zhan, Koray Kavaklı, Hakan Urey, Qi Sun, and Kaan Akşit"
+      "summary": "Yicheng Zhan, Koray Kavakli, Hakan Urey, Qi Sun, and Kaan Aksit"
     },
     {
       "name": "Focal Surface Holographic Light Transport using Learned Spatially Adaptive Convolutions",
       "publisher": "ACM SIGGRAPH ASIA 2024 Tech Comm.",
       "releaseDate": "2024",
-      "summary": "Chuanjun Zheng, Yicheng Zhan, Liang Shi, Ozan Cakmakci and Kaan Akşit"
+      "summary": "Chuanjun Zheng, Yicheng Zhan, Liang Shi, Ozan Cakmakci and Kaan Aksit"
     },
     {
       "name": "Assessing Learned Models for Phase-only Hologram Compression",
       "publisher": "ACM SIGGRAPH 2025 Posters",
       "releaseDate": "2025",
-      "summary": "Zicong Peng, Yicheng Zhan, Josef Spjut, and Kaan Akşit"
+      "summary": "Zicong Peng, Yicheng Zhan, Josef Spjut, and Kaan Aksit"
     }
   ],
   "skills": [
