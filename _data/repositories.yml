@@ -1,21 +1,7 @@
-github_users:github_users:
-
-  - AlberTgarY  - torvalds
-
-  - alshedivat
-
-repo_description_lines_max: 2
+﻿github_users:
+  - AlberTgarY
 
 repo_description_lines_max: 2
 
 github_repos:
-
-  - AlberTgarY/echoRealmgithub_repos:
-
-  - alshedivat/al-folio
-  - jekyll/jekyll
-  - twbs/bootstrap
-  - jquery/jquery
-  - FortAwesome/Font-Awesome
-  - mathjax/MathJax
-  - jpswalsh/academicons
+  - AlberTgarY/echoRealm

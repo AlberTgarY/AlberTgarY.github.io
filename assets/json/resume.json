@@ -157,31 +157,19 @@
       "name": "Computer Graphics",
       "level": "Expert",
       "icon": "fa-solid fa-desktop",
-      "keywords": [
-        "Computer-Generated Holography",
-        "Computational Display",
-        "Physics-aware Rendering"
-      ]
+      "keywords": ["Computer-Generated Holography", "Computational Display", "Physics-aware Rendering"]
     },
     {
       "name": "Computer Vision",
       "level": "Advanced",
       "icon": "fa-solid fa-eye",
-      "keywords": [
-        "Image Processing",
-        "Segmentation",
-        "Human Pose Estimation"
-      ]
+      "keywords": ["Image Processing", "Segmentation", "Human Pose Estimation"]
     },
     {
       "name": "Machine Learning",
       "level": "Advanced",
       "icon": "fa-solid fa-brain",
-      "keywords": [
-        "Deep Learning",
-        "Neural Networks",
-        "Knowledge Distillation"
-      ]
+      "keywords": ["Deep Learning", "Neural Networks", "Knowledge Distillation"]
     }
   ],
   "languages": [
@@ -205,11 +193,7 @@
     {
       "name": "Music Composition",
       "icon": "fa-solid fa-music",
-      "keywords": [
-        "Hip-hop music",
-        "Spotify",
-        "NetEase Music"
-      ]
+      "keywords": ["Hip-hop music", "Spotify", "NetEase Music"]
     }
   ],
   "references": [],

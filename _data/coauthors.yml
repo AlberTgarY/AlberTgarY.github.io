@@ -1,81 +1,47 @@
-"akşit":"adams":
+﻿aksit:
+  - firstname: ["Kaan"]
+    url: https://kaanaksit.com/
 
-  - firstname: ["Kaan"]  - firstname: ["Edwin", "E.", "E. P.", "Edwin Plimpton"]
+sun:
+  - firstname: ["Qi"]
+    url: https://qisun.me/
 
-    url: https://kaanaksit.com/    url: https://en.wikipedia.org/wiki/Edwin_Plimpton_Adams
+shi:
+  - firstname: ["Liang"]
+    url: https://people.csail.mit.edu/liangs/
 
+matusik:
+  - firstname: ["Wojciech"]
+    url: https://cdfg.mit.edu/wojciech
 
-
-"sun":"podolsky":
-
-  - firstname: ["Qi"]  - firstname: ["Boris", "B.", "B. Y.", "Boris Yakovlevich"]
-
-    url: https://qisun.me/    url: https://en.wikipedia.org/wiki/Boris_Podolsky
-
-
-
-"shi":"rosen":
-
-  - firstname: ["Liang"]  - firstname: ["Nathan", "N."]
-
-    url: https://people.csail.mit.edu/liangs/    url: https://en.wikipedia.org/wiki/Nathan_Rosen
-
-
-
-"matusik":"bach":
-
-  - firstname: ["Wojciech"]  - firstname: ["Johann Sebastian", "J. S."]
-
-    url: https://cdfg.mit.edu/wojciech    url: https://en.wikipedia.org/wiki/Johann_Sebastian_Bach
-
-
-
-"kavaklı":  - firstname: ["Carl Philipp Emanuel", "C. P. E."]
-
-  - firstname: ["Koray"]    url: https://en.wikipedia.org/wiki/Carl_Philipp_Emanuel_Bach
-
+kavakli:
+  - firstname: ["Koray"]
     url: https://scholar.google.com/citations?user=rn6XtO4AAAAJ
 
-"przibram":
-
-"urey":  - firstname: ["Karl"]
-
-  - firstname: ["Hakan"]    url: https://link.springer.com/article/10.1007/s00016-019-00242-z
-
+urey:
+  - firstname: ["Hakan"]
     url: https://mysite.ku.edu.tr/hurey/
 
-"schrodinger":
-
-"zheng":  - firstname: ["Erwin"]
-
-  - firstname: ["Chuanjun"]    url: https://en.wikipedia.org/wiki/Erwin_Schr%C3%B6dinger
-
+zheng:
+  - firstname: ["Chuanjun"]
     url: https://complightlab.com/people/chuanjun_zheng/
 
-"lorentz":
-
-"cakmakci":  - firstname: ["Hendrik Antoon"]
-
-  - firstname: ["Ozan"]    url: https://en.wikipedia.org/wiki/Hendrik_Lorentz
-
+cakmakci:
+  - firstname: ["Ozan"]
     url: https://www.ozcakmakci.com/
 
-"planck":
-
-"peng":  - firstname: ["Max"]
-
-  - firstname: ["Zicong"]    url: https://en.wikipedia.org/wiki/Max_Planck
-
+peng:
+  - firstname: ["Zicong"]
     url: https://complightlab.com/people/zicong_peng/
 
-"spjut":
+spjut:
   - firstname: ["Josef"]
     url: https://josef.spjut.me/
 
-"shin":
+shin:
   - firstname: ["Dong-Ha"]
     url: https://scholar.google.com/citations?user=VLqPH6cAAAAJ
 
-"baek":
+baek:
   - firstname: ["Seung-Hwan"]
     url: https://seung-hwan-baek.github.io/
