@@ -45,8 +45,8 @@ ninja.data = [{
             window.open("https://medium.com/@al-folio/displaying-external-posts-on-your-al-folio-blog-b60a1d241a0a?source=rss-17feae71c3c4------2", "_blank");
           
         },
-      },{id: "news-started-ph-d-at-university-college-london-under-the-supervision-of-dr-kaan-akşit",
-          title: 'Started Ph.D. at University College London under the supervision of Dr. Kaan Akşit....',
+      },{id: "news-i-started-my-ph-d-journey-at-university-college-london-under-the-supervision-of-dr-kaan-akşit",
+          title: 'I started my Ph.D. journey at University College London under the supervision of...',
           description: "",
           section: "News",},{id: "news-our-paper-autocolor-learned-light-power-control-for-multi-color-holograms-is-accepted-at-spie-vr-ar-mr-2024",
           title: 'Our paper AutoColor: Learned Light Power Control for Multi-Color Holograms is accepted at...',
@@ -54,11 +54,14 @@ ninja.data = [{
           section: "News",},{id: "news-our-paper-focal-surface-holographic-light-transport-using-learned-spatially-adaptive-convolutions-accepted-to-acm-siggraph-asia-2024-technical-communications",
           title: 'Our paper Focal Surface Holographic Light Transport using Learned Spatially Adaptive Convolutions accepted...',
           description: "",
-          section: "News",},{id: "news-started-research-internship-at-uk-huawei-technologies-r-amp-amp-d",
-          title: 'Started research internship at UK Huawei Technologies R&amp;amp;amp;D.',
+          section: "News",},{id: "news-i-started-my-position-as-a-research-intern-at-huawei-technologies-r-amp-amp-d-london-uk",
+          title: 'I started my position as a Research Intern at Huawei Technologies R&amp;amp;amp;D, London,...',
           description: "",
           section: "News",},{id: "news-our-poster-assessing-learned-models-for-phase-only-hologram-compression-accepted-to-acm-siggraph-2025-poster-track",
           title: 'Our poster Assessing Learned Models for Phase-only Hologram Compression accepted to ACM SIGGRAPH...',
+          description: "",
+          section: "News",},{id: "news-i-attended-frontiers-in-optics-laser-science-and-meta-s-7th-annual-ar-vr-xr-optics-academic-forum-in-denver-usa",
+          title: 'I attended Frontiers in Optics + Laser Science and Meta’s 7th Annual AR/VR/XR...',
           description: "",
           section: "News",},{
         id: 'social-email',
