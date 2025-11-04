@@ -60,7 +60,7 @@ ninja.data = [{
           section: "News",},{id: "news-our-poster-assessing-learned-models-for-phase-only-hologram-compression-accepted-to-acm-siggraph-2025-poster-track",
           title: 'Our poster Assessing Learned Models for Phase-only Hologram Compression accepted to ACM SIGGRAPH...',
           description: "",
-          section: "News",},{id: "news-i-attended-frontiers-in-optics-laser-science-and-meta-s-7th-annual-ar-vr-xr-optics-academic-forum-in-denver-usa",
+          section: "News",},{id: "news-i-attended-frontiers-in-optics-laser-science-and-meta-s-7th-annual-ar-vr-xr-optics-academic-forum-in-denver-usa-i-had-the-opportunity-to-meet-and-talk-with-many-brilliant-researchers-and-professors-it-was-an-inspiring-experience",
           title: 'I attended Frontiers in Optics + Laser Science and Meta’s 7th Annual AR/VR/XR...',
           description: "",
           section: "News",},{
