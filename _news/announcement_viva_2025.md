@@ -5,4 +5,4 @@ inline: true
 related_posts: false
 ---
 
-I successfully passed my Transfer Viva and have officially transferred from the MPhil to the PhD program.
+I successfully passed my Transfer Viva and have officially transferred from the MPhil to the PhD program!
