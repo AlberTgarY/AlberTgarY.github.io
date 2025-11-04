@@ -5,4 +5,4 @@ inline: true
 related_posts: false
 ---
 
-Our paper "Focal Surface Holographic Light Transport using Learned Spatially Adaptive Convolutions" accepted to ACM SIGGRAPH ASIA 2024 Technical Communications!
+Our paper <a href="https://complightlab.com/publications/focal_surface_light_transport/">Focal Surface Holographic Light Transport using Learned Spatially Adaptive Convolutions</a> accepted to ACM SIGGRAPH ASIA 2024 Technical Communications!
