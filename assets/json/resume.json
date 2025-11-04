@@ -165,18 +165,6 @@
       "language": "English",
       "fluency": "Fluent",
       "icon": ""
-    },
-    {
-      "language": "Spanish",
-      "fluency": "Intermediate",
-      "icon": ""
-    }
-  ],
-  "interests": [
-    {
-      "name": "Music Composition",
-      "icon": "fa-solid fa-music",
-      "keywords": ["Hip-hop music", "Spotify", "NetEase Music"]
     }
   ],
   "references": [],
