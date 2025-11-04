@@ -4,9 +4,7 @@
     "label": "Ph.D. Candidate",
     "image": "",
     "email": "yicheng_zhan2001@outlook.com",
-    "phone": "+44 (0) 7529150752",
-    "url": "https://albertgary.github.io/",
-    "summary": "Ph.D. candidate at University College London, specializing in Computer-Generated Holography, Computer Graphics, Computer Vision, and Computational Displays.",
+    "summary": "Ph.D. candidate at University College London, specializing in Computer-Generated Holography, Computer Graphics, and Computational Displays.",
     "location": {
       "address": "Computational Light Laboratory",
       "postalCode": "",
@@ -44,8 +42,7 @@
       "url": "https://www.huawei.com/",
       "startDate": "2025-03-01",
       "endDate": "2025-09-01",
-      "summary": "Working on 4DGS generation and human pose estimation under the supervision of Dr. Arthur Moreau.",
-      "highlights": ["4DGS generation", "Human pose estimation"]
+      "summary": "Working on 4DGS generation and human pose estimation under the supervision of Dr. Arthur Moreau."
     },
     {
       "name": "Imperial College London",
@@ -53,8 +50,7 @@
       "url": "https://www.imperial.ac.uk/",
       "startDate": "2023-07-01",
       "endDate": "2025-01-01",
-      "summary": "Designed advanced machine learning networks to enhance efficiency and accuracy in crime linkage analysis under the supervision of Assoc. Prof. Dalal Alrajeh.",
-      "highlights": ["Machine learning for crime linkage analysis"]
+      "summary": "Designed advanced machine learning networks to enhance efficiency and accuracy in crime linkage analysis under the supervision of Assoc. Prof. Dalal Alrajeh."
     },
     {
       "name": "University of Leeds",
@@ -62,8 +58,7 @@
       "url": "https://www.leeds.ac.uk/",
       "startDate": "2023-04-01",
       "endDate": "2023-12-01",
-      "summary": "Developed efficient algorithms for fashion clothing segmentation and color extraction in computer graphics.",
-      "highlights": ["Fashion clothing segmentation", "Color extraction", "Knowledge distillation"]
+      "summary": "Developed efficient algorithms for fashion clothing segmentation and color extraction in computer graphics."
     },
     {
       "name": "Microsoft China",
@@ -71,8 +66,7 @@
       "url": "https://www.microsoft.com/",
       "startDate": "2020-07-01",
       "endDate": "2020-09-01",
-      "summary": "Developed a universal web crawler to scrape daily news for an online news-feeding application.",
-      "highlights": ["Web crawler development", "News aggregation system"]
+      "summary": "Developed a universal web crawler to scrape daily news for an online news-feeding application."
     }
   ],
   "volunteer": [],
@@ -86,7 +80,7 @@
       "startDate": "2024-01-01",
       "endDate": "",
       "score": "",
-      "courses": ["Computer-Generated Holography", "Computer Graphics", "Computer Vision", "Computational Displays"]
+      "courses": ["Computer-Generated Holography", "Computer Graphics", "Computational Displays"]
     },
     {
       "institution": "University College London",
