@@ -5,4 +5,4 @@ inline: true
 related_posts: false
 ---
 
-Our paper `<a href="https://complightlab.com/autocolor_/">`AutoColor: Learned Light Power Control for Multi-Color Holograms`</a>` is accepted at SPIE VR/AR/MR 2024!
+Our paper <a href="https://complightlab.com/autocolor_/">AutoColor: Learned Light Power Control for Multi-Color Holograms</a> is accepted at SPIE VR/AR/MR 2024!
