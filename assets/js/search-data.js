@@ -57,8 +57,8 @@ ninja.data = [{
           section: "News",},{id: "news-started-student-research-internship-at-uk-huawei-technologies-r-amp-amp-d",
           title: 'Started student research internship at UK Huawei Technologies R&amp;amp;amp;D.',
           description: "",
-          section: "News",},{id: "news-our-poster-amp-lt-a-href-quot-https-dl-acm-org-doi-abs-10-1145-3721250-3742993-quot-amp-gt-assessing-learned-models-for-phase-only-hologram-compression-amp-lt-a-amp-gt-accepted-to-acm-siggraph-2025-poster-track",
-          title: 'Our poster &amp;amp;lt;a href=&amp;quot;https://dl.acm.org/doi/abs/10.1145/3721250.3742993&amp;quot;&amp;amp;gt;“Assessing Learned Models for Phase-only Hologram Compression” &amp;amp;lt;/a&amp;amp;gt; accepted to...',
+          section: "News",},{id: "news-our-poster-assessing-learned-models-for-phase-only-hologram-compression-accepted-to-acm-siggraph-2025-poster-track",
+          title: 'Our poster Assessing Learned Models for Phase-only Hologram Compression accepted to ACM SIGGRAPH...',
           description: "",
           section: "News",},{
         id: 'social-email',
