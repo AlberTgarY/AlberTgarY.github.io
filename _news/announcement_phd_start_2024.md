@@ -5,4 +5,4 @@ inline: true
 related_posts: false
 ---
 
-Started Ph.D. at University College London under the supervision of Dr. Kaan Akşit.
+I started my Ph.D. journey at University College London under the supervision of Dr. Kaan Akşit!
