@@ -117,7 +117,7 @@
   "publications": [
     {
       "name": "Complex-Valued Holographic Radiance Fields",
-      "publisher": "https://arxiv.org/abs/2506.08350 ArXiv Preprint",
+      "publisher": "ArXiv Preprint",
       "releaseDate": "2025",
       "url": "https://arxiv.org/abs/2506.08350",
       "summary": "Yicheng Zhan, Dong-Ha Shin, Seung-Hwan Baek, and Kaan Akşit"
@@ -138,7 +138,7 @@
     },
     {
       "name": "Configurable Holography: Towards Display and Scene Adaptation",
-      "publisher": "https://arxiv.org/abs/2405.01558 ArXiv Preprint",
+      "publisher": "ArXiv Preprint",
       "releaseDate": "2024",
       "url": "https://arxiv.org/abs/2405.01558",
       "summary": "Yicheng Zhan, Qi Sun, Liang Shi, Wojciech Matusik, and Kaan Akşit"
