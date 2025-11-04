@@ -147,14 +147,6 @@
       "summary": "Yicheng Zhan, Koray Kavaklı, Hakan Urey, Qi Sun, and Kaan Akşit"
     }
   ],
-  "skills": [
-    {
-      "name": "Computer Graphics",
-      "level": "Expert",
-      "icon": "fa-solid fa-desktop",
-      "keywords": ["Computer-Generated Holography", "Computational Display", "Physics-aware Rendering"]
-    }
-  ],
   "languages": [
     {
       "language": "Chinese",
