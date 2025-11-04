@@ -112,13 +112,6 @@
   "certificates": [],
   "publications": [
     {
-      "name": "Complex-Valued Holographic Radiance Fields",
-      "publisher": "ArXiv Preprint",
-      "releaseDate": "2025",
-      "url": "https://arxiv.org/abs/2506.08350",
-      "summary": "Yicheng Zhan, Dong-Ha Shin, Seung-Hwan Baek, and Kaan Akşit"
-    },
-    {
       "name": "Assessing Learned Models for Phase-only Hologram Compression",
       "publisher": "ACM SIGGRAPH 2025 Posters",
       "releaseDate": "2025",
@@ -131,13 +124,6 @@
       "releaseDate": "2024",
       "url": "https://dl.acm.org/doi/full/10.1145/3681758.3697989",
       "summary": "Chuanjun Zheng, Yicheng Zhan, Liang Shi, Ozan Cakmakci and Kaan Akşit"
-    },
-    {
-      "name": "Configurable Holography: Towards Display and Scene Adaptation",
-      "publisher": "ArXiv Preprint",
-      "releaseDate": "2024",
-      "url": "https://arxiv.org/abs/2405.01558",
-      "summary": "Yicheng Zhan, Qi Sun, Liang Shi, Wojciech Matusik, and Kaan Akşit"
     },
     {
       "name": "AutoColor: Learned Light Power Control for Multi-Color Holograms",
