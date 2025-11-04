@@ -41,32 +41,28 @@
       "position": "Research Intern - Neural Representation",
       "url": "https://www.huawei.com/",
       "startDate": "2025-04-01",
-      "endDate": "2025-09-01",
-      "summary": "Working on 4DGS generation and human pose estimation under the supervision of Dr. Arthur Moreau."
+      "endDate": "2025-09-01"
     },
     {
       "name": "Imperial College London",
       "position": "Research Assistant - Crime Linkage Analysis",
       "url": "https://www.imperial.ac.uk/",
       "startDate": "2023-07-01",
-      "endDate": "2025-01-01",
-      "summary": "Designed advanced machine learning networks to enhance efficiency and accuracy in crime linkage analysis under the supervision of Assoc. Prof. Dalal Alrajeh."
+      "endDate": "2025-01-01"
     },
     {
       "name": "University of Leeds",
       "position": "Research Assistant - Computer Vision",
       "url": "https://www.leeds.ac.uk/",
       "startDate": "2023-04-01",
-      "endDate": "2023-12-01",
-      "summary": "Developed efficient algorithms for fashion clothing segmentation and color extraction in computer graphics."
+      "endDate": "2023-12-01"
     },
     {
       "name": "Microsoft China",
       "position": "AI Programmer Intern",
       "url": "https://www.microsoft.com/",
       "startDate": "2020-07-01",
-      "endDate": "2020-09-01",
-      "summary": "Developed a universal web crawler to scrape daily news for an online news-feeding application."
+      "endDate": "2020-09-01"
     }
   ],
   "volunteer": [],
