@@ -108,12 +108,8 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
         else:
             date_range = start or end
         
-        latex_content += f"""\\textbf{{{study_type}"""
-        
-        # if 'candidate' not in study_type.lower():
-        #     latex_content += f""" in {area}"""
-        
-        latex_content += f"""}} \hfill \\textbf{{{date_range}}} \\\\\n"""
+        latex_content += f"""\\textbf{{{study_type}}} \hfill \\textbf{{{date_range}}} \\\\
+"""
         latex_content += f"""\\textbf{{{institution}}} \\hfill \\textbf{{{location}}}"""
         
         if courses:
@@ -132,12 +128,6 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
                 latex_content += f"""\\item \\textbf{{Dissertation Title}}: {area}. (\\textbf{{Supervisor}}: {supervisor})
 """
             elif 'B.Sc' in study_type or 'BS' in study_type:
-                award_text = ""
-                for award in awards:
-                    if award.get('date') == '2021':
-                        award_text = f"""\\item \\textbf{{Awards}}: Received {escape_latex(award['title'])} for excellent academic performance.
-"""
-                latex_content += award_text
                 latex_content += f"""\\item \\textbf{{Dissertation}}: {area}. (\\textbf{{Supervisor}}: {supervisor})
 """
             latex_content += "\\end{itemize}\n\n"
@@ -154,12 +144,8 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
         supervisor = escape_latex(job.get('supervisor', ''))
         description = job.get('description', '')
         
-        position_parts = position.split(' - ')
-        if len(position_parts) == 2:
-            main_position, detail = position_parts
-            latex_content += f"""\\textbf{{{detail} | {main_position}}} \\hfill \\textbf{{{start}- {end}}} \\\\\n"""
-        else:
-            latex_content += f"""\\textbf{{{position}}} \\hfill \\textbf{{{start}- {end}}} \\\\\n"""
+        latex_content += f"""\\textbf{{{position}}} \\hfill \\textbf{{{start}- {end}}} \\\\
+"""
         
         if supervisor:
             latex_content += f"""\\textbf{{{company_name}}} (\\textbf{{Supervisor}}: {supervisor}) \\hfill \\textbf{{{location}}}"""
@@ -247,10 +233,13 @@ def compile_latex(tex_content, output_name='cv'):
         f.write(tex_content)
     
     print(f"Generated {tex_file}")
-    
+
     try:
+        output_dir = os.path.dirname(os.path.abspath(output_name))
+        os.makedirs(output_dir, exist_ok=True)
+
         result = subprocess.run(
-            ['pdflatex', '-interaction=nonstopmode', tex_file],
+            ['pdflatex', f'-output-directory={output_dir}', '-interaction=nonstopmode', tex_file],
             capture_output=True,
             text=True,
             timeout=30
@@ -262,8 +251,10 @@ def compile_latex(tex_content, output_name='cv'):
             print(result.stderr)
             return False
         
-        subprocess.run(['pdflatex', '-interaction=nonstopmode', tex_file], 
-                      capture_output=True, timeout=30)
+        subprocess.run(
+            ['pdflatex', f'-output-directory={output_dir}', '-interaction=nonstopmode', tex_file],
+            capture_output=True, timeout=30
+        )
         
         for ext in ['.aux', '.log', '.out']:
             try:
@@ -285,9 +276,8 @@ def compile_latex(tex_content, output_name='cv'):
         return False
 
 def main():
-    # Hardcode input and output file names
     json_file = "resume.json"
-    output_name = "my_resume"
+    output_name = "../pdf/my_resume"
     
     try:
         with open(json_file, 'r', encoding='utf-8') as f:
