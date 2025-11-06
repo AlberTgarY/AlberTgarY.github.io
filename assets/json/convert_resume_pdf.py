@@ -104,7 +104,7 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
         if end == "Now" and start:
             date_range = f"{start} - {end}"
         elif start and end:
-            date_range = f"{start}-{end}"
+            date_range = f"{start} - {end}"
         else:
             date_range = start or end
         
@@ -144,7 +144,7 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
         supervisor = escape_latex(job.get('supervisor', ''))
         description = job.get('description', '')
         
-        latex_content += f"""\\textbf{{{position}}} \\hfill \\textbf{{{start}- {end}}} \\\\
+        latex_content += f"""\\textbf{{{position}}} \\hfill \\textbf{{{start} - {end}}} \\\\
 """
         
         if supervisor:
