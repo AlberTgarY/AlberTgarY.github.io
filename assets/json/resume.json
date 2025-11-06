@@ -3,7 +3,7 @@
     "name": "Yicheng (Albert) Zhan",
     "label": "Ph.D. Candidate",
     "image": "yicheng_zhan.png",
-    "email": "albertg2001@outlook.com",
+    "email": "yicheng_zhan2001@outlook.com",
     "summary": "2nd Ph.D. candidate at University College London, specializing in Computer-Generated Holography, Computer Graphics, and Computational Displays.",
     "location": {
       "address": "Computational Light Laboratory",
@@ -127,6 +127,26 @@
   "publications": [
     {
       "firstAuthor": "Yicheng Zhan",
+      "otherAuthors": "Fahim Ahmed, Amy Burrell, Matthew J. Tonkin, Sarah Galambos, Jessica Woodhams, and Dalal Alrajeh",
+      "name": "Enhancing Binary Encoded Crime Linkage Analysis Using Siamese Network",
+      "publisher": "AAAI 2026",
+      "releaseDate": "2026",
+      "url": "",
+      "summary": "Yicheng Zhan, Fahim Ahmed, Amy Burrell, Matthew J. Tonkin, Sarah Galambos, Jessica Woodhams, and Dalal Alrajeh",
+      "status": ""
+    },
+    {
+      "firstAuthor": "Zicong Peng",
+      "otherAuthors": "Yicheng Zhan, Josef Spjut, and Kaan Akşit",
+      "name": "Assessing Learned Models for Phase-only Hologram Compression",
+      "publisher": "ACM SIGGRAPH 2025 Posters",
+      "releaseDate": "2025",
+      "url": "https://dl.acm.org/doi/abs/10.1145/3721250.3742993",
+      "summary": "Zicong Peng, Yicheng Zhan, Josef Spjut, and Kaan Akşit",
+      "status": ""
+    },
+    {
+      "firstAuthor": "Yicheng Zhan",
       "otherAuthors": "Dong-Ha Shin, Seung-Hwan Baek, and Kaan Akşit",
       "name": "Complex-Valued Holographic Radiance Fields",
       "publisher": "2025",
@@ -163,26 +183,6 @@
       "releaseDate": "2024",
       "url": "https://dl.acm.org/doi/full/10.1145/3681758.3697989",
       "summary": "Chuanjun Zheng, Yicheng Zhan, Liang Shi, Ozan Cakmakci and Kaan Akşit",
-      "status": ""
-    },
-    {
-      "firstAuthor": "Zicong Peng",
-      "otherAuthors": "Yicheng Zhan, Josef Spjut, and Kaan Akşit",
-      "name": "Assessing Learned Models for Phase-only Hologram Compression",
-      "publisher": "ACM SIGGRAPH 2025 Posters",
-      "releaseDate": "2025",
-      "url": "https://dl.acm.org/doi/abs/10.1145/3721250.3742993",
-      "summary": "Zicong Peng, Yicheng Zhan, Josef Spjut, and Kaan Akşit",
-      "status": ""
-    },
-    {
-      "firstAuthor": "Yicheng Zhan",
-      "otherAuthors": "Fahim Ahmed, Amy Burrell, Matthew J. Tonkin, Sarah Galambos, Jessica Woodhams, and Dalal Alrajeh",
-      "name": "Enhancing Binary Encoded Crime Linkage Analysis Using Siamese Network",
-      "publisher": "AAAI 2026",
-      "releaseDate": "2026",
-      "url": "",
-      "summary": "Yicheng Zhan, Fahim Ahmed, Amy Burrell, Matthew J. Tonkin, Sarah Galambos, Jessica Woodhams, and Dalal Alrajeh",
       "status": ""
     }
   ],
