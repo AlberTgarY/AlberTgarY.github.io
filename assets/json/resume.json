@@ -2,9 +2,9 @@
   "basics": {
     "name": "Yicheng (Albert) Zhan",
     "label": "Ph.D. Candidate",
-    "image": "",
+    "image": "yicheng_zhan.png",
     "email": "yicheng_zhan2001@outlook.com",
-    "summary": "Ph.D. candidate at University College London, specializing in Computer-Generated Holography, Computer Graphics, and Computational Displays.",
+    "summary": "2nd Ph.D. candidate at University College London, specializing in Computer-Generated Holography, Computer Graphics, and Computational Displays.",
     "location": {
       "address": "Computational Light Laboratory",
       "postalCode": "",
@@ -74,7 +74,6 @@
       "area": "Advanced Algorithms for Next-Generation Computational Displays",
       "studyType": "Ph.D.",
       "startDate": "2024-01-01",
-      "endDate": "",
       "score": "",
       "courses": ["Computer-Generated Holography", "Computer Graphics", "Computational Displays"]
     },
