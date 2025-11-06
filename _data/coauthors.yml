@@ -45,3 +45,19 @@ shin:
 baek:
   - firstname: ["Seung-Hwan"]
     url: https://www.shbaek.com/
+
+burrell:
+  - firstname: ["Amy"]
+    url: https://www.birmingham.ac.uk/staff/profiles/psychology/burrell-amy
+
+tonkin:
+  - firstname: ["Matthew", "J."]
+    url: https://le.ac.uk/people/matt-tonkin
+
+woodhams:
+  - firstname: ["Jessica"]
+    url: https://www.birmingham.ac.uk/staff/profiles/psychology/woodhams-jessica
+
+alrajeh:
+  - firstname: ["Dalal"]
+    url: https://www.doc.ic.ac.uk/~da04/
