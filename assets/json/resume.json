@@ -198,7 +198,16 @@
       "icon": ""
     }
   ],
-  "interests": ["Compose Hiphop Music, Sleep, Long-distance Running"],
+  "interests": [
+    {
+      "name": "",
+      "keywords": [
+        "Compose Hiphop Music",
+        "Sleep",
+        "Long-distance Running"
+      ]
+    }
+  ],
   "additionalLanguages": [
     {
       "language": "Spanish",

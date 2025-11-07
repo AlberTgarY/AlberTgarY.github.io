@@ -46,6 +46,7 @@ def generate_latex(json_data):
     languages = json_data.get('languages', [])
     awards = json_data.get('awards', [])
     interests = json_data.get('interests', [])
+    interests_keywords = interests[0].get('keywords', []) if interests else []
     additional_languages = json_data.get('additionalLanguages', [])
     
     name = basics.get('name', '')
@@ -215,8 +216,8 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
     
     latex_content += "\n\n"
     
-    if interests:
-        latex_content += f"""Interests: {', '.join(interests)}.
+    if interests_keywords:
+        latex_content += f"""Interests: {', '.join(interests_keywords)}.
 
 """
     
