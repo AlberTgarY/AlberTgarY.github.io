@@ -73,7 +73,7 @@
       "startDate": "2020-07-01",
       "endDate": "2020-09-01",
       "location": "Beijing, China",
-      "supervisor": "Dr. Wenbin Cai",
+      "supervisor": "",
       "description": "Universal web crawler for daily news aggregation, simulating search engine behavior."
     }
   ],
