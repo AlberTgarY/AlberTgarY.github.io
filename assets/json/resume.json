@@ -37,14 +37,14 @@
   },
   "work": [
     {
-      "name": "Huawei Technologies Research & Development (UK) Ltd",
-      "position": "Research Intern - Neural Representation",
-      "url": "https://www.huawei.com/",
-      "startDate": "2025-04-01",
-      "endDate": "2025-09-01",
-      "location": "London, United Kingdom",
-      "supervisor": "Dr. Arthur Moreau",
-      "description": "4DGS generation, Human pose estimation."
+      "name": "Meta Reality Lab",
+      "position": "Research Intern - Optics Optimization",
+      "url": "https://www.meta.com/",
+      "startDate": "2026-03-09",
+      "endDate": "2026-08-23",
+      "location": "Redmond, United States",
+      "supervisor": "Dr. Yijing Fu",
+      "description": "Holographic wave-guide display."
     },
     {
       "name": "Imperial College London",
@@ -125,6 +125,16 @@
   ],
   "certificates": [],
   "publications": [
+    {
+      "firstAuthor": "Yicheng Zhan",
+      "otherAuthors": "Xiangjun Gao, Long Quan, and Kaan Akşit",
+      "name": "Complex-Valued 2D Gaussian Representation for Computer-Generated Holography",
+      "publisher": "2026",
+      "releaseDate": "2026",
+      "url": "",
+      "summary": "Yicheng Zhan, Xiangjun Gao, Long Quan, and Kaan Akşit",
+      "status": "In preparation"
+    },
     {
       "firstAuthor": "Yicheng Zhan",
       "otherAuthors": "Fahim Ahmed, Amy Burrell, Matthew J. Tonkin, Sarah Galambos, Jessica Woodhams, and Dalal Alrajeh",
