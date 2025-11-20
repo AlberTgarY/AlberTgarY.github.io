@@ -41,7 +41,7 @@
       "position": "Research Intern - Optics Optimization",
       "url": "https://www.meta.com/",
       "startDate": "2026-03-09",
-      "endDate": "2026-08-23",
+      "endDate": "2026-09-09",
       "location": "Redmond, United States",
       "supervisor": "Dr. Yijing Fu",
       "description": "Holographic wave-guide display."
@@ -127,16 +127,6 @@
   "publications": [
     {
       "firstAuthor": "Yicheng Zhan",
-      "otherAuthors": "Xiangjun Gao, Long Quan, and Kaan Akşit",
-      "name": "Complex-Valued 2D Gaussian Representation for Computer-Generated Holography",
-      "publisher": "2026",
-      "releaseDate": "2026",
-      "url": "",
-      "summary": "Yicheng Zhan, Xiangjun Gao, Long Quan, and Kaan Akşit",
-      "status": "In preparation"
-    },
-    {
-      "firstAuthor": "Yicheng Zhan",
       "otherAuthors": "Fahim Ahmed, Amy Burrell, Matthew J. Tonkin, Sarah Galambos, Jessica Woodhams, and Dalal Alrajeh",
       "name": "Enhancing Binary Encoded Crime Linkage Analysis Using Siamese Network",
       "publisher": "AAAI 2026",
@@ -144,6 +134,16 @@
       "url": "https://arxiv.org/abs/2511.07651",
       "summary": "Yicheng Zhan, Fahim Ahmed, Amy Burrell, Matthew J. Tonkin, Sarah Galambos, Jessica Woodhams, and Dalal Alrajeh",
       "status": ""
+    },
+    {
+      "firstAuthor": "Yicheng Zhan",
+      "otherAuthors": "Xiangjun Gao, Long Quan, and Kaan Akşit",
+      "name": "Complex-Valued 2D Gaussian Representation for Computer-Generated Holography",
+      "publisher": "ArXiv Preprint 2025",
+      "releaseDate": "2025",
+      "url": "https://arxiv.org/abs/2511.15022",
+      "summary": "Yicheng Zhan, Xiangjun Gao, Long Quan, and Kaan Akşit",
+      "status": "In preparation"
     },
     {
       "firstAuthor": "Zicong Peng",
