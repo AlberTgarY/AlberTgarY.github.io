@@ -16,6 +16,13 @@ ninja.data = [{
           handler: () => {
             window.location.href = "/publications/";
           },
+        },{id: "nav-music",
+          title: "music",
+          description: "Here are the albums I made, echoRealm (2026)",
+          section: "Navigation",
+          handler: () => {
+            window.location.href = "/music/";
+          },
         },{id: "nav-cv",
           title: "cv",
           description: "Curriculum Vitae of Yicheng (Albert) Zhan",
