@@ -248,12 +248,16 @@ description: Here are the albums I made
     }
     albumLink.textContent = album.name;
     audio.pause();
-    audio.src = "";
+    audio.currentTime = 0;
     progressBar.style.width = "0%";
     timeCur.textContent = "0:00";
     timeDur.textContent = "0:00";
     playBtn.textContent = "Play";
-    loadTrack(0, false);
+    trackIdx = 0;
+    audio.src = album.tracks[0].src;
+    audio.load();
+    trackTitle.textContent = album.tracks[0].title;
+    renderList();
     renderTabs();
   }
 
@@ -267,14 +271,14 @@ description: Here are the albums I made
       num.textContent = String(i + 1).padStart(2, "0");
       const btn = document.createElement("button");
       btn.textContent = t.title;
-      btn.addEventListener("click", () => loadTrack(i, true));
+      btn.addEventListener("click", () => loadTrack(i));
       item.appendChild(num);
       item.appendChild(btn);
       listEl.appendChild(item);
     });
   }
 
-  function loadTrack(i, autoplay) {
+  function loadTrack(i) {
     const tracks = albums[albumIdx].tracks;
     trackIdx = (i + tracks.length) % tracks.length;
     audio.pause();
@@ -283,22 +287,16 @@ description: Here are the albums I made
     trackTitle.textContent = tracks[trackIdx].title;
     progressBar.style.width = "0%";
     timeCur.textContent = "0:00";
-    playBtn.textContent = "Pause";
     renderList();
-    if (autoplay) {
-      audio.addEventListener("canplay", function onCanPlay() {
-        audio.removeEventListener("canplay", onCanPlay);
-        audio.play();
-      });
-    }
+    audio.play();
   }
 
   /* ---- Controls ---- */
   playBtn.addEventListener("click", () => {
     if (audio.paused) audio.play(); else audio.pause();
   });
-  prevBtn.addEventListener("click", () => loadTrack(trackIdx - 1, true));
-  nextBtn.addEventListener("click", () => loadTrack(trackIdx + 1, true));
+  prevBtn.addEventListener("click", () => loadTrack(trackIdx - 1));
+  nextBtn.addEventListener("click", () => loadTrack(trackIdx + 1));
 
   audio.addEventListener("play",  () => (playBtn.textContent = "Pause"));
   audio.addEventListener("pause", () => (playBtn.textContent = "Play"));
