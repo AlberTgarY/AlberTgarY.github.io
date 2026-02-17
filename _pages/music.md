@@ -4,7 +4,7 @@ permalink: /music/
 title: music
 nav: true
 nav_order: 3
-description: Here are the albums I madee:
+description: Here are the albums I made
 ---
 
 <div class="echo-player" style="margin: 2.5rem auto; max-width: 720px;">
