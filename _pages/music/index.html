@@ -1,0 +1,89 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd"> <html><body> <div class="echo-player" style="margin: 2.5rem auto; max-width: 720px;"> <div class="echo-card"> <img class="echo-cover" src="/music/echorealm/echorealm.jpg" alt="echoRealm album cover"> <div class="echo-meta"> <a class="echo-album" href="https://music.163.com/#/album?id=361732175&amp;uct2=U2FsdGVkX1/xkPGdBqPZJy7ax778Wy99RpWKP530k34=" target="_blank" rel="noopener"> echoRealm (2026) </a> <div class="echo-track" id="echoTrackTitle">Jasper JD7714</div> <div class="echo-controls"> <button class="echo-btn" id="echoPrev" aria-label="Previous track">◀</button> <button class="echo-btn echo-primary" id="echoPlay" aria-label="Play or pause">Play</button> <button class="echo-btn" id="echoNext" aria-label="Next track">▶</button> </div> <audio id="echoAudio" preload="metadata"></audio> </div> </div> <div class="echo-list" id="echoList" aria-label="Track list"></div> </div> <style>.echo-card{display:grid;grid-template-columns:140px 1fr;gap:1.5rem;padding:1.5rem;border:1px solid rgba(120,120,120,0.2);border-radius:16px;background:rgba(255,255,255,0.7);backdrop-filter:blur(8px)}.echo-cover{width:140px;height:140px;border-radius:12px;object-fit:cover;box-shadow:0 8px 24px rgba(0,0,0,0.12)}.echo-meta{display:flex;flex-direction:column;gap:.5rem;justify-content:center}.echo-album{font-weight:600;color:inherit;text-decoration:none}.echo-album:hover{text-decoration:underline}.echo-track{font-size:1.1rem;font-weight:500}.echo-controls{display:flex;gap:.5rem;margin-top:.5rem}.echo-btn{border:1px solid rgba(120,120,120,0.3);background:transparent;color:inherit;padding:.45rem .9rem;border-radius:999px;cursor:pointer;transition:all .2s ease}.echo-btn:hover{border-color:rgba(120,120,120,0.6);background:rgba(120,120,120,0.08)}.echo-primary{font-weight:600}.echo-list{margin-top:1.5rem;border-radius:12px;overflow:hidden;border:1px solid rgba(120,120,120,0.2)}.echo-item{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem 1rem;border-bottom:1px solid rgba(120,120,120,0.12);background:rgba(255,255,255,0.55)}.echo-item:last-child{border-bottom:0}.echo-item button{border:0;background:0;font:inherit;color:inherit;text-align:left;cursor:pointer;flex:1}.echo-item span{opacity:.6;min-width:2ch}.echo-item.is-active{background:rgba(40,40,40,0.06)}@media(max-width:600px){.echo-card{grid-template-columns:1fr;text-align:center}.echo-cover{margin:0 auto}.echo-controls{justify-content:center}}</style> <script>
+  const echoTracks = [
+    {
+      title: "Jasper JD7714",
+      src: "/music/echorealm/AlbErt%20-%20Jasper%20JD7714.mp3",
+    },
+    {
+      title: "Seviyor mu",
+      src: "/music/echorealm/AlbErt%20-%20Seviyor%20mu.mp3",
+    },
+    {
+      title: "Configurable - A",
+      src: "/music/echorealm/AlbErt%20-%20Configurable%20-%20A.mp3",
+    },
+    {
+      title: "Configurable - B",
+      src: "/music/echorealm/AlbErt%20-%20Configurable%20-%20B.mp3",
+    },
+    {
+      title: "Interlude - \"please take a seat\"",
+      src: "/music/echorealm/AlbErt%20-%20Interlude%20-%20please%20take%20a%20seat.mp3",
+    },
+    {
+      title: "SW1V 2LF",
+      src: "/music/echorealm/AlbErt%20-%20SW1V%202LF.mp3",
+    },
+    {
+      title: "Outro - \"Flauta Lunar\"",
+      src: "/music/echorealm/AlbErt%20-%20Outro%20-%20Flauta%20Lunar.mp3",
+    },
+    {
+      title: "Untitled-01",
+      src: "/music/echorealm/AlbErt%20-%20Untitled-01.mp3",
+    },
+  ];
+
+  const echoAudio = document.getElementById("echoAudio");
+  const echoPlay = document.getElementById("echoPlay");
+  const echoPrev = document.getElementById("echoPrev");
+  const echoNext = document.getElementById("echoNext");
+  const echoTrackTitle = document.getElementById("echoTrackTitle");
+  const echoList = document.getElementById("echoList");
+
+  let echoIndex = 0;
+
+  function renderEchoList() {
+    echoList.innerHTML = "";
+    echoTracks.forEach((track, index) => {
+      const item = document.createElement("div");
+      item.className = "echo-item" + (index === echoIndex ? " is-active" : "");
+      const number = document.createElement("span");
+      number.textContent = String(index + 1).padStart(2, "0");
+      const button = document.createElement("button");
+      button.textContent = track.title;
+      button.addEventListener("click", () => loadEchoTrack(index, true));
+      item.appendChild(number);
+      item.appendChild(button);
+      echoList.appendChild(item);
+    });
+  }
+
+  function loadEchoTrack(index, autoplay = false) {
+    echoIndex = (index + echoTracks.length) % echoTracks.length;
+    const track = echoTracks[echoIndex];
+    echoAudio.src = track.src;
+    echoTrackTitle.textContent = track.title;
+    renderEchoList();
+    if (autoplay) {
+      echoAudio.play();
+    }
+  }
+
+  echoPlay.addEventListener("click", () => {
+    if (echoAudio.paused) {
+      echoAudio.play();
+    } else {
+      echoAudio.pause();
+    }
+  });
+
+  echoPrev.addEventListener("click", () => loadEchoTrack(echoIndex - 1, true));
+  echoNext.addEventListener("click", () => loadEchoTrack(echoIndex + 1, true));
+
+  echoAudio.addEventListener("play", () => (echoPlay.textContent = "Pause"));
+  echoAudio.addEventListener("pause", () => (echoPlay.textContent = "Play"));
+  echoAudio.addEventListener("ended", () => loadEchoTrack(echoIndex + 1, true));
+
+  loadEchoTrack(0, false);
+</script> </body></html>
