@@ -181,7 +181,7 @@ description: Here are the albums I made
       cover: "{{ '/music/leave4oreverpt1/leaveforeverpt1.jpg' | relative_url }}",
       link: "",
       tracks: [
-        { title: "intro - \"time to leave\"",   src: "{{ '/music/leave4oreverpt1/1%20-%20Leave%204orever%20Pt.1%20-%20intro%20-%20%22time%20to%20leave%22.mp3' | relative_url }}" },
+        { title: "intro - \"time to leave\"",   src: "{{ '/music/leave4oreverpt1/1%20-%20Leave%204orever%20Pt.1%20-%20intro%20-%20%E2%80%9Dtime%20to%20leave%E2%80%9D.mp3' | relative_url }}" },
         { title: "do you even know me",        src: "{{ '/music/leave4oreverpt1/2%20-%20Leave%204orever%20Pt.1%20-%20do%20you%20even%20know%20me.mp3' | relative_url }}" },
         { title: "skit1",                      src: "{{ '/music/leave4oreverpt1/3%20-%20Leave%204orever%20Pt.1%20-%20skit1.mp3' | relative_url }}" },
         { title: "out of my reverie",          src: "{{ '/music/leave4oreverpt1/4%20-%20Leave%204orever%20Pt.1%20-%20out%20of%20my%20reverie.mp3' | relative_url }}" },
@@ -192,7 +192,7 @@ description: Here are the albums I made
         { title: "remember that",              src: "{{ '/music/leave4oreverpt1/9%20-%20Leave%204orever%20Pt.1%20-%20remember%20that.mp3' | relative_url }}" },
         { title: "sink into the ocean",        src: "{{ '/music/leave4oreverpt1/10%20-%20Leave%204orever%20Pt.1%20-%20sink%20into%20the%20ocean.mp3' | relative_url }}" },
         { title: "too deep",                   src: "{{ '/music/leave4oreverpt1/11%20-%20Leave%204orever%20Pt.1%20-%20too%20deep.mp3' | relative_url }}" },
-        { title: "outro - \"rewind2018\"",       src: "{{ '/music/leave4oreverpt1/12%20-%20Leave%204orever%20Pt.1%20-%20outro%20-%20%22rewind2018%22.mp3' | relative_url }}" },
+        { title: "outro - \"rewind2018\"",       src: "{{ '/music/leave4oreverpt1/12%20-%20Leave%204orever%20Pt.1%20-%20outro%20-%20%E2%80%9Crewind2018%E2%80%9D.mp3' | relative_url }}" },
         { title: "untitled-07",                src: "{{ '/music/leave4oreverpt1/13%20-%20Leave%204orever%20Pt.1%20-%20untitled-07.mp3' | relative_url }}" },
       ],
     },
