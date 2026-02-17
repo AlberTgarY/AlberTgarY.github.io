@@ -277,12 +277,20 @@ description: Here are the albums I made
   function loadTrack(i, autoplay) {
     const tracks = albums[albumIdx].tracks;
     trackIdx = (i + tracks.length) % tracks.length;
+    audio.pause();
     audio.src = tracks[trackIdx].src;
+    audio.load();
     trackTitle.textContent = tracks[trackIdx].title;
     progressBar.style.width = "0%";
     timeCur.textContent = "0:00";
+    playBtn.textContent = "Pause";
     renderList();
-    if (autoplay) audio.play();
+    if (autoplay) {
+      audio.addEventListener("canplay", function onCanPlay() {
+        audio.removeEventListener("canplay", onCanPlay);
+        audio.play();
+      });
+    }
   }
 
   /* ---- Controls ---- */
