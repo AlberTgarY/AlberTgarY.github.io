@@ -76,6 +76,9 @@ ninja.data = [{
           section: "News",},{id: "news-our-paper-enhancing-binary-encoded-crime-linkage-analysis-using-siamese-network-is-accepted-at-aaai-2026",
           title: 'Our paper Enhancing Binary Encoded Crime Linkage Analysis Using Siamese Network is accepted...',
           description: "",
+          section: "News",},{id: "news-our-paper-complex-valued-holographic-radiance-fields-is-accepted-at-acm-transactions-on-graphics-tog-and-will-be-presented-at-siggraph-2026",
+          title: 'Our paper Complex-Valued Holographic Radiance Fields is accepted at ACM Transactions on Graphics...',
+          description: "",
           section: "News",},{
         id: 'social-email',
         title: 'email',
