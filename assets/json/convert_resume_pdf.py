@@ -38,7 +38,7 @@ def format_date(date_str):
 
 def generate_latex(json_data):
     """Generate LaTeX document from JSON data"""
-    
+
     basics = json_data.get('basics', {})
     education = json_data.get('education', [])
     work = json_data.get('work', [])
@@ -48,14 +48,14 @@ def generate_latex(json_data):
     interests = json_data.get('interests', [])
     interests_keywords = interests[0].get('keywords', []) if interests else []
     additional_languages = json_data.get('additionalLanguages', [])
-    
+
     name = basics.get('name', '')
     email = basics.get('email', '')
     profiles = basics.get('profiles', [])
-    
+
     google_scholar = next((p['url'] for p in profiles if p['network'] == 'Google Scholar'), '')
     github = next((p['url'] for p in profiles if p['network'] == 'GitHub'), '')
-    
+
     latex_content = r"""\documentclass[10pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{mathptmx}
@@ -90,7 +90,7 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
 
 \section*{EDUCATION}
 """
-    
+
     for edu in education:
         institution = escape_latex(edu.get('institution', ''))
         study_type = escape_latex(edu.get('studyType', ''))
@@ -101,18 +101,18 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
         score = escape_latex(edu.get('score', ''))
         supervisor = escape_latex(edu.get('supervisor', ''))
         courses = edu.get('courses', [])
-        
+
         if end == "Now" and start:
             date_range = f"{start} - {end}"
         elif start and end:
             date_range = f"{start} - {end}"
         else:
             date_range = start or end
-        
+
         latex_content += f"""\\textbf{{{study_type}}} \hfill \\textbf{{{date_range}}} \\\\
 """
         latex_content += f"""\\textbf{{{institution}}} \\hfill \\textbf{{{location}}}"""
-        
+
         if courses:
             latex_content += f"""\\begin{{itemize}}
 \\item \\textbf{{Core Fields}}: {', '.join([escape_latex(c) for c in courses])}.
@@ -132,10 +132,10 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
                 latex_content += f"""\\item \\textbf{{Dissertation}}: {area}. (\\textbf{{Supervisor}}: {supervisor})
 """
             latex_content += "\\end{itemize}\n\n"
-    
+
     latex_content += r"""\section*{WORK EXPERIENCE}
 """
-    
+
     for job in work:
         company_name = escape_latex(job.get('name', ''))
         position = escape_latex(job.get('position', ''))
@@ -144,29 +144,31 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
         location = escape_latex(job.get('location', ''))
         supervisor = escape_latex(job.get('supervisor', ''))
         description = job.get('description', '')
-        
+
         latex_content += f"""\\textbf{{{position}}} \\hfill \\textbf{{{start} - {end}}} \\\\
 """
-        
+
         if supervisor:
-            latex_content += f"""\\textbf{{{company_name}}} (\\textbf{{Supervisor}}: {supervisor}) \\hfill \\textbf{{{location}}}"""
+            latex_content += f"""{company_name} (Supervisor: {supervisor}) \\hfill \\textbf{{{location}}}"""
         else:
-            latex_content += f"""\\textbf{{{company_name}}} \\hfill \\textbf{{{location}}}"""
-        
-        if description:
+            latex_content += f"""{company_name} \\hfill \\textbf{{{location}}}"""
+
+        if description and description.strip():
             latex_content += f"""\\begin{{itemize}}
 \\item {description}
 \\end{{itemize}}
 
 """
-    
+        else:
+            latex_content += "\n\\vspace{0.01em}\n\n"
+
     latex_content += r"""\section*{PUBLICATIONS}
 \begin{itemize}
 """
-    
+
     user_name_clean = re.sub(r'\s*\([^)]*\)\s*', ' ', name).strip()
     escaped_user_name = escape_latex(user_name_clean)
-    
+
     for pub in publications:
         first_author = escape_latex(pub.get('firstAuthor', ''))
         other_authors = escape_latex(pub.get('otherAuthors', ''))
@@ -174,65 +176,65 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
         venue = escape_latex(pub.get('publisher', ''))
         status = pub.get('status', '')
         url = pub.get('url', '')
-        
+
         if first_author == escaped_user_name:
             latex_content += f"""\\item \\textbf{{{first_author}}}, """
         else:
             latex_content += f"""\\item {first_author}, """
-        
+
         if escaped_user_name in other_authors:
             other_authors = other_authors.replace(escaped_user_name, f"\\textbf{{{escaped_user_name}}}")
-        
+
         latex_content += f"""{other_authors}, \\textit{{``{title}''}} """
-        
+
         if status:
             latex_content += f"""{venue}. ({status}) """
         else:
             latex_content += f"""\\textit{{{venue}}}. """
-        
+
         if url:
             latex_content += f"""(\\href{{{url}}}{{Web}})"""
-        
+
         latex_content += "\n"
-    
+
     latex_content += r"""\end{itemize}
 
 \section*{SKILLS}
 """
-    
+
     lang_list = []
     for lang in languages:
         language = escape_latex(lang.get('language', ''))
         fluency = escape_latex(lang.get('fluency', ''))
         lang_list.append(f"{language} ({fluency.lower()})")
-    
+
     latex_content += f"""Language skills: {', '.join(lang_list)}"""
-    
+
     if additional_languages:
         for lang in additional_languages:
             language = escape_latex(lang.get('language', ''))
             fluency = escape_latex(lang.get('fluency', ''))
             latex_content += f""", {language} ({fluency})"""
-    
+
     latex_content += "\n\n"
-    
+
     if interests_keywords:
         latex_content += f"""Interests: {', '.join(interests_keywords)}.
 
 """
-    
+
     latex_content += r"""\end{document}
 """
-    
+
     return latex_content
 
 def compile_latex(tex_content, output_name='cv'):
     """Compile LaTeX to PDF"""
     tex_file = f'{output_name}.tex'
-    
+
     with open(tex_file, 'w', encoding='utf-8') as f:
         f.write(tex_content)
-    
+
     print(f"Generated {tex_file}")
 
     try:
@@ -245,27 +247,27 @@ def compile_latex(tex_content, output_name='cv'):
             text=True,
             timeout=30
         )
-        
+
         if result.returncode != 0:
             print("LaTeX compilation failed:")
             print(result.stdout)
             print(result.stderr)
             return False
-        
+
         subprocess.run(
             ['pdflatex', f'-output-directory={output_dir}', '-interaction=nonstopmode', tex_file],
             capture_output=True, timeout=30
         )
-        
+
         for ext in ['.aux', '.log', '.out']:
             try:
                 os.remove(f'{output_name}{ext}')
             except:
                 pass
-        
+
         print(f"Successfully generated {output_name}.pdf")
         return True
-        
+
     except subprocess.TimeoutExpired:
         print("LaTeX compilation timed out")
         return False
@@ -279,7 +281,7 @@ def compile_latex(tex_content, output_name='cv'):
 def main():
     json_file = "resume.json"
     output_name = "../pdf/my_resume"
-    
+
     try:
         with open(json_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -289,9 +291,9 @@ def main():
     except json.JSONDecodeError:
         print(f"Error: Invalid JSON in {json_file}")
         sys.exit(1)
-    
+
     latex_content = generate_latex(data)
-    
+
     if compile_latex(latex_content, output_name):
         print(f"CV generated successfully: {output_name}.pdf")
     else:
