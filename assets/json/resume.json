@@ -134,7 +134,7 @@
   ],
   "certificates": [],
   "publications": [
-      {
+    {
       "firstAuthor": "Xiaoyue Fan",
       "otherAuthors": "Yicheng Zhan, Amrita Mazumdar, and Kaan Akşit",
       "name": "Compressing Double-Phase Holograms using 2D Gaussians",

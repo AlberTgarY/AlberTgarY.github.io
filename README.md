@@ -1,6 +1,7 @@
 # al-folio
-bundle exec jekyll serve
 
+bundle exec jekyll serve
+npm install && npx prettier . --write
 
 ## License
 
