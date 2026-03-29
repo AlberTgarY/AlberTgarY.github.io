@@ -61,3 +61,11 @@ woodhams:
 alrajeh:
   - firstname: ["Dalal"]
     url: https://www.doc.ic.ac.uk/~da04/
+
+mazumdar:
+  - firstname: ["Amrita"]
+    url: https://amritamaz.net/
+
+fan:
+  - firstname: ["Xiaoyue"]
+    url: https://merryxyfan.github.io/
