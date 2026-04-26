@@ -3,6 +3,8 @@
 bundle exec jekyll serve
 npm install && npx prettier . --write
 
+bundle exec jekyll serve --config _config.yml,_config.local.yml
+
 ## License
 
 The theme is available as open source under the terms of the [MIT License](https://github.com/alshedivat/al-folio/blob/main/LICENSE).
