@@ -3,7 +3,7 @@
 bundle exec jekyll serve
 npm install && npx prettier . --write
 
-bundle exec jekyll serve --config _config.yml,_config.local.yml
+bundle exec jekyll serve --config \_config.yml,\_config.local.yml
 
 ## License
 
