@@ -29,7 +29,8 @@ back_to_top: true # set to false to disable the back to top button
 repo_theme_light: default # https://github.com/anuraghazra/github-readme-stats/blob/master/themes/README.md
 repo_theme_dark: dark # https://github.com/anuraghazra/github-readme-stats/blob/master/themes/README.md
 repo_trophies:
-  enabled: true
+imagemagick:
+  enabled: false
   theme_light: flat # https://github.com/ryo-ma/github-profile-trophy
   theme_dark: gitdimmed # https://github.com/ryo-ma/github-profile-trophy
 
@@ -189,6 +190,7 @@ exclude:
   - README.md
   - readme_preview/
   - vendor
+  - assets/jupyter/ # excluded: jupyter not installed locally
 keep_files:
   - CNAME
   - .nojekyll
@@ -199,8 +201,8 @@ plugins:
   - jekyll-email-protect
   - jekyll-feed
   - jekyll-get-json
-  - jekyll-imagemagick
-  - jekyll-jupyter-notebook
+  # - jekyll-imagemagick # disabled: conflicts with Windows built-in convert.exe
+  # - jekyll-jupyter-notebook # disabled: jupyter not installed
   - jekyll-link-attributes
   - jekyll-minifier
   - jekyll-paginate-v2
@@ -345,7 +347,7 @@ external_links:
 # MAKE SURE imagemagick is installed and on your PATH before enabling imagemagick. In a terminal, run:
 #   convert -version
 imagemagick:
-  enabled: true # enables responsive images for your site (recommended, see https://github.com/alshedivat/al-folio/issues/537)
+  enabled: false # disabled for local Windows dev (conflicts with Windows convert.exe)
   widths:
     - 480
     - 800
