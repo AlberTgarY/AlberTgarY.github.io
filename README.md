@@ -1,4 +1,5 @@
 # al-folio
+bundle install
 
 bundle exec jekyll serve
 npm install && npx prettier . --write
