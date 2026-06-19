@@ -95,7 +95,12 @@
         {%- endif -%}
       {% endfor %}
       {% if entry.annotation %}
-        <span class="equal-contrib" style="font-size: 0.8rem; font-style: italic; color: var(--global-text-color-light, #828282); margin-left: 0.4em; white-space: nowrap;">{{ entry.annotation }}</span>
+        <span
+          class="equal-contrib"
+          style="font-size: 0.8rem; font-style: italic; color: var(--global-text-color-light, #828282); margin-left: 0.4em; white-space: nowrap;"
+        >
+          {{- entry.annotation -}}
+        </span>
       {% endif %}
     </div>
 
