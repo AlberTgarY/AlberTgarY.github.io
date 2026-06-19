@@ -180,10 +180,17 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
         if first_author == escaped_user_name:
             latex_content += f"""\\item \\textbf{{{first_author}}}, """
         else:
-            latex_content += f"""\\item {first_author}, """
+            first_author_clean = re.sub(r'[\*\u2217\u2020\u2021\u00a7\u00b6]+', '', first_author).strip()
+            if first_author_clean == escaped_user_name:
+                latex_content += f"""\\item \\textbf{{{first_author}}}, """
+            else:
+                latex_content += f"""\\item {first_author}, """
 
-        if escaped_user_name in other_authors:
-            other_authors = other_authors.replace(escaped_user_name, f"\\textbf{{{escaped_user_name}}}")
+        other_authors = re.sub(
+            re.escape(escaped_user_name) + r'(?:[\*\u2217\u2020\u2021\u00a7\u00b6])*',
+            lambda m: f"\\textbf{{{m.group(0)}}}",
+            other_authors,
+        )
 
         latex_content += f"""{other_authors}, \\textit{{``{title}''}} """
 
