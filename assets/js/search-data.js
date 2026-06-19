@@ -85,6 +85,9 @@ ninja.data = [{
           section: "News",},{id: "news-our-paper-compressing-double-phase-holograms-using-2d-gaussians-is-accepted-at-eurographics-2026-poster-track",
           title: 'Our paper Compressing Double-Phase Holograms using 2D Gaussians is accepted at Eurographics 2026...',
           description: "",
+          section: "News",},{id: "news-our-paper-complex-valued-2d-gaussian-representation-for-computer-generated-holography-is-accepted-at-the-european-conference-on-computer-vision-eccv-2026",
+          title: 'Our paper Complex-Valued 2D Gaussian Representation for Computer-Generated Holography is accepted at the...',
+          description: "",
           section: "News",},{
         id: 'social-email',
         title: 'email',
