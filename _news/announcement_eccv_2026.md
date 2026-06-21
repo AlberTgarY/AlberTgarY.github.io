@@ -5,4 +5,4 @@ inline: true
 related_posts: false
 ---
 
-Our paper <a href="https://arxiv.org/abs/2511.15022">Complex-Valued 2D Gaussian Representation for Computer-Generated Holography</a> is accepted at the European Conference on Computer Vision (ECCV) 2026!
+Our paper <a href="https://complightlab.com/publications/complex_valued_2d_gaussians/">Complex-Valued 2D Gaussian Representation for Computer-Generated Holography</a> is accepted at the European Conference on Computer Vision (ECCV) 2026!
