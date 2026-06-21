@@ -17,6 +17,7 @@ bundle exec jekyll serve --config _config.yml,_config.local.yml
 ```
 
 Notes:
+
 - Always pass `--config _config.yml,_config.local.yml` locally; `_config.local.yml` excludes
   `assets/jupyter/` (no local Jupyter) and disables ImageMagick on Windows.
 - `_scripts/whiten_teasers.py` is idempotent: it scans `assets/img/publication_preview/`
