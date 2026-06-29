@@ -140,7 +140,7 @@
       "name": "Clustered Codebook Quantization for 2D Gaussian-based Image Compression",
       "publisher": "ACM SIGGRAPH 2026 Posters",
       "releaseDate": "2026",
-      "url": "https://doi.org/10.1145/3799825.3818700",
+      "url": "https://complightlab.com/publications/clustercodebook2DGS/",
       "summary": "Runze Cheng, Yicheng Zhan, Josef Spjut, and Kaan Akşit",
       "status": ""
     },
@@ -165,14 +165,14 @@
       "status": ""
     },
     {
-      "firstAuthor": "Yicheng Zhan",
-      "otherAuthors": "Xiangjun Gao, Long Quan, and Kaan Akşit",
+      "firstAuthor": "Yicheng Zhan*",
+      "otherAuthors": "Xiangjun Gao*, Long Quan, and Kaan Akşit (*Equal Contribution)",
       "name": "Complex-Valued 2D Gaussian Representation for Computer-Generated Holography",
-      "publisher": "ArXiv Preprint 2025",
-      "releaseDate": "2025",
-      "url": "https://arxiv.org/abs/2511.15022",
+      "publisher": "ECCV 2026",
+      "releaseDate": "2026",
+      "url": "https://complightlab.com/publications/complex_valued_2d_gaussians/",
       "summary": "Yicheng Zhan, Xiangjun Gao, Long Quan, and Kaan Akşit",
-      "status": "In preparation"
+      "status": ""
     },
     {
       "firstAuthor": "Zicong Peng",

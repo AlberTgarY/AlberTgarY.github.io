@@ -95,14 +95,12 @@
         {%- endif -%}
       {% endfor %}
       {% if entry.annotation %}
-        <i
-          class="fa-solid fa-circle-info ml-1"
-          data-toggle="popover"
-          data-placement="top"
-          data-html="true"
-          data-content="{{ entry.annotation | escape }}"
+        <span
+          class="equal-contrib"
+          style="font-size: 0.8rem; font-style: italic; color: var(--global-text-color-light, #828282); margin-left: 0.4em; white-space: nowrap;"
         >
-        </i>
+          {{- entry.annotation -}}
+        </span>
       {% endif %}
     </div>
 

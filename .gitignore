@@ -12,3 +12,8 @@ node_modules/
 vendor
 .idea
 _config.local.yml
+
+# Local dev artifacts
+jekyll_serve.log
+jekyll_serve.err.log
+assets/img/publication_preview/*_orig.png
