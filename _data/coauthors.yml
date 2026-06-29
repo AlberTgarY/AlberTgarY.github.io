@@ -77,3 +77,7 @@ gao:
 quan:
   - firstname: ["Long"]
     url: https://home.cse.ust.hk/~quan/
+
+cheng:
+  - firstname: ["Runze"]
+    url: https://aidcheng.github.io/
