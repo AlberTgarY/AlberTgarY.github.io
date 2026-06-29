@@ -135,6 +135,16 @@
   "certificates": [],
   "publications": [
     {
+      "firstAuthor": "Runze Cheng",
+      "otherAuthors": "Yicheng Zhan, Josef Spjut, and Kaan Akşit",
+      "name": "Clustered Codebook Quantization for 2D Gaussian-based Image Compression",
+      "publisher": "ACM SIGGRAPH 2026 Posters",
+      "releaseDate": "2026",
+      "url": "https://doi.org/10.1145/3799825.3818700",
+      "summary": "Runze Cheng, Yicheng Zhan, Josef Spjut, and Kaan Akşit",
+      "status": ""
+    },
+    {
       "firstAuthor": "Xiaoyue Fan",
       "otherAuthors": "Yicheng Zhan, Amrita Mazumdar, and Kaan Akşit",
       "name": "Compressing Double-Phase Holograms using 2D Gaussians",
