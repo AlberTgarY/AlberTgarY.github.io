@@ -88,6 +88,9 @@ ninja.data = [{
           section: "News",},{id: "news-our-paper-complex-valued-2d-gaussian-representation-for-computer-generated-holography-is-accepted-at-the-european-conference-on-computer-vision-eccv-2026",
           title: 'Our paper Complex-Valued 2D Gaussian Representation for Computer-Generated Holography is accepted at the...',
           description: "",
+          section: "News",},{id: "news-our-poster-clustered-codebook-quantization-for-2d-gaussian-based-image-compression-is-accepted-to-acm-siggraph-2026-poster-track",
+          title: 'Our poster Clustered Codebook Quantization for 2D Gaussian-based Image Compression is accepted to...',
+          description: "",
           section: "News",},{
         id: 'social-email',
         title: 'email',
