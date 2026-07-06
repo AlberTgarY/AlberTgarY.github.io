@@ -74,7 +74,9 @@
       "location": "Leeds, United Kingdom",
       "supervisor": "",
       "description": ""
-    },
+    }
+  ],
+  "_disabledWork": [
     {
       "name": "Microsoft China",
       "position": "AI Programmer Intern",
@@ -196,12 +198,12 @@
     },
     {
       "firstAuthor": "Yicheng Zhan",
-      "otherAuthors": "Qi Sun, Liang Shi, Wojciech Matusik, and Kaan Akşit",
+      "otherAuthors": "Liang Shi, Wojciech Matusik, Qi Sun, and Kaan Akşit",
       "name": "Configurable Holography: Towards Display and Scene Adaptation",
       "publisher": "ArXiv Preprint 2024",
       "releaseDate": "2024",
       "url": "https://arxiv.org/abs/2405.01558",
-      "summary": "Yicheng Zhan, Qi Sun, Liang Shi, Wojciech Matusik, and Kaan Akşit",
+      "summary": "Yicheng Zhan, Liang Shi, Wojciech Matusik, Qi Sun, and Kaan Akşit",
       "status": "In preparation"
     },
     {
