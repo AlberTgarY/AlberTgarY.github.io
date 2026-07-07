@@ -29,8 +29,15 @@ layout: default
           {% endif %}
           <div class="profile-photo-switcher">
             <style>
-              .profile-photo-switcher { position: relative; display: inline-block; width: 100%; }
-              .profile-photo-switcher #profile-photo { display: block; width: 100%; }
+              .profile-photo-switcher {
+                position: relative;
+                display: inline-block;
+                width: 100%;
+              }
+              .profile-photo-switcher #profile-photo {
+                display: block;
+                width: 100%;
+              }
               .profile-photo-arrow {
                 position: absolute;
                 bottom: 0.5rem;
@@ -48,11 +55,20 @@ layout: default
                 align-items: center;
                 justify-content: center;
                 opacity: 0.7;
-                transition: opacity 0.2s ease, background 0.2s ease;
+                transition:
+                  opacity 0.2s ease,
+                  background 0.2s ease;
               }
-              .profile-photo-arrow:hover { opacity: 1; background: rgba(0, 0, 0, 0.7); }
-              .profile-photo-arrow-left { left: 0.5rem; }
-              .profile-photo-arrow-right { right: 0.5rem; }
+              .profile-photo-arrow:hover {
+                opacity: 1;
+                background: rgba(0, 0, 0, 0.7);
+              }
+              .profile-photo-arrow-left {
+                left: 0.5rem;
+              }
+              .profile-photo-arrow-right {
+                right: 0.5rem;
+              }
             </style>
             <img
               id="profile-photo"
@@ -60,23 +76,33 @@ layout: default
               src="{{ profile_image_1 }}"
               alt="{{ page.profile.image }}"
               loading="eager"
-            />
+            >
             {% if profile_image_2 %}
-              <button type="button" id="profile-photo-prev" class="profile-photo-arrow profile-photo-arrow-left" aria-label="Previous photo">&#8592;</button>
-              <button type="button" id="profile-photo-next" class="profile-photo-arrow profile-photo-arrow-right" aria-label="Next photo">&#8594;</button>
+              <button type="button" id="profile-photo-prev" class="profile-photo-arrow profile-photo-arrow-left" aria-label="Previous photo">
+                &#8592;
+              </button>
+              <button type="button" id="profile-photo-next" class="profile-photo-arrow profile-photo-arrow-right" aria-label="Next photo">
+                &#8594;
+              </button>
               <script>
                 (function () {
-                  var photos = ["{{ profile_image_1 }}", "{{ profile_image_2 }}"];
+                  var photos = ['{{ profile_image_1 }}', '{{ profile_image_2 }}'];
                   var idx = 0;
-                  var img = document.getElementById("profile-photo");
+                  var img = document.getElementById('profile-photo');
                   function show(next) {
                     idx = (idx + next + photos.length) % photos.length;
                     img.src = photos[idx];
                   }
-                  var prev = document.getElementById("profile-photo-prev");
-                  var nxt = document.getElementById("profile-photo-next");
-                  if (prev) prev.addEventListener("click", function () { show(-1); });
-                  if (nxt) nxt.addEventListener("click", function () { show(1); });
+                  var prev = document.getElementById('profile-photo-prev');
+                  var nxt = document.getElementById('profile-photo-next');
+                  if (prev)
+                    prev.addEventListener('click', function () {
+                      show(-1);
+                    });
+                  if (nxt)
+                    nxt.addEventListener('click', function () {
+                      show(1);
+                    });
                 })();
               </script>
             {% endif %}
