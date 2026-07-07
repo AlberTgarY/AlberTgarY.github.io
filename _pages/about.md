@@ -6,7 +6,8 @@ subtitle: Ph.D. Candidate at <a href='https://www.ucl.ac.uk/'>University College
 
 profile:
   align: right
-  image: prof_pic.jpg
+  image: 28514_livephoto.jpg # shown first (on top)
+  image2: prof_pic.jpg # toggled via the switch button
   image_circular: false # crops the image to make it circular
   more_info: >
     yicheng_zhan2001@outlook.com
@@ -30,4 +31,4 @@ Yicheng Zhan (弈诚 战) is a Ph.D. candidate at University College London, aff
 Prior to his doctoral studies, Yicheng completed his M.Sc. in the Department of Computer Graphics and Vision Imaging at University College London and obtained his B.Sc. from King's College London.
 
 **Reviewer for Conferences and Journals:**
-SIGGRAPH, Optica, ISMAR, TVCG, Optics Express
+SIGGRAPH, SIGGRAPH ASIA, Optica, ISMAR, TVCG, Optics Express
