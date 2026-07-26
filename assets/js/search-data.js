@@ -91,6 +91,9 @@ ninja.data = [{
           section: "News",},{id: "news-our-poster-clustered-codebook-quantization-for-2d-gaussian-based-image-compression-is-accepted-to-acm-siggraph-2026-poster-track",
           title: 'Our poster Clustered Codebook Quantization for 2D Gaussian-based Image Compression is accepted to...',
           description: "",
+          section: "News",},{id: "news-i-presented-our-work-complex-valued-holographic-radiance-fields-at-the-siggraph-2026-technical-papers-session-in-los-angeles-usa",
+          title: 'I presented our work Complex-Valued Holographic Radiance Fields at the SIGGRAPH 2026 Technical...',
+          description: "",
           section: "News",},{
         id: 'social-email',
         title: 'email',
