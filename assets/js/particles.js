@@ -26,8 +26,11 @@
   const frameInterval = 1000 / (isSafari || !finePointer ? 30 : 60);
 
   // Screen area (px squared) that each shape gets to itself -- larger = sparser.
-  const AREA_PER_SHAPE = { lite: 79000, safari: 61000, default: 38000 };
-  const MIN_SHAPES = { lite: 4, safari: 5, default: 10 };
+  const AREA_PER_SHAPE = { lite: 99000, safari: 76000, default: 47500 };
+  const MIN_SHAPES = { lite: 3, safari: 4, default: 8 };
+
+  // Stroke opacity, picked randomly per shape within this range.
+  const SHAPE_OPACITY = { min: 0.08, max: 0.16 };
 
   // Interaction is only live while the pointer is fine and motion is allowed.
   const interactive = () =>
@@ -64,7 +67,7 @@
       this.type = Math.floor(Math.random() * 3);
       this.phase = Math.random() * Math.PI * 2;
       this.floatSpeed = Math.random() * 0.3 + 0.1;
-      this.opacity = Math.random() * 0.15 + 0.15;
+      this.opacity = SHAPE_OPACITY.min + Math.random() * (SHAPE_OPACITY.max - SHAPE_OPACITY.min);
     }
 
     update() {
