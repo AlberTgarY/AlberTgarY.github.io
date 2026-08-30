@@ -18,7 +18,11 @@
   <!-- Body -->
   <body class="{% if site.navbar_fixed %}fixed-top-nav{% endif %} {% unless site.footer_fixed %}sticky-bottom-footer{% endunless %}">
     <!-- Interactive geometric background -->
-    <canvas id="particle-canvas" aria-hidden="true"></canvas>
+    <canvas
+      id="particle-canvas"
+      aria-hidden="true"
+      style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1"
+    ></canvas>
 
     <!-- Header -->
     {% include header.liquid %}
