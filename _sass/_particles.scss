@@ -1,0 +1,29 @@
+/*******************************************************************************
+ * Interactive geometric particle background (assets/js/particles.js)
+ ******************************************************************************/
+
+// The canvas sits behind the page, so the page background has to move up to
+// <html> and the body itself becomes transparent.
+html {
+  background-color: var(--global-bg-color);
+}
+
+body {
+  background-color: transparent;
+}
+
+#particle-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+  will-change: contents;
+  transform: translateZ(0);
+}
+
+html[data-disable-particles] #particle-canvas {
+  display: none !important;
+}

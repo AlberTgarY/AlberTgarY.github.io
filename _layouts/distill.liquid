@@ -53,6 +53,9 @@
   </d-front-matter>
 
   <body class="{% if site.navbar_fixed %}fixed-top-nav{% endif %} {% unless site.footer_fixed %}sticky-bottom-footer{% endunless %}">
+    <!-- Interactive geometric background -->
+    <canvas id="particle-canvas" aria-hidden="true"></canvas>
+
     <!-- Header -->
     {% include header.liquid %}
 
