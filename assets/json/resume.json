@@ -1,7 +1,6 @@
 {
   "basics": {
     "name": "Yicheng (Albert) Zhan",
-    "label": "Ph.D. Candidate",
     "image": "yicheng_zhan.png",
     "email": "yicheng_zhan2001@outlook.com",
     "summary": "3rd year Ph.D. candidate at University College London, specializing in Computational Displays, Generative Model, and Computer Graphics.",
@@ -38,7 +37,7 @@
   "work": [
     {
       "name": "Meta Reality Lab",
-      "position": "Research Scientist Intern - Optics Optimization",
+      "position": "Research Scientist Intern - Generative Model",
       "url": "https://www.meta.com/",
       "startDate": "2026-03-09",
       "location": "Redmond, United States",
