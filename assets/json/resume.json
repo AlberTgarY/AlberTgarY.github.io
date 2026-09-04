@@ -37,7 +37,7 @@
   "work": [
     {
       "name": "Meta Reality Lab",
-      "position": "Research Scientist Intern - Generative Model",
+      "position": "Research Scientist Intern - Generative Model for AR display",
       "url": "https://www.meta.com/",
       "startDate": "2026-03-09",
       "location": "Redmond, United States",
@@ -46,7 +46,7 @@
     },
     {
       "name": "Huawei Technologies Research & Development (UK) Ltd",
-      "position": "Research Scientist Intern - Neural Representation",
+      "position": "Research Scientist Intern - 3D Reconstruction",
       "url": "https://www.huawei.com/",
       "startDate": "2025-04-01",
       "endDate": "2025-09-01",
@@ -93,7 +93,7 @@
       "institution": "University College London - Computational Light Laboratory",
       "location": "London, United Kingdom",
       "url": "https://www.ucl.ac.uk/",
-      "area": "Advanced Algorithms for Next-Generation Computational Displays",
+      "area": "Advanced Algorithms for Next-Generation AR and Computational Displays",
       "studyType": "Ph.D. candidate (3rd year)",
       "startDate": "2024-01-01",
       "score": "",

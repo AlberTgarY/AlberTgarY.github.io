@@ -26,7 +26,7 @@ latest_posts:
   limit: 3 # leave blank to include all the blog posts
 ---
 
-Yicheng Zhan (弈诚 战) is a Ph.D. candidate at University College London, affiliated with the <a href="https://complightlab.com/" target="_blank">Computational Light Laboratory</a>, under the supervision of Dr. Kaan Akşit. His research primarily focuses on Computational Display, Generative Model, and Physics-aware Rendering. His academic interests lie at the intersection of computer graphics and emerging display technologies.
+Yicheng Zhan (弈诚 战) is a Ph.D. candidate at University College London, affiliated with the <a href="https://complightlab.com/" target="_blank">Computational Light Laboratory</a>, under the supervision of Dr. Kaan Akşit. His research primarily focuses on Computational Display, Generative Model, and Physics-aware Rendering. His academic interests lie at the intersection of computer graphics and emerging AR &amp; display technologies.
 
 Prior to his doctoral studies, Yicheng completed his M.Sc. in the Department of Computer Graphics and Vision Imaging at University College London and obtained his B.Sc. from King's College London.
 
