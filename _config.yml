@@ -307,6 +307,8 @@ filtered_bibtex_keywords:
     bibtex_show,
     blog,
     code,
+    code_placeholder,
+    doi_placeholder,
     google_scholar_id,
     html,
     inspirehep_id,
@@ -318,6 +320,7 @@ filtered_bibtex_keywords:
     supp,
     video,
     website,
+    website_placeholder,
   ]
 
 # Maximum number of authors to be shown for each publication (more authors are visible on click)

@@ -136,6 +136,16 @@
   "certificates": [],
   "publications": [
     {
+      "firstAuthor": "Haolong Wang",
+      "otherAuthors": "Yicheng Zhan, Kaan Akşit, and Simeng Qiu",
+      "name": "Hologram Representation via Quadratic Phase Gaussian Splatting",
+      "publisher": "ACM SIGGRAPH Asia 2026 Tech Comm.",
+      "releaseDate": "2026",
+      "url": "https://arxiv.org/abs/2609.11434",
+      "summary": "Haolong Wang, Yicheng Zhan, Kaan Akşit, and Simeng Qiu",
+      "status": ""
+    },
+    {
       "firstAuthor": "Runze Cheng",
       "otherAuthors": "Yicheng Zhan, Josef Spjut, and Kaan Akşit",
       "name": "Clustered Codebook Quantization for 2D Gaussian-based Image Compression",

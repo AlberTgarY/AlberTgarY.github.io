@@ -173,7 +173,9 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
         first_author = escape_latex(pub.get('firstAuthor', ''))
         other_authors = escape_latex(pub.get('otherAuthors', ''))
         title = escape_latex(pub.get('name', ''))
-        venue = escape_latex(pub.get('publisher', ''))
+        # the templates below append their own period, so drop a trailing one
+        # (e.g. "Tech Comm." would otherwise render as "Tech Comm..")
+        venue = escape_latex(pub.get('publisher', '').rstrip('. '))
         status = pub.get('status', '')
         url = pub.get('url', '')
 
