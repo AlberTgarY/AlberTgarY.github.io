@@ -94,6 +94,9 @@ ninja.data = [{
           section: "News",},{id: "news-i-presented-our-work-complex-valued-holographic-radiance-fields-at-the-siggraph-2026-technical-papers-session-in-los-angeles-usa",
           title: 'I presented our work Complex-Valued Holographic Radiance Fields at the SIGGRAPH 2026 Technical...',
           description: "",
+          section: "News",},{id: "news-our-paper-hologram-representation-via-quadratic-phase-gaussian-splatting-is-accepted-at-acm-siggraph-asia-2026-technical-communications",
+          title: 'Our paper Hologram Representation via Quadratic Phase Gaussian Splatting is accepted at ACM...',
+          description: "",
           section: "News",},{
         id: 'social-email',
         title: 'email',
