@@ -3,7 +3,7 @@
     "name": "Yicheng (Albert) Zhan",
     "image": "yicheng_zhan.png",
     "email": "yicheng_zhan2001@outlook.com",
-    "summary": "3rd year Ph.D. candidate at University College London, specializing in Computational Displays, Generative Model, and Computer Graphics.",
+    "summary": "3rd year Ph.D. candidate at University College London, bringing the wave nature of light into algorithms and 3D representations through wave-optics rendering and learned and generative models.",
     "location": {
       "address": "Computational Light Laboratory",
       "postalCode": "",
@@ -98,14 +98,14 @@
       "startDate": "2024-01-01",
       "score": "",
       "supervisor": "Assoc. Prof. Kaan Akşit",
-      "courses": ["Computational Displays", "Generative Model", "Computer Graphics"]
+      "courses": ["Computer Graphics", "Computational Displays", "Machine Learning"]
     },
     {
       "institution": "University College London",
       "location": "London, United Kingdom",
       "url": "https://www.ucl.ac.uk/",
       "area": "Urban Semantic Understanding",
-      "studyType": "M.Sc. in Computer Graphics and Vision Imaging",
+      "studyType": "M.Sc. in Computer Graphics, Vision and Imaging",
       "startDate": "2021-09-01",
       "endDate": "2022-09-01",
       "score": "First Class Distinction",

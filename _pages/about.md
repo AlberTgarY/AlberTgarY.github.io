@@ -26,9 +26,10 @@ latest_posts:
   limit: 3 # leave blank to include all the blog posts
 ---
 
-Yicheng Zhan (弈诚 战) is a Ph.D. candidate at University College London, affiliated with the <a href="https://complightlab.com/" target="_blank">Computational Light Laboratory</a>, under the supervision of Dr. Kaan Akşit. His research primarily focuses on Computational Display, Generative Model, and Physics-aware Rendering. His academic interests lie at the intersection of computer graphics and emerging AR &amp; display technologies.
+I am Yicheng Zhan (战弈诚), a Ph.D. candidate at University College London in the <a href="https://complightlab.com/" target="_blank">Computational Light Laboratory</a>, advised by Dr. Kaan Akşit. I received my M.Sc. from University College London and my B.Sc. from King's College London.
 
-Prior to his doctoral studies, Yicheng completed his M.Sc. in the Department of Computer Graphics and Vision Imaging at University College London and obtained his B.Sc. from King's College London.
+My research interests lie at the intersection of computer graphics, computational displays, and machine learning. I aim to bring the wave nature of light, including interference and diffraction, into algorithms and 3D representations for better understanding and interaction with the real world. To this end, I develop wave-optics renderers alongside learned and generative models for understanding light phenomena.
 
-**Reviewer for Conferences and Journals:**
-SIGGRAPH, SIGGRAPH ASIA, AAAI, Optica, ISMAR, TVCG, Optics Express
+My main goal is to build visual models that behave like the real world, serving as reliable sources of reality beyond visually correct scenes. Applications span AR/VR, next-generation holographic displays, virtual production, and physically accurate simulation for scientific discovery and machine perception.
+
+**Reviewer:** SIGGRAPH, SIGGRAPH Asia, AAAI, ISMAR (conferences); IEEE TVCG, Optica, Optics Express (journals)
