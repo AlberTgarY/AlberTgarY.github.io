@@ -149,7 +149,8 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
 """
 
         if supervisor:
-            latex_content += f"""{company_name} (Supervisor: {supervisor}) \\hfill \\textbf{{{location}}}"""
+            label = "Supervisors" if " and " in supervisor else "Supervisor"
+            latex_content += f"""{company_name} ({label}: {supervisor}) \\hfill \\textbf{{{location}}}"""
         else:
             latex_content += f"""{company_name} \\hfill \\textbf{{{location}}}"""
 
