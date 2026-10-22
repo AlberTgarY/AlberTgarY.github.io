@@ -37,18 +37,6 @@ $black-color: #000000 !default;
 $code-bg-color-light: rgba($purple-color, 0.05);
 $code-bg-color-dark: #2c3237 !default;
 
-// Fonts (loaded from Google Fonts, see third_party_libraries.google_fonts in _config.yml)
-$cjk-fonts: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei";
-$sans-font:
-  "Inter",
-  -apple-system,
-  BlinkMacSystemFont,
-  "Segoe UI",
-  $cjk-fonts,
-  sans-serif;
-$serif-font: "Source Serif 4", Georgia, "Noto Serif SC", "Songti SC", serif;
-$mono-font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
 // Font awesome location
 $fa-font-path: "../webfonts";
 
