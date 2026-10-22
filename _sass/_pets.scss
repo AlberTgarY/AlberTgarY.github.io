@@ -55,9 +55,32 @@ html.pet-hover * {
   image-rendering: pixelated;
 }
 
+// The food a hungry pet wants, in a speech bubble over its head (placed by the script).
+.pet-want {
+  position: absolute;
+  width: 26px;
+  height: 22px;
+  pointer-events: none;
+  background: center / contain no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+}
+
+.pet-want-collie {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 11' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3330' d='M2 0h9v1H2zM1 1h1v1H1zM11 1h1v1H11zM0 2h1v1H0zM12 2h1v1H12zM0 3h1v1H0zM12 3h1v1H12zM0 4h1v1H0zM12 4h1v1H12zM0 5h1v1H0zM12 5h1v1H12zM0 6h1v1H0zM12 6h1v1H12zM1 7h1v1H1zM11 7h1v1H11zM2 8h3v1H2zM6 8h5v1H6zM4 9h1v1H4zM6 9h1v1H6zM5 10h1v1H5z'/%3E%3Cpath fill='%23ffffff' d='M2 1h9v1H2zM1 2h4v1H1zM8 2h4v1H8zM1 3h3v1H1zM9 3h3v1H9zM1 4h1v1H1zM11 4h1v1H11zM1 5h2v1H1zM10 5h2v1H10zM1 6h3v1H1zM9 6h3v1H9zM2 7h9v1H2zM5 8h1v1H5zM5 9h1v1H5z'/%3E%3Cpath fill='%23a8662f' d='M5 2h3v1H5zM4 3h1v1H4zM6 3h1v1H6zM8 3h1v1H8z'/%3E%3Cpath fill='%237d4520' d='M5 3h1v1H5zM7 3h1v1H7z'/%3E%3Cpath fill='%237ba7ea' d='M2 4h9v1H2z'/%3E%3Cpath fill='%234f86d6' d='M3 5h7v1H3zM4 6h5v1H4z'/%3E%3C/svg%3E");
+}
+
+.pet-want-cat {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 11' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3330' d='M2 0h9v1H2zM1 1h1v1H1zM11 1h1v1H11zM0 2h1v1H0zM12 2h1v1H12zM0 3h1v1H0zM12 3h1v1H12zM0 4h1v1H0zM12 4h1v1H12zM0 5h1v1H0zM12 5h1v1H12zM0 6h1v1H0zM12 6h1v1H12zM1 7h1v1H1zM11 7h1v1H11zM2 8h3v1H2zM6 8h5v1H6zM4 9h1v1H4zM6 9h1v1H6zM5 10h1v1H5z'/%3E%3Cpath fill='%23ffffff' d='M2 1h9v1H2zM1 2h3v1H1zM7 2h5v1H7zM1 3h2v1H1zM8 3h2v1H8zM11 3h1v1H11zM1 4h1v1H1zM10 4h2v1H10zM1 5h2v1H1zM8 5h2v1H8zM11 5h1v1H11zM1 6h3v1H1zM7 6h5v1H7zM2 7h9v1H2zM5 8h1v1H5zM5 9h1v1H5z'/%3E%3Cpath fill='%23e8913f' d='M4 2h3v1H4zM3 3h5v1H3zM10 3h1v1H10zM2 4h1v1H2zM4 4h6v1H4zM10 5h1v1H10zM4 6h3v1H4z'/%3E%3Cpath fill='%232b2522' d='M3 4h1v1H3z'/%3E%3Cpath fill='%23f6c27e' d='M3 5h5v1H3z'/%3E%3C/svg%3E");
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .pet-heart {
     animation: pet-heart 1.2s steps(8) forwards;
+  }
+
+  .pet-want {
+    animation: pet-want 1s steps(2) infinite alternate;
   }
 
   // The "z" floats up from beside the sleeping pet's head (placed by the script).
@@ -70,6 +93,12 @@ html.pet-hover * {
     color: #fff;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     animation: pet-z 2.4s steps(8) infinite;
+  }
+}
+
+@keyframes pet-want {
+  to {
+    transform: translateY(-3px);
   }
 }
 

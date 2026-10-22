@@ -10,9 +10,11 @@
  * nap when left alone, and wear knitted nightcaps in dark mode. They keep out of
  * each other's way, and only one takes a lap at a time while the others watch.
  * A model may walk a lane a little further back, so the pets pass in front of
- * it (it keeps a little to one side of them when it stops), may have an idle
- * trick of its own, and may feed a pet that eats: the pet comes over and eats
- * from a bowl beside it. Styles are in _sass/_pets.scss.
+ * it (it keeps a little to one side of them when it stops), may have idle
+ * tricks of its own, and may feed the pets: now and then one pet gets hungry
+ * (never two at once) and waits with a food bubble over its head, the others
+ * step out of the way, and the feeder comes over and kneels to serve it a bowl.
+ * Styles are in _sass/_pets.scss.
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -35,7 +37,6 @@ function start() {
   const GAP = 72; // px pets keep between them on the front path
   const LAP_GAP = 40; // px other pets in the lane may be from the way to the start of a lap (or to a meal)
   const CROSS = 44; // px a pet stops to one side of a pet in another lane, so neither hides the other
-  const FEED_GAP = 66; // px from the feeder to a pet eating beside it, which puts the bowl just in front of the feeder
   const EAT_TIME = 7; // s a meal takes, the first 1.5 s of it pouring
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isDark = () => document.documentElement.getAttribute("data-theme") === "dark";
@@ -174,15 +175,17 @@ function start() {
     let stateStart = 0;
     let stateUntil = 0;
     let walkTo = 0;
-    let afterWalk = null; // "lap" or "eat" to start on arrival
+    let afterWalk = null; // "lap" or "feed" to start on arrival
+    let trick = null; // the name of the trick being done
+    let hungry = false;
+    let bubble = null; // the food bubble shown while hungry
     let partner = null; // the pet being fed, or the one feeding this pet
-    let eatFacing = 0;
     let heartAt = 0;
     let hurried = false; // already stepping aside from a pet in another lane
     let lapAngle = 0; // position on the lap: π/2 is the middle of the front path
     let lapEnd = 0;
     let lapDir = 1;
-    let nextActionAt = now() + rnd(6, 12);
+    let nextActionAt = now() + rnd(5, 9);
     let happyUntil = -1;
     let hopStart = -1;
     let yaw = 0; // the body's facing; CAM_YAW faces the viewer, CAM_YAW ± π/2 walks along the screen
@@ -205,7 +208,7 @@ function start() {
     function wake() {
       setState("idle");
       yawTarget = nearestTurn(0);
-      nextActionAt = now() + rnd(8, 16);
+      nextActionAt = now() + rnd(5, 9);
     }
 
     function walk(to, then = null) {
@@ -265,63 +268,80 @@ function start() {
       return null;
     }
 
+    // Rolls: a lap 25% of the time, a stroll 15%, a nap 15% (10% for a model with tricks, which does one
+    // of its tricks the rest of the time, each as likely); no laps or strolls while a pet is being fed.
     function chooseAction(t) {
       const roll = Math.random();
       const someoneLapping = others().some(lapping);
+      const settled = !someoneLapping && !mealTime();
       if (nearOtherLane(x)) {
         const to = strollTarget();
         if (to !== null) return walk(to);
       }
-      if (roll < 0.4 && world.lapOk && !someoneLapping && clear(Math.min(x, world.cx), Math.max(x, world.cx), LAP_GAP)) {
+      if (roll < 0.25 && world.lapOk && settled && clear(Math.min(x, world.cx), Math.max(x, world.cx), LAP_GAP)) {
         if (Math.abs(x - world.cx) < 2) startLap();
         else walk(world.cx, "lap");
         return;
       }
-      if (roll < 0.65 && !someoneLapping) {
+      const napsUntil = rig.tricks ? 0.5 : 0.55;
+      if (roll < 0.4 && settled) {
         const to = strollTarget();
         if (to !== null) return walk(to);
-      } else if (roll < 0.8 && t - pointer.movedAt > 6) {
+      } else if (roll < napsUntil && t - pointer.movedAt > 6) {
         return setState("sleep", rnd(10, 20));
-      } else if (roll >= 0.8 && !someoneLapping) {
-        if (rig.feeds && Math.random() < 0.6 && feed()) return;
-        if (rig.trickTime) {
-          yawTarget = nearestTurn(CAM_YAW); // face the viewer to show it off
-          return setState("trick", rig.trickTime);
-        }
+      } else if (roll >= napsUntil && rig.tricks && !someoneLapping) {
+        const names = Object.keys(rig.tricks);
+        trick = names[Math.floor(Math.random() * names.length)];
+        yawTarget = nearestTurn(CAM_YAW); // face the viewer to show it off
+        return setState("trick", rig.tricks[trick]);
       }
-      nextActionAt = t + rnd(6, 12);
+      nextActionAt = t + rnd(5, 9);
     }
 
-    /* ----- feeding ----- */
+    /* ----- hunger and feeding ----- */
 
-    // Offer food to a pet that eats (waking it if asleep); it comes to eat beside the feeder, on
-    // whichever side it can reach.
-    function feed() {
-      const eater = others().find((p) => p.eats && (p.state === "idle" || p.state === "sleep"));
-      if (!eater) return false;
-      for (const side of Math.random() < 0.5 ? [1, -1] : [-1, 1])
-        if (eater.comeToEat(self, x + side * FEED_GAP)) {
-          partner = eater;
-          yawTarget = nearestTurn(CAM_YAW + side * 0.75); // towards it, still showing the face
-          setState("feed", 12); // gives up if it never arrives
-          return true;
-        }
-      return false;
+    const mealTime = () => pets.some((p) => p.hungry || p.state === "eat");
+    const feeder = () => pets.find((p) => p.feeds);
+
+    // Hungry: wait here with a food bubble over the head until the feeder comes, while the others in the
+    // lane step away to make room.
+    function getHungry() {
+      hungry = true;
+      bubble = document.createElement("span");
+      bubble.className = `pet-want pet-want-${el.dataset.pet}`;
+      el.appendChild(bubble);
+      sameLane().forEach((p) => p.makeRoom(x));
     }
 
-    function comeToEat(feeder, to) {
-      if (to < world.minX || to > world.maxX || !clear(Math.min(x, to), Math.max(x, to), LAP_GAP)) return false;
-      partner = feeder;
-      eatFacing = CAM_YAW + Math.sign(feeder.x - to) * (Math.PI / 2 - 0.5); // towards the feeder, turned a little to the viewer
-      walk(to, "eat");
-      return true;
+    // Out of the way of a hungry pet at `from`: off to the end of the path on this side of it.
+    function makeRoom(from) {
+      if (state === "sleep") wake();
+      if (state !== "idle") return;
+      const end = x < from ? world.minX : world.maxX;
+      if (Math.abs(end - x) > 8) walk(end);
     }
 
-    function startEating() {
+    // The feeder goes to kneel beside the hungry pet, on the side away from the other pets in its lane
+    // when there is room there.
+    function goFeed(eater) {
+      const rival = pets.find((p) => p !== eater && p !== self && p.lane === eater.lane);
+      let side = rival ? Math.sign(eater.x - rival.restX) || 1 : Math.random() < 0.5 ? 1 : -1;
+      if (eater.x + side * eater.feedGap > world.maxX || eater.x + side * eater.feedGap < world.minX) side = -side;
+      partner = eater;
+      if (state === "sleep") wake();
+      walk(clamp(eater.x + side * eater.feedGap, world.minX, world.maxX), "feed");
+    }
+
+    // Served by `server`: eat from the bowl, facing it and turned a little to the viewer.
+    function eat(server) {
+      hungry = false;
+      bubble.remove();
+      bubble = null;
+      partner = server;
       setState("eat", EAT_TIME);
-      yawTarget = nearestTurn(eatFacing);
+      yawTarget = nearestTurn(CAM_YAW + Math.sign(server.x - x) * (Math.PI / 2 - 0.5));
       heartAt = stateStart + 2;
-      partner.serve();
+      server.serve();
     }
 
     // A heart pops up over the face.
@@ -389,14 +409,17 @@ function start() {
       else if (happyTilt === 0) happyTilt = look.x >= 0 ? 0.14 : -0.14;
 
       // Stopped right in front of, or behind, a pet in another lane: step aside soon.
-      if (state === "idle" && !hurried && nearOtherLane(x)) {
+      if (state === "idle" && !hungry && !hurried && nearOtherLane(x)) {
         hurried = true;
         nextActionAt = Math.min(nextActionAt, t + rnd(1, 2.5));
       }
-      if (state === "idle" && t > nextActionAt && !document.hidden) chooseAction(t);
-      if ((sleeping || state === "trick" || state === "eat") && t > stateUntil) wake();
-      // A feeder waits for the pet to come over, then watches it eat.
-      if (state === "feed" && (t > stateUntil || !(partner.state === "walk" && partner.afterWalk === "eat"))) wake();
+      // A feeder goes to a hungry pet as soon as it is free (waking if asleep).
+      const hungryPet = rig.feeds && (state === "idle" || sleeping) ? pets.find((p) => p.hungry) : null;
+      if (hungryPet) goFeed(hungryPet);
+      if (state === "idle" && !hungry && t > nextActionAt && !document.hidden) chooseAction(t);
+      if ((state === "sleep" || state === "trick" || state === "eat") && t > stateUntil) wake();
+      // A feeder holds the food out for a moment, then serves it and watches the pet eat.
+      if (state === "feed" && t > stateUntil) partner.eat(self);
       if (state === "serve" && partner.state !== "eat") wake();
       if (state === "eat" && t > heartAt) {
         heart();
@@ -409,8 +432,10 @@ function start() {
         if ((step > 0 && x >= walkTo) || (step <= 0 && x <= walkTo)) {
           x = walkTo;
           if (afterWalk === "lap") startLap();
-          else if (afterWalk === "eat") startEating();
-          else wake();
+          else if (afterWalk === "feed") {
+            yawTarget = nearestTurn(CAM_YAW + Math.sign(partner.x - x) * 0.75); // towards it, still showing the face
+            setState("feed", 0.8);
+          } else wake();
         }
         place();
       } else if (state === "lap") {
@@ -440,6 +465,7 @@ function start() {
       let ty;
       const pointerActive = pointer.seen && t - pointer.movedAt < 3;
       const lapper = others().find((p) => p.state === "lap");
+      const diner = others().find((p) => p.hungry || p.state === "eat");
       if (pointerActive) {
         [tx, ty] = aimAt(r, pointer.x, pointer.y, window.innerWidth * 0.4);
         glance.at = t + 2;
@@ -455,13 +481,14 @@ function start() {
           glance.at = t + rnd(1.5, 4);
           glanceTilt = rnd(0, 1) < 0.25 ? rnd(-0.2, 0.2) : 0;
         }
-        const watch = lapper || glance.pet;
+        const watch = lapper || diner || glance.pet;
         if (watch) [tx, ty] = aimAt(r, ...watch.center(), 160);
         else [tx, ty] = [glance.x, glance.y];
       }
       if (sleeping) [tx, ty] = [0, 1];
       if (state === "trick" || state === "eat") [tx, ty] = [0, 0]; // straight out at the viewer, or into the bowl
       if (state === "feed" || state === "serve") [tx, ty] = aimAt(r, ...partner.center(), 160);
+      if (hungry && feeder()) [tx, ty] = aimAt(r, ...feeder().center(), 160); // waiting for the feeder
       look.x = approach(look.x, tx, 7, dt);
       look.y = approach(look.y, ty, 7, dt);
 
@@ -521,7 +548,12 @@ function start() {
 
       const elapsed = t - stateStart;
       const progress = stateUntil > stateStart ? clamp(elapsed / (stateUntil - stateStart), 0, 1) : 0;
-      rig.animate(dt, { happy, walking, lying, sleeping, stride, gait, state, elapsed, progress });
+      rig.animate(dt, { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress });
+      if (bubble) {
+        const [fx, fy] = facePx();
+        bubble.style.left = `${fx - 13}px`;
+        bubble.style.top = `${fy - 58}px`;
+      }
       render();
     }
 
@@ -552,9 +584,16 @@ function start() {
         place();
       },
       lane,
+      feeds: !!rig.feeds,
       eats: !!rig.eats,
-      comeToEat,
-      // The pet has come to eat: pour, then watch.
+      feedGap: rig.feedGap,
+      getHungry,
+      makeRoom,
+      eat,
+      get hungry() {
+        return hungry;
+      },
+      // The pet is eating: pour, then watch.
       serve() {
         if (state === "feed") setState("serve");
       },
@@ -609,9 +648,23 @@ function start() {
     // Only the frontmost pet under a resting mouse is hovered; re-tested every frame, as pets move under it.
     const hovered = pointer.mouse ? pets.find((p) => p.over(pointer.x, pointer.y)) : null;
     document.documentElement.classList.toggle("pet-hover", !!hovered);
+    updateHunger(now());
     pets.forEach((p) => onScreen.get(p.el) && p.update(dt, p === hovered));
     // Pets behind the photo go under it (z-index 0, below the photo's 1); the rest stack from back to front.
     [...pets].sort((a, b) => a.depth - b.depth).forEach((p, i) => (p.el.style.zIndex = p.depth === -Infinity ? 0 : 2 + i));
+  }
+
+  // Now and then one of the pets that eat gets hungry, if there is someone to feed it; never two at once.
+  let hungerAt = now() + rnd(15, 25);
+  function updateHunger(t) {
+    if (t < hungerAt || !pets.some((p) => p.feeds) || pets.some((p) => p.hungry || p.state === "eat")) return;
+    const ready = pets.filter((p) => p.eats && p.state === "idle");
+    if (!ready.length) {
+      hungerAt = t + 5;
+      return;
+    }
+    ready[Math.floor(Math.random() * ready.length)].getHungry();
+    hungerAt = t + rnd(30, 45);
   }
 
   let last = now();

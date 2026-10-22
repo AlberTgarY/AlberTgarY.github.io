@@ -11,13 +11,14 @@
  *   headAt, hit, shadow      [height, forward] of the face; hit ellipse [height, rx, ry]; shadow radii
  *   speed, gaitHz            walking speed in px/s and steps per second
  *   lane                     px further back than the front path, for models that walk past the pets
- *   trickTime                seconds of the model's own idle trick, if it has one
- *   feeds, eats              whether it feeds other pets / eats from a bowl when fed
+ *   tricks                   the model's own idle tricks, if it has any, as { name: seconds }
+ *   feeds                    whether it feeds the pets that get hungry
+ *   eats, feedGap            whether it gets hungry and eats from a bowl, and px from it to its feeder
  *   label, hint              accessible name and tooltip
- *   animate(dt, { happy, walking, lying, sleeping, stride, gait, state, elapsed, progress })
+ *   animate(dt, { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress })
  *                            poses the limbs, tail and face; `elapsed` is the seconds spent in `state`
- *                            (idle, walk, lap, sleep, trick, feed, serve or eat) and `progress` the
- *                            fraction done of a timed one
+ *                            (idle, walk, lap, sleep, trick, feed, serve or eat), `progress` the
+ *                            fraction done of a timed one and `trick` the name of the trick
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -137,6 +138,48 @@ function hash(x, y, z) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+// A food bowl on the ground `z` voxels in front of a pet, shown while it eats. Its three layers of food
+// fill as they are poured in, then empty as the pet eats, the heap first. Returns the update.
+function foodBowl(group, palette, z0, radius) {
+  const bowlPart = part();
+  const foodParts = [part(), part(), part()]; // bottom layer, top layer, heap
+  for (let x = -radius; x <= radius; x++)
+    for (let z = -radius; z <= radius; z++) {
+      const r = Math.hypot(x, z);
+      if (r > radius + 0.2) continue;
+      bowlPart.add(x, 0, z0 + z, "bowl");
+      if (r > radius - 1.4) {
+        bowlPart.add(x, 1, z0 + z, "bowl");
+        bowlPart.add(x, 2, z0 + z, "bowlRim");
+        continue;
+      }
+      const food = (y) => (hash(x, y, z) < 0.35 ? "foodDark" : "food");
+      foodParts[0].add(x, 1, z0 + z, food(1));
+      foodParts[1].add(x, 2, z0 + z, food(2));
+      if (r < radius - 2.4) foodParts[2].add(x, 3, z0 + z, food(3));
+    }
+  const food = foodParts.map((p) => p.mesh(palette));
+  const bowl = new THREE.Group();
+  bowl.add(bowlPart.mesh(palette), ...food);
+  bowl.visible = false;
+  group.add(bowl);
+  return ({ state, elapsed, progress }) => {
+    bowl.visible = state === "eat";
+    food.forEach((m, i) => (m.visible = elapsed > 0.3 + 0.4 * i && progress < 0.85 - 0.25 * i));
+  };
+}
+
+// Eating from the bowl: the pet watches it fill, then lowers and stretches its neck and nods into it,
+// bobbing as it eats. `chow` eases from 0 (head up) to 1 (head in the bowl); returns its new value.
+function chowPose(head, restZ, chow, { drop, reach, nod }, dt, { state, elapsed, progress }) {
+  const eating = state === "eat";
+  chow = approach(chow, eating && elapsed > 1.5 && progress < 0.92 ? 1 : 0, 6, dt);
+  head.outer.position.y -= drop * chow;
+  head.outer.position.z = restZ + reach * chow;
+  head.outer.rotation.x += chow * (nod + 0.12 * Math.sin(elapsed * 12)) + (eating ? 0.3 * (1 - chow) : 0);
+  return chow;
+}
+
 // Knitted nightcap on the head: ribbed cuff, alternating knit rows, white stars and a pompom. Stars are
 // pixel bitmaps wrapped onto the cone, rows by height and columns by arc length around its axis.
 const BIG_STAR = ["..X..", "..X..", "XXXXX", ".XXX.", ".X.X."];
@@ -191,8 +234,8 @@ export function buildCollie() {
     tongue: "#f08a9c",
     bowl: "#4f86d6",
     bowlRim: "#7ba7ea",
-    kibble: "#a8662f",
-    kibbleDark: "#7d4520",
+    food: "#a8662f", // kibble
+    foodDark: "#7d4520",
     cap: "#cc3a41",
     capRow: "#b4323a",
     ...CAP_COLORS,
@@ -313,32 +356,9 @@ export function buildCollie() {
   const hat = nightcap(headPart, { y0: 42, z0: 7, radius: 8.5, height: 13 }).mesh(palette);
   head.inner.add(hat);
 
-  // A bowl at her front paws while she is fed: it fills as the kibble is poured in, then empties as
-  // she eats, the heap first. To eat she lowers and stretches her neck and nods into the bowl.
-  const BOWL_Z = 24;
+  // A bowl of kibble at her front paws when she is fed, under her mouth once her head is down in it.
+  const serve = foodBowl(group, palette, 24, 5);
   const CHOW = { drop: 9, reach: 5, nod: 0.7 };
-  const bowlPart = part();
-  const kibbleParts = [part(), part(), part()]; // bottom layer, top layer, heap
-  for (let x = -5; x <= 5; x++)
-    for (let z = -5; z <= 5; z++) {
-      const r = Math.hypot(x, z);
-      if (r > 5.2) continue;
-      bowlPart.add(x, 0, BOWL_Z + z, "bowl");
-      if (r > 3.8) {
-        bowlPart.add(x, 1, BOWL_Z + z, "bowl");
-        bowlPart.add(x, 2, BOWL_Z + z, "bowlRim");
-        continue;
-      }
-      const kibble = (y) => (hash(x, y, z) < 0.35 ? "kibbleDark" : "kibble");
-      kibbleParts[0].add(x, 1, BOWL_Z + z, kibble(1));
-      kibbleParts[1].add(x, 2, BOWL_Z + z, kibble(2));
-      if (r < 2.6) kibbleParts[2].add(x, 3, BOWL_Z + z, kibble(3));
-    }
-  const kibble = kibbleParts.map((p) => p.mesh(palette));
-  const bowl = new THREE.Group();
-  bowl.add(bowlPart.mesh(palette), ...kibble);
-  bowl.visible = false;
-  group.add(bowl);
 
   // Tail: slow idle wag, brisk when walking or happy, resting low when asleep.
   let wagPhase = 0;
@@ -363,18 +383,13 @@ export function buildCollie() {
     speed: 40,
     gaitHz: 2.4,
     eats: true,
+    feedGap: 66,
     animate(dt, s) {
-      const { happy, walking, lying, sleeping, state, elapsed, progress } = s;
+      const { happy, walking, lying, sleeping } = s;
       walkLegs(legs, s, lieDrop / 10.5); // the hips are 10.5 voxels above the ground
       tongue.visible = happy && !sleeping; // panting
-
-      const eating = state === "eat";
-      bowl.visible = eating;
-      kibble.forEach((m, i) => (m.visible = elapsed > 0.3 + 0.4 * i && progress < 0.85 - 0.25 * i));
-      chow = approach(chow, eating && elapsed > 1.5 && progress < 0.92 ? 1 : 0, 6, dt);
-      head.outer.position.y -= CHOW.drop * chow;
-      head.outer.position.z = 6 + CHOW.reach * chow;
-      head.outer.rotation.x += chow * (CHOW.nod + 0.12 * Math.sin(elapsed * 12)) + (eating ? 0.3 * (1 - chow) : 0); // watching it fill
+      serve(s);
+      chow = chowPose(head, 6, chow, CHOW, dt, s);
       wagAmp += ((sleeping ? 0.04 : happy ? 0.55 : walking ? 0.4 : 0.25) - wagAmp) * (1 - Math.exp(-4 * dt));
       wagPhase += Math.PI * 2 * (sleeping ? 0.4 : happy ? 3 : walking ? 2 : 1.1) * dt;
       tailPivot.outer.rotation.y = wagAmp * Math.sin(wagPhase);
@@ -399,6 +414,10 @@ export function buildCat() {
     mouth: "#3a2420",
     earPink: "#d6948f",
     whisker: "#f4f1ea",
+    bowl: "#e27a9c",
+    bowlRim: "#f2a6be",
+    food: "#d98a42", // little fish-shaped biscuits
+    foodDark: "#b0652c",
     cap: "#2f4a8a",
     capRow: "#283f78",
     ...CAP_COLORS,
@@ -550,10 +569,15 @@ export function buildCat() {
   const hat = nightcap(headPart, { y0: 32, z0: 8, radius: 5, height: 10 }).mesh(palette);
   head.inner.add(hat);
 
+  // A smaller bowl of cat biscuits at her front paws when she is fed.
+  const serve = foodBowl(group, palette, 19, 4);
+  const CHOW = { drop: 8, reach: 4, nod: 0.8 };
+
   // Tail: a slow travelling sway; carried high with a curled tip when walking or happy; wrapped
   // round to the side and low when asleep.
   let swayPhase = 0;
   let lift = 0;
+  let chow = 0;
   const lieDrop = 6;
   return {
     label: "Voxel tortoiseshell cat, click to pet",
@@ -572,10 +596,13 @@ export function buildCat() {
     shadow: [9, 14],
     speed: 34,
     gaitHz: 2.1,
+    eats: true,
+    feedGap: 58,
     animate(dt, s) {
       const { happy, walking, lying, sleeping } = s;
       walkLegs(legs, s, lieDrop / 8.5); // the hips are 8.5 voxels above the ground
       halfLids.visible = happy && !sleeping;
+      serve(s);
       lift += ((happy || walking ? 1 : 0) - lift) * (1 - Math.exp(-3 * dt));
       swayPhase += Math.PI * 2 * (happy ? 1.2 : sleeping ? 0.15 : 0.45) * dt;
       tailSegs.forEach((seg, i) => {
@@ -593,6 +620,7 @@ export function buildCat() {
       // and only nodding a little, and the tail wrapped round her side.
       const r = head.outer.rotation;
       r.x = r.x * (1 - 0.8 * lying) + 0.05 * lying;
+      chow = chowPose(head, 7, chow, CHOW, dt, s);
     },
   };
 }
@@ -601,7 +629,8 @@ export function buildCat() {
 
 // A chibi after a Stardew-style portrait: long wavy brown hair parted in the middle, an oversized grey
 // sweater, pink gingham shorts and white slides. She smiles and waves when hovered, kneels to doze,
-// now and then nibbles a cucumber held in both hands, and feeds the collie from a bag of kibble.
+// now and then nibbles a cucumber held in both hands or eats a bowl of pork trotter rice with
+// chopsticks, and feeds the pets when they get hungry.
 export function buildGirl() {
   const palette = {
     skin: "#ffdcc2",
@@ -625,6 +654,15 @@ export function buildGirl() {
     cucumber: "#4f8c35",
     cucumberLight: "#7cb257",
     cucumberCut: "#d9ebb2",
+    china: "#f4f1ea",
+    chinaBlue: "#5a7fc4",
+    rice: "#fdfbf4",
+    pork: "#7a3f22",
+    porkGlaze: "#a65a30",
+    egg: "#fff4e0",
+    yolk: "#f2b233",
+    greens: "#5aa43c",
+    chopstick: "#c99a5b",
     bag: "#d9b27c",
     bagFold: "#c49a62",
     bone: "#fff8ec",
@@ -788,7 +826,7 @@ export function buildGirl() {
   cucumber.visible = false;
   arms[0].elbow.inner.add(cucumber);
 
-  // A paper bag of kibble with a bone on it, held out in both hands the same way.
+  // A paper bag of pet food with a bone on it, held out in both hands the same way.
   const bagPart = part();
   box(bagPart, [-4, 4], [3, 7], [-1, 1], (x, y) => (y === 7 ? "bagFold" : "bag"));
   [
@@ -806,6 +844,59 @@ export function buildGirl() {
   bag.visible = false;
   arms[0].elbow.inner.add(bag);
 
+  // A bowl of pork trotter rice held against her chest: white china with a blue rim, heaped rice, and
+  // braised trotter, half a braised egg and greens on top, which go one by one as she eats. Chopsticks
+  // in her right hand, with a mouthful on them on the way up.
+  const RICE_BOWL = [-0.5, 7.5]; // x, z of its centre
+  const chinaPart = part();
+  for (let x = -5; x <= 4; x++)
+    for (let z = 3; z <= 12; z++) {
+      const r = Math.hypot(x - RICE_BOWL[0], z - RICE_BOWL[1]);
+      if (r <= 2.2) chinaPart.add(x, 11, z, "china");
+      if (r <= 3) chinaPart.add(x, 12, z, "china");
+      if (r <= 3.7) chinaPart.add(x, 13, z, r > 2.7 ? "china" : "rice");
+      if (r <= 3.9) chinaPart.add(x, 14, z, r > 3 ? "chinaBlue" : "rice");
+      if (r <= 2.6) chinaPart.add(x, 15, z, "rice");
+    }
+  const topping = (cells) => {
+    const p = part();
+    cells.forEach(([x, y, z, color]) => p.add(x, y, z, color));
+    return p.mesh(palette);
+  };
+  const toppings = [
+    topping([
+      [-2, 16, 6, "pork"],
+      [-1, 16, 6, "porkGlaze"],
+      [-2, 16, 7, "porkGlaze"],
+      [-1, 16, 7, "pork"],
+      [-2, 17, 6, "pork"],
+    ]),
+    topping([
+      [1, 16, 7, "egg"],
+      [1, 16, 8, "egg"],
+      [2, 16, 7, "egg"],
+      [1, 17, 7, "yolk"],
+    ]),
+    topping([
+      [-1, 16, 9, "greens"],
+      [0, 16, 9, "greens"],
+      [-1, 16, 10, "greens"],
+    ]),
+  ];
+  const riceBowl = new THREE.Group();
+  riceBowl.add(chinaPart.mesh(palette), ...toppings);
+  riceBowl.visible = false;
+  pose.add(riceBowl);
+  const sticksPart = part();
+  for (let y = 5; y <= 7; y++) for (const x of [-6, -5]) sticksPart.add(x, y, 0, "chopstick");
+  const chopsticks = sticksPart.mesh(palette);
+  const morsel = topping([
+    [-6, 4, 0, "rice"],
+    [-5, 4, 0, "porkGlaze"],
+  ]);
+  chopsticks.visible = morsel.visible = false;
+  arms[0].elbow.inner.add(chopsticks, morsel);
+
   // Arm poses: [shoulder, elbow] turns about x (forward is negative). Nibbling, she nods a little and
   // holds the cucumber up just under her lips; kneeling, her hands rest on her thighs; feeding, she
   // holds the bag out towards the bowl, then claps.
@@ -814,8 +905,15 @@ export function buildGirl() {
   const SIT = [-0.35, -0.45];
   const OFFER = [-1.2, -0.2];
   const CLAP = [-1.1, -0.5];
-  const POUR_TIME = 1.6; // s shaking the kibble out once the collie has come
+  // Pork rice: the left hand holds the bowl; the right one dips the chopsticks into it and brings them
+  // up to the mouth (each solved as a two-link reach for the chopstick tips), swung in a little so both
+  // hands meet the bowl.
+  const HOLD_BOWL = [-0.45, -0.6];
+  const DIP = [-0.27, -1.58];
+  const BITE = [-1.43, -1.14];
+  const POUR_TIME = 1.6; // s shaking the food out
   let eat = 0;
+  let rice = 0;
   let offer = 0;
   let clap = 0;
   let wave = 0;
@@ -841,15 +939,19 @@ export function buildGirl() {
     speed: 28,
     gaitHz: 2.2,
     lane: 14,
-    trickTime: 5,
+    tricks: { cucumber: 5, porkRice: 7 },
     feeds: true,
-    animate(dt, { happy, walking, lying, sleeping, stride, gait, state, elapsed, progress }) {
+    animate(dt, { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress }) {
       const pouring = state === "serve" && elapsed < POUR_TIME;
       const cheering = state === "serve" && !pouring;
-      eat = approach(eat, state === "trick" && progress < 0.85 ? 1 : 0, 6, dt);
+      const snacking = state === "trick" && progress < 0.88;
+      eat = approach(eat, snacking && trick === "cucumber" ? 1 : 0, 6, dt);
+      rice = approach(rice, snacking && trick === "porkRice" ? 1 : 0, 6, dt);
       offer = approach(offer, state === "feed" || pouring ? 1 : 0, 6, dt);
       clap = approach(clap, cheering && elapsed < POUR_TIME + 2 ? 1 : 0, 6, dt);
-      wave = approach(wave, happy && !sleeping ? 1 : 0, 8, dt);
+      wave = approach(wave, happy && !sleeping && rice < 0.05 ? 1 : 0, 8, dt); // she won't drop her rice to wave
+      const bite = 0.5 - 0.5 * Math.cos(elapsed * Math.PI * 2 * 0.7); // 0 chopsticks in the bowl, 1 at the mouth
+      const lifting = rice > 0.9 && Math.sin(elapsed * Math.PI * 2 * 0.7) > 0;
       wavePhase += Math.PI * 2 * 2.2 * dt;
       munchPhase += Math.PI * 2 * 3 * dt;
       clapPhase += Math.PI * 2 * 2.5 * dt;
@@ -864,31 +966,37 @@ export function buildGirl() {
         knee.outer.rotation.x = upright * 0.5 * stride * Math.max(0, swing) + Math.PI * lying;
       });
 
-      // Arms swing against the legs; both hold the cucumber or the bag, or clap, and the left one (nearer
-      // the camera) lets go to wave.
+      // Arms swing against the legs; both hold the cucumber or the bag, or clap; with the rice the left
+      // holds the bowl and the right eats; otherwise the left one (nearer the camera) lets go to wave.
       arms.forEach(({ shoulder, elbow }, i) => {
         const keep = i ? 1 - wave : 1;
         const [e, o, c] = [eat * keep, offer * keep, clap * keep];
-        const posed = Math.min(1, e + o + c + (i ? wave : 0));
+        const posed = Math.min(1, e + o + c + rice + (i ? wave : 0));
         const free = upright * (1 - posed);
         const swing = 0.42 * stride * Math.sin(gait + (i ? 0 : Math.PI));
-        shoulder.outer.rotation.x = free * swing + lying * (1 - posed) * SIT[0] + e * EAT[0] + o * OFFER[0] + c * CLAP[0];
-        elbow.outer.rotation.x = -0.25 * stride * free + lying * (1 - posed) * SIT[1] + e * EAT[1] + o * (OFFER[1] + 0.15 * shake) + c * CLAP[1];
+        const [riceShoulder, riceElbow] = i ? HOLD_BOWL : [DIP[0] + bite * (BITE[0] - DIP[0]), DIP[1] + bite * (BITE[1] - DIP[1])];
+        shoulder.outer.rotation.x = free * swing + lying * (1 - posed) * SIT[0] + e * EAT[0] + o * OFFER[0] + c * CLAP[0] + rice * riceShoulder;
+        elbow.outer.rotation.x =
+          -0.25 * stride * free + lying * (1 - posed) * SIT[1] + e * EAT[1] + o * (OFFER[1] + 0.15 * shake) + c * CLAP[1] + rice * riceElbow;
         shoulder.outer.rotation.z = 0.08 * munch * e + (i ? 1.2 * wave : 0); // nibbling along it
-        shoulder.outer.rotation.y = (i ? -1 : 1) * c * (0.42 + 0.14 * Math.sin(clapPhase)); // the hands meet
+        shoulder.outer.rotation.y = (i ? -1 : 1) * c * (0.42 + 0.14 * Math.sin(clapPhase)) + rice * (i ? -0.3 : 0.4); // the hands meet
         if (i) elbow.outer.rotation.z = wave * (1.1 + 0.45 * Math.sin(wavePhase));
       });
       cucumber.visible = eat > 0.05;
       bag.visible = offer > 0.05;
-      happyEyes.visible = (happy && !sleeping) || eat > 0.9 || cheering;
-      const laughing = (happy && !sleeping) || munch > 0.3 || cheering;
+      riceBowl.visible = chopsticks.visible = rice > 0.05;
+      morsel.visible = lifting;
+      toppings.forEach((m, i) => (m.visible = progress < 0.35 + 0.2 * i || state !== "trick"));
+      const chewing = (rice > 0.9 && bite > 0.85) || munch > 0.3;
+      happyEyes.visible = (happy && !sleeping) || eat > 0.9 || rice > 0.9 || cheering;
+      const laughing = (happy && !sleeping) || chewing || cheering;
       open.visible = laughing;
       smile.visible = !laughing;
 
       // Asleep, her head only droops a little, unlike a pet's, which rests its chin on the ground;
-      // nibbling, she looks down at the cucumber.
+      // eating, she looks down at her food.
       const r = head.outer.rotation;
-      r.x = r.x * (1 - 0.6 * lying) + EAT_NOD * eat;
+      r.x = r.x * (1 - 0.6 * lying) + EAT_NOD * (eat + 0.6 * rice);
 
       // The long hair keeps hanging when the head nods, half follows it when it turns, and swings back
       // as she walks.
