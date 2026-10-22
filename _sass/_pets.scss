@@ -1,35 +1,31 @@
 /*******************************************************************************
- * Voxel border collie wandering along the bottom of the profile photo and
- * taking laps around it (assets/js/collie.js)
+ * Voxel pets strolling along the bottom of the profile photo and taking laps
+ * around it (assets/js/pets.js)
  ******************************************************************************/
 
 .profile {
   position: relative;
 }
 
-// Above the dog while it walks behind the photo.
+// Above the pets while they walk behind the photo.
 .profile-photo-switcher {
   z-index: 1;
 }
 
-.collie {
+.pet {
   position: absolute;
   top: 0;
   left: 0;
   width: 164px;
   height: 164px; // trimmed by the script to end just below the paws
-  z-index: 2;
+  z-index: 2; // the script orders pets by depth
   line-height: 0;
-  pointer-events: none; // click-through; the script hit-tests the dog's outline instead
+  pointer-events: none; // click-through; the script hit-tests each pet's outline instead
   user-select: none;
   visibility: hidden;
 
   &.ready {
     visibility: visible;
-  }
-
-  &.behind {
-    z-index: 0;
   }
 
   &:focus-visible {
@@ -44,14 +40,13 @@
   }
 }
 
-html.collie-hover,
-html.collie-hover * {
+html.pet-hover,
+html.pet-hover * {
   cursor: pointer !important;
 }
 
-.collie-heart {
+.pet-heart {
   position: absolute;
-  top: 2px;
   width: 21px;
   height: 18px;
   pointer-events: none;
@@ -61,27 +56,24 @@ html.collie-hover * {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .collie-heart {
-    animation: collie-heart 1.2s steps(8) forwards;
+  .pet-heart {
+    animation: pet-heart 1.2s steps(8) forwards;
   }
 
-  .collie.sleeping::after {
+  // The "z" floats up from beside the sleeping pet's head (placed by the script).
+  .pet.sleeping::after {
     content: "z";
     position: absolute;
-    left: 108px;
-    top: 18px;
+    left: var(--z-x, 100px);
+    top: var(--z-y, 20px);
     font: 700 14px/1 monospace;
     color: #fff;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-    animation: collie-z 2.4s steps(8) infinite;
-  }
-
-  .collie.sleeping.facing-left::after {
-    left: 40px;
+    animation: pet-z 2.4s steps(8) infinite;
   }
 }
 
-@keyframes collie-heart {
+@keyframes pet-heart {
   from {
     transform: translateY(0);
     opacity: 1;
@@ -92,7 +84,7 @@ html.collie-hover * {
   }
 }
 
-@keyframes collie-z {
+@keyframes pet-z {
   from {
     transform: translate(0, 0);
     opacity: 0;

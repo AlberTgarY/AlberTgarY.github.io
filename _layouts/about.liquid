@@ -137,9 +137,11 @@ layout: default
               </script>
             {% endif %}
           </div>
-          {% if page.profile.collie %}
-            <div class="collie" role="button" tabindex="0" title="pet me" aria-label="Border collie, click to pet"></div>
-            <script type="module" src="{{ '/assets/js/collie.js' | relative_url | bust_file_cache }}"></script>
+          {% if page.profile.pets %}
+            {% for pet in page.profile.pets %}
+              <div class="pet" data-pet="{{ pet }}" role="button" tabindex="0"></div>
+            {% endfor %}
+            <script type="module" src="{{ '/assets/js/pets.js' | relative_url | bust_file_cache }}"></script>
           {% endif %}
         {% endif %}
         {% if page.profile.more_info %}
