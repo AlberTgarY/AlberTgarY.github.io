@@ -456,7 +456,11 @@ export function buildCat() {
     tailSegs.push(g);
     parent = g.inner;
   }
+  tailSegs[0].outer.rotation.order = "YXZ"; // the base turns about the world's up after lowering the tail
   const TAIL_REST = [-1.1, 0.45, 0.45, 0.6]; // each relative to the last: back from the rump, rising, curling at the tip
+  // Asleep, each segment turns further towards the near side: the base leaves the rump on a slant, and
+  // the rest bends forward along her side.
+  const TAIL_WRAP = [0.9, 1.2, 0.6, 0.2];
 
   // Head: mostly dark, with a thin ginger blaze just left of centre, ginger mottling round the left
   // eye and cheek, and the right side of the face dark.
@@ -579,10 +583,16 @@ export function buildCat() {
         // Lying, the base lowers the tail to lie flat behind; once it does, each later segment's local z is
         // the world's up, so turning about z curls the tail round the body's near side.
         const up = TAIL_REST[i] + lift * (i === 0 ? 0.45 : i === 3 ? 0.3 : 0);
-        const down = i === 0 ? -1.55 : 0;
+        const down = i === 0 ? -1.85 : 0; // just past flat, so the wrapped tail settles on the ground
         seg.outer.rotation.x = up + (down - up) * lying;
-        seg.outer.rotation.z = sway - lying * (i === 0 ? 0 : 0.75);
+        if (i === 0) seg.outer.rotation.y = -lying * TAIL_WRAP[0];
+        seg.outer.rotation.z = sway - (i === 0 ? 0 : lying * TAIL_WRAP[i]);
       });
+
+      // Asleep she sits as a loaf rather than lying flat like the collie: legs tucked away, head held up
+      // and only nodding a little, and the tail wrapped round her side.
+      const r = head.outer.rotation;
+      r.x = r.x * (1 - 0.8 * lying) + 0.05 * lying;
     },
   };
 }
