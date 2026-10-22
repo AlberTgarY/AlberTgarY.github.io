@@ -88,9 +88,17 @@ jobs:
           valueFile: "_config.yml"
           propertyPath: "giscus.repo"
           value: ${{ github.repository }}
+      # Cached, as downloading it from the Ubuntu mirror takes anywhere from seconds to over ten minutes.
+      # The install scripts set up the `convert` command that jekyll-imagemagick runs.
+      - name: Install ImageMagick 🖼️
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: imagemagick
+          version: 1.0
+          execute_install_scripts: true
       - name: Install and Build 🔧
         run: |
-          sudo apt-get update && sudo apt-get install -y imagemagick
+          convert -version # fail early if the cached ImageMagick is missing its command
           pip3 install --upgrade nbconvert
           export JEKYLL_ENV=production
           bundle exec jekyll build
