@@ -212,9 +212,11 @@ export function buildCollie() {
   const headPart = part();
   const blazeHalf = (y) => (y >= 40 ? 1 : y >= 35 ? 1.5 : 1.5 + (35 - y) * 0.45);
   ellipsoid(headPart, [0, 32, 8], [12, 11, 10], (x, y, z) => (z >= 0 && Math.abs(x) <= blazeHalf(y) ? "white" : "black"), [bodyPart]);
+  // Muzzle: a broad base tapering into a slimmer snout, with the lower jaw set back under it.
   ellipsoid(headPart, [0, 28, 16], [6.5, 5, 6], "white", [bodyPart]);
-  ellipsoid(headPart, [0, 24, 11], [5, 4, 6], "white", [bodyPart]);
-  for (let x = -2; x <= 2; x++) for (let y = 29; y <= 31; y++) headPart.front(x, y)[3] = "nose";
+  ellipsoid(headPart, [0, 28, 22], [4.3, 3.8, 6], "white", [bodyPart]);
+  ellipsoid(headPart, [0, 24.5, 16], [4.3, 3.5, 8], "white", [bodyPart]);
+  for (let x = -2; x <= 2; x++) for (let y = 28; y <= 30; y++) headPart.front(x, y)[3] = "nose";
   const headPivotY = 26; // the neck
   const head = pivotGroup(pose, [0, headPivotY, 6]);
   head.inner.add(headPart.mesh(palette));
@@ -230,11 +232,11 @@ export function buildCollie() {
   // A small ω mouth under the nose.
   const mouthPart = part();
   [
-    [-2, 28],
-    [-1, 27],
-    [0, 28],
-    [1, 27],
-    [2, 28],
+    [-2, 27],
+    [-1, 26],
+    [0, 27],
+    [1, 26],
+    [2, 27],
   ].forEach(([x, y]) => mouthPart.add(...surface(x, y, 0.4), "mouth"));
   head.inner.add(mouthPart.mesh(palette));
 
@@ -248,12 +250,11 @@ export function buildCollie() {
   // Open mouth with the tongue out, shown while panting.
   const tonguePart = part();
   for (let x = -1; x <= 1; x++) {
-    const front = headPart.front(x, 27);
-    const z = front ? front[2] + 0.45 : 21;
-    tonguePart.add(x, 27, z, "mouth");
-    tonguePart.add(x, 26, z, "tongue");
-    tonguePart.add(x, 25, z - 0.5, "tongue");
-    if (x === 0) tonguePart.add(x, 24, z - 1, "tongue");
+    const z = headPart.front(x, 26)[2] + 0.45;
+    tonguePart.add(x, 26, z, "mouth");
+    tonguePart.add(x, 25, z, "tongue");
+    tonguePart.add(x, 24, z - 0.5, "tongue");
+    if (x === 0) tonguePart.add(x, 23, z - 1, "tongue");
   }
   const tongue = tonguePart.mesh(palette);
   tongue.visible = false;
