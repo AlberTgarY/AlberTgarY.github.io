@@ -9,13 +9,16 @@
  * blink, wag, show they are happy when hovered, hop with a heart when clicked,
  * nap when left alone, and wear knitted nightcaps in dark mode. They keep out of
  * each other's way, and only one takes a lap at a time while the others watch.
- * Styles are in _sass/_pets.scss.
+ * A model may walk a lane a little further back, so the pets pass in front of
+ * it (it keeps a little to one side of them when it stops), may have an idle
+ * trick of its own, and may feed a pet that eats: the pet comes over and eats
+ * from a bowl beside it. Styles are in _sass/_pets.scss.
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { buildCat, buildCollie } from "./pet-models.js";
+import { buildCat, buildCollie, buildGirl } from "./pet-models.js";
 
-const MODELS = { collie: buildCollie, cat: buildCat };
+const MODELS = { collie: buildCollie, cat: buildCat, girl: buildGirl };
 const elements = [...document.querySelectorAll(".pet[data-pet]")].filter((el) => MODELS[el.dataset.pet]);
 const profile = elements.length ? elements[0].closest(".profile") : null;
 const photo = profile && profile.querySelector("#profile-photo");
@@ -30,6 +33,10 @@ function start() {
   const LAP_MARGIN = 24; // px a lap swings out past the photo's sides, so a pet is clear of it when it passes behind
   const FAR_INSET = 16; // px below the photo's top edge for the paws on the far side, so the head and shoulders show above it
   const GAP = 72; // px pets keep between them on the front path
+  const LAP_GAP = 40; // px other pets in the lane may be from the way to the start of a lap (or to a meal)
+  const CROSS = 44; // px a pet stops to one side of a pet in another lane, so neither hides the other
+  const FEED_GAP = 66; // px from the feeder to a pet eating beside it, which puts the bowl just in front of the feeder
+  const EAT_TIME = 7; // s a meal takes, the first 1.5 s of it pouring
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isDark = () => document.documentElement.getAttribute("data-theme") === "dark";
 
@@ -100,7 +107,7 @@ function start() {
 
   /* ---------- one pet ---------- */
 
-  function makePet(el, rig, startX) {
+  function makePet(el, rig, spread) {
     let renderer;
     try {
       renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
@@ -133,19 +140,19 @@ function start() {
     el.style.height = `${H}px`;
     el.style.transformOrigin = `${W / 2}px ${FOOT_PX}px`; // scale about the paws
     el.setAttribute("aria-label", rig.label);
-    el.title = "pet me";
+    el.title = rig.hint;
     el.replaceChildren(canvas);
     const render = () => renderer.render(scene, camera);
 
     // Placement within .profile, in px.
-    let x = startX; // centre
-    let y = 0; // how far the paws are raised above the front path (further back is higher)
+    const lane = rig.lane || 0; // px further back than the front path
+    let x = null; // centre; placed along the path by `spread` (0 the right end, 1 the left) on the first layout
+    let y = 0; // how far the paws are raised above the lane (further back is higher)
     let depthScale = 1; // smaller further back
     let behind = false; // drawn behind the photo
 
     function place() {
       el.style.transform = `translate(${(x - W / 2).toFixed(2)}px, ${y.toFixed(2)}px) scale(${depthScale.toFixed(4)})`;
-      el.style.zIndex = behind ? 0 : y > -1 ? 3 : 2; // nearer pets in front of ones further back
     }
 
     // Screen position of the face, as px within the canvas, for looking, hearts and the sleepy "z".
@@ -163,10 +170,15 @@ function start() {
 
     /* ----- state ----- */
 
-    let state = "idle"; // idle | walk | lap | sleep
+    let state = "idle"; // idle | walk | lap | sleep | trick | feed | serve | eat
+    let stateStart = 0;
     let stateUntil = 0;
     let walkTo = 0;
-    let lapAfterWalk = false;
+    let afterWalk = null; // "lap" or "eat" to start on arrival
+    let partner = null; // the pet being fed, or the one feeding this pet
+    let eatFacing = 0;
+    let heartAt = 0;
+    let hurried = false; // already stepping aside from a pet in another lane
     let lapAngle = 0; // position on the lap: π/2 is the middle of the front path
     let lapEnd = 0;
     let lapDir = 1;
@@ -179,7 +191,9 @@ function start() {
 
     function setState(next, duration = 0) {
       state = next;
-      stateUntil = now() + duration;
+      stateStart = now();
+      stateUntil = stateStart + duration;
+      hurried = false;
       el.classList.toggle("sleeping", next === "sleep");
       if (next === "sleep") {
         const [fx, fy] = facePx();
@@ -194,9 +208,9 @@ function start() {
       nextActionAt = now() + rnd(8, 16);
     }
 
-    function walk(to, thenLap = false) {
+    function walk(to, then = null) {
       walkTo = to;
-      lapAfterWalk = thenLap;
+      afterWalk = then;
       yawTarget = nearestTurn(CAM_YAW + (to > x ? Math.PI / 2 : -Math.PI / 2)); // along the screen's x axis
       setState("walk");
     }
@@ -221,16 +235,19 @@ function start() {
     /* ----- sharing the photo with the other pets ----- */
 
     const others = () => pets.filter((p) => p !== self);
-    const lapping = (p) => p.state === "lap" || (p.state === "walk" && p.lapAfterWalk);
-    // The stretch of the front path another pet is on, or heading for.
+    const sameLane = () => others().filter((p) => p.lane === lane); // the pets this one keeps clear of
+    const lapping = (p) => p.state === "lap" || (p.state === "walk" && p.afterWalk === "lap");
+    // The stretch of the path another pet is on, or heading for.
     const occupied = (p) => (p.state === "walk" ? [Math.min(p.x, p.walkTo), Math.max(p.x, p.walkTo)] : [p.x, p.x]);
-    const clear = (lo, hi) => others().every((p) => (([a, b]) => b < lo - GAP || a > hi + GAP)(occupied(p)));
+    const clear = (lo, hi, gap = GAP) => sameLane().every((p) => (([a, b]) => b < lo - gap || a > hi + gap)(occupied(p)));
+    // Too close to where a pet in another lane is standing (or will stop), so one would hide the other.
+    const nearOtherLane = (at) => others().some((p) => p.lane !== lane && Math.abs(p.restX - at) < CROSS);
 
-    // A stroll target on this pet's side of the others, at least 30 px away, or null if there is no room.
+    // A stroll target on this pet's side of the others in its lane, at least 30 px away, or null if there is no room.
     function strollTarget() {
       let lo = world.minX;
       let hi = world.maxX;
-      for (const p of others()) {
+      for (const p of sameLane()) {
         const [a, b] = occupied(p);
         if (a >= x) hi = Math.min(hi, a - GAP);
         else if (b <= x) lo = Math.max(lo, b + GAP);
@@ -240,25 +257,82 @@ function start() {
       if (x - 30 >= lo) choices.push([lo, x - 30]);
       if (x + 30 <= hi) choices.push([x + 30, hi]);
       if (!choices.length) return null;
-      const [a, b] = choices[Math.floor(Math.random() * choices.length)];
-      return rnd(a, b);
+      for (let i = 0; i < 12; i++) {
+        const [a, b] = choices[Math.floor(Math.random() * choices.length)];
+        const to = rnd(a, b);
+        if (!nearOtherLane(to)) return to;
+      }
+      return null;
     }
 
     function chooseAction(t) {
       const roll = Math.random();
       const someoneLapping = others().some(lapping);
-      if (roll < 0.4 && world.lapOk && !someoneLapping && clear(Math.min(x, world.cx), Math.max(x, world.cx))) {
+      if (nearOtherLane(x)) {
+        const to = strollTarget();
+        if (to !== null) return walk(to);
+      }
+      if (roll < 0.4 && world.lapOk && !someoneLapping && clear(Math.min(x, world.cx), Math.max(x, world.cx), LAP_GAP)) {
         if (Math.abs(x - world.cx) < 2) startLap();
-        else walk(world.cx, true);
+        else walk(world.cx, "lap");
         return;
       }
       if (roll < 0.65 && !someoneLapping) {
         const to = strollTarget();
         if (to !== null) return walk(to);
-      } else if (roll < 0.85 && t - pointer.movedAt > 6) {
+      } else if (roll < 0.8 && t - pointer.movedAt > 6) {
         return setState("sleep", rnd(10, 20));
+      } else if (roll >= 0.8 && !someoneLapping) {
+        if (rig.feeds && Math.random() < 0.6 && feed()) return;
+        if (rig.trickTime) {
+          yawTarget = nearestTurn(CAM_YAW); // face the viewer to show it off
+          return setState("trick", rig.trickTime);
+        }
       }
       nextActionAt = t + rnd(6, 12);
+    }
+
+    /* ----- feeding ----- */
+
+    // Offer food to a pet that eats (waking it if asleep); it comes to eat beside the feeder, on
+    // whichever side it can reach.
+    function feed() {
+      const eater = others().find((p) => p.eats && (p.state === "idle" || p.state === "sleep"));
+      if (!eater) return false;
+      for (const side of Math.random() < 0.5 ? [1, -1] : [-1, 1])
+        if (eater.comeToEat(self, x + side * FEED_GAP)) {
+          partner = eater;
+          yawTarget = nearestTurn(CAM_YAW + side * 0.75); // towards it, still showing the face
+          setState("feed", 12); // gives up if it never arrives
+          return true;
+        }
+      return false;
+    }
+
+    function comeToEat(feeder, to) {
+      if (to < world.minX || to > world.maxX || !clear(Math.min(x, to), Math.max(x, to), LAP_GAP)) return false;
+      partner = feeder;
+      eatFacing = CAM_YAW + Math.sign(feeder.x - to) * (Math.PI / 2 - 0.5); // towards the feeder, turned a little to the viewer
+      walk(to, "eat");
+      return true;
+    }
+
+    function startEating() {
+      setState("eat", EAT_TIME);
+      yawTarget = nearestTurn(eatFacing);
+      heartAt = stateStart + 2;
+      partner.serve();
+    }
+
+    // A heart pops up over the face.
+    function heart() {
+      const [fx, fy] = facePx();
+      const h = document.createElement("span");
+      h.className = "pet-heart";
+      h.style.left = `${fx - 10}px`;
+      h.style.top = `${fy - 40}px`;
+      el.appendChild(h);
+      setTimeout(() => h.remove(), 1200);
     }
 
     function pet() {
@@ -267,13 +341,7 @@ function start() {
       hopStart = t;
       happyUntil = t + 1.8;
       happyTilt = rnd(0, 1) < 0.5 ? -0.16 : 0.16;
-      const [fx, fy] = facePx();
-      const heart = document.createElement("span");
-      heart.className = "pet-heart";
-      heart.style.left = `${fx - 10}px`;
-      heart.style.top = `${fy - 40}px`;
-      el.appendChild(heart);
-      setTimeout(() => heart.remove(), 1200);
+      heart();
       nextActionAt = Math.max(nextActionAt, t + 10);
     }
 
@@ -304,7 +372,6 @@ function start() {
     let blinkStart = -1;
     const earTwitch = [0, 0];
     let twitchAt = now() + rnd(3, 6);
-    const legFold = rig.lieDrop / (rig.hipY + 0.5); // keeps the paws on the ground as the body sinks
 
     // Look target in [-1, 1] towards a screen point, from the face.
     function aimAt(r, px, py, reach) {
@@ -317,19 +384,32 @@ function start() {
       const t = now();
       const sleeping = state === "sleep";
       const r = el.getBoundingClientRect();
-      const happy = hovering || t < happyUntil;
+      const happy = hovering || t < happyUntil || state === "eat";
       if (!happy) happyTilt = 0;
       else if (happyTilt === 0) happyTilt = look.x >= 0 ? 0.14 : -0.14;
 
+      // Stopped right in front of, or behind, a pet in another lane: step aside soon.
+      if (state === "idle" && !hurried && nearOtherLane(x)) {
+        hurried = true;
+        nextActionAt = Math.min(nextActionAt, t + rnd(1, 2.5));
+      }
       if (state === "idle" && t > nextActionAt && !document.hidden) chooseAction(t);
-      if (sleeping && t > stateUntil) wake();
+      if ((sleeping || state === "trick" || state === "eat") && t > stateUntil) wake();
+      // A feeder waits for the pet to come over, then watches it eat.
+      if (state === "feed" && (t > stateUntil || !(partner.state === "walk" && partner.afterWalk === "eat"))) wake();
+      if (state === "serve" && partner.state !== "eat") wake();
+      if (state === "eat" && t > heartAt) {
+        heart();
+        heartAt = t + 1.4;
+      }
 
       if (state === "walk") {
         const step = Math.sign(walkTo - x);
         x += step * rig.speed * dt;
         if ((step > 0 && x >= walkTo) || (step <= 0 && x <= walkTo)) {
           x = walkTo;
-          if (lapAfterWalk) startLap();
+          if (afterWalk === "lap") startLap();
+          else if (afterWalk === "eat") startEating();
           else wake();
         }
         place();
@@ -342,7 +422,7 @@ function start() {
           const s = Math.sin(lapAngle);
           const c = Math.cos(lapAngle);
           x = world.cx + world.rx * c;
-          y = world.ry * (s - 1);
+          y = (world.ry - lane / 2) * (s - 1); // the far side is the same for every lane
           depthScale = 1 - 0.09 * (1 - s);
           behind = s < 0;
           // Face along the path: screen x, and depth towards the viewer (lower on screen is nearer).
@@ -380,11 +460,13 @@ function start() {
         else [tx, ty] = [glance.x, glance.y];
       }
       if (sleeping) [tx, ty] = [0, 1];
+      if (state === "trick" || state === "eat") [tx, ty] = [0, 0]; // straight out at the viewer, or into the bowl
+      if (state === "feed" || state === "serve") [tx, ty] = aimAt(r, ...partner.center(), 160);
       look.x = approach(look.x, tx, 7, dt);
       look.y = approach(look.y, ty, 7, dt);
 
       tilt = approach(tilt, sleeping ? 0.18 : happy ? happyTilt : glanceTilt, 5, dt);
-      const lying = clamp(stepSpring(droop, sleeping ? 1 : 0, dt), 0, 1);
+      const lying = clamp(stepSpring(droop, sleeping || state === "feed" || state === "serve" ? 1 : 0, dt), 0, 1); // feeders kneel
       stride = approach(stride, walking ? 1 : 0, 6, dt);
       if (stride > 0.01) gait += Math.PI * 2 * rig.gaitHz * stride * dt;
 
@@ -403,19 +485,14 @@ function start() {
       shadow.scale.set(rig.shadow[0] * (1 - hop / 24), rig.shadow[1] * (1 - hop / 24), 1);
       shadow.material.opacity = 0.28 * (1 - hop / 16);
 
-      // Legs: diagonal pairs swing in opposite phase; they fold away when lying down.
-      rig.legs.forEach((leg, i) => {
-        leg.outer.rotation.x = 0.42 * stride * Math.sin(gait + (i % 3 === 0 ? 0 : Math.PI));
-        leg.outer.scale.y = 1 - legFold * lying;
-      });
-
       // Head: looking straight out of the screen means facing the camera; take the body's own turn off it.
       // While walking it looks where it is going, glancing at the pointer only a little.
-      const wantYaw = walking && !pointerActive ? 0 : clamp(wrap(CAM_YAW + look.x * 0.9 - yaw), -1.2, 1.2) * (walking ? 0.6 : 1);
+      const ahead = (walking && !pointerActive) || state === "eat";
+      const wantYaw = ahead ? 0 : clamp(wrap(CAM_YAW + look.x * 0.9 - yaw), -1.2, 1.2) * (walking ? 0.6 : 1);
       headYaw = approach(headYaw, wantYaw, 8, dt);
       headPitch = approach(headPitch, look.y * 0.4 + 0.45 * lying, 8, dt);
       rig.head.outer.rotation.set(headPitch, headYaw, tilt, "YXZ");
-      rig.head.outer.position.y = rig.headPivotY - 3 * lying;
+      rig.head.outer.position.y = rig.headPivotY - rig.headDrop * lying;
 
       // Blinking: a quick shut while awake, eyes held shut while asleep.
       if (t > blinkAt) {
@@ -442,8 +519,9 @@ function start() {
         ear.outer.rotation.z = (i === 0 ? 1 : -1) * outward;
       });
 
-      rig.tail(dt, { happy, walking, lying, sleeping });
-      rig.mood({ happy, sleeping });
+      const elapsed = t - stateStart;
+      const progress = stateUntil > stateStart ? clamp(elapsed / (stateUntil - stateStart), 0, 1) : 0;
+      rig.animate(dt, { happy, walking, lying, sleeping, stride, gait, state, elapsed, progress });
       render();
     }
 
@@ -455,10 +533,10 @@ function start() {
       render,
       place,
       setHat: (on) => (rig.hat.visible = on),
-      // Centre of the body on screen, for other pets to look at.
+      // The face on screen, for other pets to look at.
       center() {
         const r = el.getBoundingClientRect();
-        return [r.left + r.width / 2, r.top + (r.height / H) * (FOOT_PX - 20 * VOX)];
+        return [r.left + r.width / 2, r.top + (r.height / H) * (FOOT_PX - rig.headAt[0] * VOX)];
       },
       // A pointer moving close by wakes a sleeping pet.
       nudge(px, py) {
@@ -468,9 +546,25 @@ function start() {
       },
       layout() {
         if (state === "lap" && !world.lapOk) endLap();
+        if (x === null) x = world.maxX + (world.minX - world.maxX) * spread;
         if (state !== "lap") x = clamp(x, world.minX, world.maxX);
-        el.style.top = `${world.nearY - FOOT_PX}px`;
+        el.style.top = `${world.nearY - lane - FOOT_PX}px`;
         place();
+      },
+      lane,
+      eats: !!rig.eats,
+      comeToEat,
+      // The pet has come to eat: pour, then watch.
+      serve() {
+        if (state === "feed") setState("serve");
+      },
+      // Where the pet is standing, or will stop.
+      get restX() {
+        return state === "walk" ? walkTo : state === "lap" ? world.cx : x;
+      },
+      // How far up the screen the feet are, for drawing nearer pets (lower down) in front.
+      get depth() {
+        return behind ? -Infinity : y - lane;
       },
       get state() {
         return state;
@@ -481,8 +575,8 @@ function start() {
       get walkTo() {
         return walkTo;
       },
-      get lapAfterWalk() {
-        return lapAfterWalk;
+      get afterWalk() {
+        return afterWalk;
       },
     };
     return self;
@@ -490,8 +584,8 @@ function start() {
 
   /* ---------- all pets ---------- */
 
-  // Spread out along the front path from the right: the first pet at the right end, the last at the left.
-  const pets = elements.map((el, i) => makePet(el, MODELS[el.dataset.pet](), i === 0 ? Infinity : -Infinity)).filter(Boolean);
+  // Spread out along the path from the right: the first pet at the right end, the last at the left.
+  const pets = elements.map((el, i) => makePet(el, MODELS[el.dataset.pet](), elements.length > 1 ? i / (elements.length - 1) : 0.5)).filter(Boolean);
   if (!pets.length) return;
 
   window.addEventListener("pointermove", (e) => {
@@ -516,6 +610,8 @@ function start() {
     const hovered = pointer.mouse ? pets.find((p) => p.over(pointer.x, pointer.y)) : null;
     document.documentElement.classList.toggle("pet-hover", !!hovered);
     pets.forEach((p) => onScreen.get(p.el) && p.update(dt, p === hovered));
+    // Pets behind the photo go under it (z-index 0, below the photo's 1); the rest stack from back to front.
+    [...pets].sort((a, b) => a.depth - b.depth).forEach((p, i) => (p.el.style.zIndex = p.depth === -Infinity ? 0 : 2 + i));
   }
 
   let last = now();

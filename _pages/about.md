@@ -9,7 +9,7 @@ profile:
   image: 28514_livephoto.jpg # shown first (on top)
   image2: prof_pic.jpg # toggled via the switch button
   image_circular: false # crops the image to make it circular
-  pets: [collie, cat] # voxel pets that wander around the photo (assets/js/pets.js)
+  pets: [collie, girl, cat] # voxel pets (and a girl) that wander around the photo (assets/js/pets.js)
   more_info: >
     yicheng_zhan2001@outlook.com
 
