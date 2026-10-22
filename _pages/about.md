@@ -9,6 +9,7 @@ profile:
   image: 28514_livephoto.jpg # shown first (on top)
   image2: prof_pic.jpg # toggled via the switch button
   image_circular: false # crops the image to make it circular
+  collie: true # animated border collie perched on the photo (assets/js/collie.js)
   more_info: >
     yicheng_zhan2001@outlook.com
 

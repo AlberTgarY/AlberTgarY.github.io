@@ -1,0 +1,107 @@
+/*******************************************************************************
+ * Voxel border collie wandering along the bottom of the profile photo and
+ * taking laps around it (assets/js/collie.js)
+ ******************************************************************************/
+
+.profile {
+  position: relative;
+}
+
+// Above the dog while it walks behind the photo.
+.profile-photo-switcher {
+  z-index: 1;
+}
+
+.collie {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 164px;
+  height: 164px; // trimmed by the script to end just below the paws
+  z-index: 2;
+  line-height: 0;
+  pointer-events: none; // click-through; the script hit-tests the dog's outline instead
+  user-select: none;
+  visibility: hidden;
+
+  &.ready {
+    visibility: visible;
+  }
+
+  &.behind {
+    z-index: 0;
+  }
+
+  &:focus-visible {
+    outline: 2px dashed var(--global-theme-color);
+    outline-offset: 2px;
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+  }
+}
+
+html.collie-hover,
+html.collie-hover * {
+  cursor: pointer !important;
+}
+
+.collie-heart {
+  position: absolute;
+  top: 2px;
+  width: 21px;
+  height: 18px;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 6' shape-rendering='crispEdges'%3E%3Cpath fill='%23ef7f93' d='M1 0h2v1H1zM4 0h2v1H4zM0 1h7v2H0zM1 3h5v1H1zM2 4h3v1H2zM3 5h1v1H3z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  image-rendering: pixelated;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .collie-heart {
+    animation: collie-heart 1.2s steps(8) forwards;
+  }
+
+  .collie.sleeping::after {
+    content: "z";
+    position: absolute;
+    left: 108px;
+    top: 18px;
+    font: 700 14px/1 monospace;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    animation: collie-z 2.4s steps(8) infinite;
+  }
+
+  .collie.sleeping.facing-left::after {
+    left: 40px;
+  }
+}
+
+@keyframes collie-heart {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-26px);
+    opacity: 0;
+  }
+}
+
+@keyframes collie-z {
+  from {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  to {
+    transform: translate(10px, -20px);
+    opacity: 0;
+  }
+}
