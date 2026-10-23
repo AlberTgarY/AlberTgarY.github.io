@@ -318,8 +318,7 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
     yawTarget = nearestTurn(CAM_YAW + (perch.seat ? 0.3 : -0.3)); // facing out, a little away from her, so neither hides her
   }
 
-  function leaveSofa(host) {
-    if (!perch || perch.host !== host || perch.down) return;
+  function leaveSofa() {
     if (now() < perch.at + HOP_TIME) {
       perch = null; // not up yet: never mind
       y = 0;
@@ -565,7 +564,9 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
     if (timed && t > stateUntil) wake();
     if (state === "mischief" && t > stateUntil) setState("messy"); // and wait to be found out
     if (state === "react" && t > stateUntil) doneScolding();
-    if (state === "trick" && trick === "sofa" && t > stateStart + 0.86 * rig.tricks.sofa) pets.forEach((p) => p.leaveSofa(self));
+    // Off the sofa once she is getting up, however her sit ends: a stretch skipped off screen or in a
+    // background tab can end it in one frame.
+    if (perch && !perch.down && !perch.host.sofaOpen) leaveSofa();
     if (perch && t >= perch.at) updatePerch(t);
     // A feeder holds the food out for a moment, then serves it and watches the pet eat.
     if (state === "feed" && t > stateUntil) partner.eat(self);
@@ -828,8 +829,10 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
     get sofaReadyAt() {
       return stateStart + 1.3; // the sofa is up and she is sitting
     },
+    get sofaOpen() {
+      return state === "trick" && trick === "sofa" && now() < stateStart + 0.86 * rig.tricks.sofa; // then the pets hop down
+    },
     perchOn,
-    leaveSofa,
     seatedOn: (host, i) => !!perch && perch.host === host && perch.seat === i && perch.up,
     // Mischief.
     planMischief,
