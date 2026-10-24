@@ -15,12 +15,14 @@
  *   put back on the floor with its things put away.
  * The director, run every frame, looks after what belongs to no one: the TV,
  * the fridge's doors and the quilt, who sits beside whom on the sofa, the pets
- * getting hungry and being fed, the cat's mischief while they are all out, and
- * the girl going to change into what a visitor picked for her.
+ * getting hungry and being fed, the cat's mischief while they are all out, the
+ * girl going to change into what a visitor picked for her, and someone going
+ * to turn the garden's sprinkler off once it has run a while.
  ******************************************************************************/
 
 import { rnd, pick } from "../stage.js";
 import { freshPicker } from "../choose.js";
+import { X1, LOFT } from "./house.js";
 
 // How much each of them likes to do what (acts.js has what each one is). Night (dark mode) changes some;
 // going to bed is only for the night.
@@ -44,6 +46,7 @@ const MENUS = {
     laptop: 4,
     dress: 5,
     garden: 9,
+    sprinkle: 5,
     fire: 5,
     sleep: 40,
   },
@@ -64,10 +67,11 @@ const MENUS = {
     stretch: 4,
     water: 3,
     garden: 7,
+    sprinkle: 5,
     fire: 6,
     sleep: 30,
   },
-  collie: { bed: 15, rug: 14, stroll: 14, zoomies: 7, visit: 14, sniff: 6, sunbathe: 8, fireside: 14, rest: 30 },
+  collie: { bed: 15, rug: 14, stroll: 14, zoomies: 7, visit: 14, sniff: 6, sunbathe: 8, splash: 20, fireside: 14, rest: 30 },
   cat: { nap: 22, perch: 10, climb: 12, groom: 12, stroll: 10, visit: 10, cuddle: 6, tower: 8, chase: 8, fireside: 12, rest: 18 },
 };
 const NIGHT = {
@@ -85,6 +89,9 @@ const NIGHT = {
   fire: 3,
   fireside: 1.5,
 };
+// A rainy spell (weather.js) makes for a cosy afternoon in: the fire, a book, a nap, and the cat at the window.
+// The dog still needs her walk, rain or not.
+const RAIN = { fire: 2.5, fireside: 1.6, read: 1.5, nap: 1.6, tv: 1.3, perch: 2.5, bed: 1.3 };
 const LONGEST = 300; // s any one activity may run
 
 export function makeLife(home) {
@@ -209,7 +216,7 @@ export function makeLife(home) {
     const weights = {};
     for (const [name, w] of Object.entries(MENUS[a.name])) {
       const todo = home.acts[name];
-      if (todo && todo.can(a)) weights[name] = w * (home.night ? NIGHT[name] || 1 : 1);
+      if (todo && todo.can(a)) weights[name] = w * (home.night ? NIGHT[name] || 1 : 1) * (home.weather.raining ? RAIN[name] || 1 : 1);
     }
     const name = a.picker.choose(weights);
     if (!name) return (a.nextAt = t() + 2);
@@ -265,7 +272,7 @@ export function makeLife(home) {
     house.tv.pads.forEach((p) => (p.visible = !gaming));
     house.fridge.openers = actors.filter((a) => a.atFridge).length;
     house.fridge.freezers = actors.filter((a) => a.atFreezer).length;
-    house.beds.slots = [0, 1].map((i) => humans.some((h) => h.abed && h.seatKey === `bed${i}`));
+    house.beds.slots = [0, 1].map((i) => humans.some((h) => h.lainDown && h.seatKey === `bed${i}`));
 
     // A person on the sofa pets the pets lying on the seats either side.
     for (const h of humans) {
@@ -297,6 +304,29 @@ export function makeLife(home) {
         if (h && invite(h, act("feed", home.acts.feed.run, p))) p.feeder = h;
       }
     }
+
+    // The sprinkler, once it has run a while, is turned off by whoever is free; its timer turns it off in the
+    // end if nobody comes (asleep, say).
+    const sprinkler = house.garden.sprinkler;
+    if (sprinkler.on && t() > sprinkler.offAt && !holder("sprinkler")) {
+      const h = awake.find(available);
+      if (h && invite(h, act("sprinklerOff", home.acts.sprinklerOff.run))) sprinkler.offAt = t() + 60;
+    }
+    if (sprinkler.on && t() - sprinkler.since > 240) sprinkler.stop(t());
+
+    // Rain comes when it will: whoever it catches out in the garden drops what they are doing and runs in
+    // (what they were next asked to do still waits for them).
+    if (home.weather.raining)
+      for (const a of actors) {
+        if (a.out || a.x < X1 || a.z < LOFT.z1 || a.y > 1 || ["shelter", "sprinklerOff"].includes(a.jobName)) continue;
+        if (a.job) {
+          a.job.return();
+          finish(a, false);
+        }
+        const { pending } = a;
+        start(a, act("shelter", home.acts.shelter.run));
+        a.pending = pending;
+      }
 
     // With the two of them out (as on the profile page: she never goes on walks), the cat gets up to
     // mischief soon after, if she has not for a while; the first one back finds the mess.

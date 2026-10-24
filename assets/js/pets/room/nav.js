@@ -22,6 +22,37 @@ export function makeNav([x0, x1, z0, z1], obstacles) {
       )
         ? 1
         : 0;
+  // Free cells shut off from the rest (a gap between two chairs, say) count as blocked too, so that no one is
+  // sent somewhere they cannot walk to: only the largest stretch of free floor, all of it joined up, is free.
+  const region = new Int32Array(cols * rows).fill(-1);
+  const sizes = [];
+  for (let k = 0; k < cols * rows; k++) {
+    if (blocked[k] || region[k] >= 0) continue;
+    const id = sizes.length;
+    const stack = [k];
+    region[k] = id;
+    let size = 0;
+    while (stack.length) {
+      const c = stack.pop();
+      size++;
+      const [i, j] = [c % cols, Math.floor(c / cols)];
+      for (const [ni, nj] of [
+        [i + 1, j],
+        [i - 1, j],
+        [i, j + 1],
+        [i, j - 1],
+      ]) {
+        const n = nj * cols + ni;
+        if (ni >= 0 && nj >= 0 && ni < cols && nj < rows && !blocked[n] && region[n] < 0) {
+          region[n] = id;
+          stack.push(n);
+        }
+      }
+    }
+    sizes.push(size);
+  }
+  const main = sizes.indexOf(Math.max(...sizes));
+  for (let k = 0; k < cols * rows; k++) if (region[k] !== main) blocked[k] = 1;
 
   const cellOf = (x, z) => [Math.floor((x - x0) / CELL), Math.floor((z - z0) / CELL)];
   const inside = (i, j) => i >= 0 && j >= 0 && i < cols && j < rows;

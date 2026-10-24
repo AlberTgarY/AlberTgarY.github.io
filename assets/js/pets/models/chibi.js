@@ -8,13 +8,16 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { pivotGroup } from "./voxels.js";
 
+// Where the hips hinge on `pose`: their height, and how far back (the legs swing from here).
+export const HIP_PIVOT = [8.5, -0.5];
+
 // Legs and arms on `pose`. `wear(parent, build)` hangs a piece of clothing built by `build(night)` on a
 // joint; `thigh`, `shin`, `upper` and `fore` build each piece as (side, x0, night), where side is -1 for
 // the right (the -x side) and x0 the piece's inner edge.
 export function limbs(pose, wear, { thigh, shin, upper, fore }) {
   const legs = [-1, 1].map((side) => {
     const x0 = side > 0 ? 1 : -2;
-    const hip = pivotGroup(pose, [x0 + 0.5, 8.5, -0.5]);
+    const hip = pivotGroup(pose, [x0 + 0.5, ...HIP_PIVOT]);
     wear(hip.inner, (night) => thigh(side, x0, night));
     const knee = pivotGroup(hip.inner, [x0 + 0.5, 4.5, -1.5]); // the knee hinges at the back of the leg
     wear(knee.inner, (night) => shin(side, x0, night));

@@ -31,6 +31,9 @@ import { LOOKS, OUTFIT_PALETTE } from "../models/girl-outfits.js";
 import { pick } from "../stage.js";
 import { CHANNELS, GAMES, drawChannel, drawTvGame, drawPcGame } from "./screens.js";
 import { DISHES, buildDish } from "./props.js";
+import { FOOD_COLORS, stockFridge, stockFreezer } from "./fridge-food.js";
+import { VEG, VEG_COLORS, seeded } from "./veg.js";
+import { buildSprinkler } from "./sprinkler.js";
 
 export const X0 = -150; // the left wall
 export const X1 = 150; // the open right side downstairs, where the garden begins
@@ -57,6 +60,11 @@ export function floorY(x, z) {
 const COLORS = {
   ...OUTFIT_PALETTE,
   ...PROP_COLORS,
+  ...FOOD_COLORS,
+  ...VEG_COLORS,
+  umbrellaPink: "#f28aa8",
+  umbrellaNavy: "#3f5a8a",
+  umbrellaNavyDark: "#2f4670",
   frame: "#f7f3ea",
   frameShade: "#e3dccd",
   curtain: "#a5bf98",
@@ -321,7 +329,8 @@ function place(parent, object, [x, y, z], rotY = 0) {
 // Where a point (lx, lz) of something standing at `at`, turned by `yaw`, is in the room.
 const turned = ([x, z], yaw, [lx, lz]) => [x + lx * Math.cos(yaw) + lz * Math.sin(yaw), z - lx * Math.sin(yaw) + lz * Math.cos(yaw)];
 
-export function buildHouse(scene) {
+// `water` (water.js) flies the sprinkler's drops.
+export function buildHouse(scene, water) {
   const house = new THREE.Group();
   scene.add(house);
   const mesh = (p) => solid(p);
@@ -528,16 +537,32 @@ export function buildHouse(scene) {
   // by night. Both windows show it.
   const SKY = [44, 46];
   const sky = pixelTexture(...SKY, () => {});
+  let overcast = false; // raining: no sun, moon or stars
   const skyMat = new THREE.MeshBasicMaterial({ map: sky.tex });
   const clouds = pixelTexture(SKY[0] * 2, SKY[1], () => {});
   clouds.tex.wrapS = THREE.RepeatWrapping;
   clouds.tex.repeat.set(0.5, 1);
   const cloudMat = new THREE.MeshBasicMaterial({ map: clouds.tex, transparent: true, depthWrite: false });
+  // In the rain, a grey veil over it with streaks of rain running down (scrolled as it falls).
+  const RAIN_COLORS = ["rgba(205, 220, 232, 0.85)", "rgba(170, 190, 208, 0.7)"];
+  const drawRain = (g, w, h) => {
+    g.fillStyle = "rgba(120, 132, 146, 0.42)";
+    g.fillRect(0, 0, w, h);
+    for (let i = 0; i < (w * h) / 26; i++) {
+      const [x, y] = [Math.floor(hash(i, w, 31) * w), Math.floor(hash(i, h, 32) * h)];
+      g.fillStyle = RAIN_COLORS[i % 2];
+      g.fillRect(x, y, 1, 2 + (i % 3));
+    }
+  };
+  const rainVeil = pixelTexture(...SKY, drawRain);
+  rainVeil.tex.wrapS = rainVeil.tex.wrapT = THREE.RepeatWrapping;
+  const rainMat = new THREE.MeshBasicMaterial({ map: rainVeil.tex, transparent: true, opacity: 0, depthWrite: false });
   // A pane of sky `w` x `h` voxels, showing that much of it.
   function skyPane(w, h, at, rotY) {
     for (const [mat, lift] of [
       [skyMat, 0],
       [cloudMat, 0.1],
+      [rainMat, 0.2],
     ]) {
       const g = new THREE.PlaneGeometry(w, h);
       const uv = g.attributes.uv;
@@ -564,7 +589,9 @@ export function buildHouse(scene) {
     grad.addColorStop(1, night ? "#33447a" : "#d4ecfb");
     g.fillStyle = grad;
     g.fillRect(0, 0, ...SKY);
-    if (night) {
+    if (overcast) {
+      // Nothing but cloud.
+    } else if (night) {
       for (let i = 0; i < 22; i++) {
         g.fillStyle = i % 5 ? "#e9ecff" : "#ffe9a8";
         g.fillRect(Math.floor(hash(i, 3, 1) * SKY[0]), Math.floor(hash(i, 5, 2) * SKY[1] * 0.8), 1, 1);
@@ -694,6 +721,10 @@ export function buildHouse(scene) {
   });
   // The hedge is close behind the door, so whoever goes out walks off behind it.
   place(house, new THREE.Mesh(new THREE.PlaneGeometry(60, 70), new THREE.MeshBasicMaterial({ map: outside.tex })), [DOOR.x, 34.5, BACK - 18]);
+  const doorRain = pixelTexture(60, 70, drawRain);
+  doorRain.tex.wrapS = doorRain.tex.wrapT = THREE.RepeatWrapping;
+  const doorRainMat = new THREE.MeshBasicMaterial({ map: doorRain.tex, transparent: true, opacity: 0, depthWrite: false });
+  place(house, new THREE.Mesh(new THREE.PlaneGeometry(60, 70), doorRainMat), [DOOR.x, 34.5, BACK - 17.8]);
   const path = new THREE.Mesh(new THREE.PlaneGeometry(2 * DOOR.half + 6, 16), new THREE.MeshLambertMaterial({ color: "#d9cbb0" }));
   path.rotation.x = -Math.PI / 2;
   place(house, path, [DOOR.x, -0.5, BACK - 10]);
@@ -707,9 +738,8 @@ export function buildHouse(scene) {
 
   // A rounded retro fridge in mint, no taller than they can reach: the fridge below and the freezer above,
   // each door swinging open towards the front on its own and the inside lit up. In the fridge, two glass
-  // shelves over the crisper drawer (a lettuce and carrots): milk, juice, jam and a tray of eggs; a slice of
-  // cake, watermelon and grapes; puddings, a covered bowl and water; and sauces in the door. In the
-  // freezer, a tub of ice cream, ice lollies, peas and an ice tray. Magnets and a photo on the door.
+  // shelves over the crisper drawer, and sauces in the door; in the freezer, a shelf. What is on the shelves
+  // changes each time a door opens (fridge-food.js). Magnets and a photo on the door.
   const FRIDGE = [-132, -97];
   const fridgeGroup = new THREE.Group();
   fridgeGroup.position.set(FRIDGE[0], 0, FRIDGE[1]);
@@ -725,74 +755,32 @@ export function buildHouse(scene) {
   for (const x of [-14, 12]) for (const z of [-10, 7]) box(body, [x, x + 1], [0, 1], [z, z + 1], "fridgeFeet");
   fridgeGroup.add(mesh(body));
 
-  const lower = part();
-  box(lower, [-13, 12], [3, SPLIT - 2], [1, 1], "inside");
-  for (const y of [15, 27]) box(lower, [-13, 12], [y, y], [2, 7], "insideShelf");
-  // The crisper drawer: a rail along the top and bottom of its front, the vegetables showing between.
-  for (const y of [3, 8]) box(lower, [-13, 12], [y, y], [2, 7], "insideShelf");
-  ellipsoid(lower, [-6, 5.5, 4], [4, 2.2, 2.4], (x, y, z) => (hash(x, y, z) < 0.35 ? "leaf" : "lettuce"));
-  for (const x of [3, 6, 9]) {
-    box(lower, [x, x + 1], [4, 5], [3, 6], "carrot");
-    lower.add(x, 6, 3, "leaf");
-  }
-  // On the drawer: milk with a blue cap, a carton of orange juice, strawberry jam and a tray of eggs.
-  box(lower, [-12, -10], [9, 12], [3, 5], "milk");
-  lower.add(-11, 13, 4, "milk");
-  lower.add(-11, 14, 4, "milkBlue");
-  box(lower, [-8, -6], [9, 13], [3, 5], (x, y) => (y === 11 ? "milk" : "juice"));
-  box(lower, [-8, -6], [14, 14], [4, 4], "juice");
-  box(lower, [-3, -1], [9, 11], [4, 6], "berry");
-  box(lower, [-3, -1], [12, 12], [4, 6], "frame");
-  box(lower, [2, 11], [9, 9], [3, 6], "eggTray");
-  for (let x = 2; x <= 11; x += 2) for (const z of [3, 5]) box(lower, [x, x + 1], [10, 10], [z, z + 1], "egg");
-  // On the middle shelf: a slice of layer cake with a strawberry, a slice of watermelon and grapes.
-  box(lower, [-12, -7], [16, 19], [3, 6], (x, y) => (y % 2 ? "cream" : "cake"));
-  lower.add(-10, 20, 5, "berry");
-  lower.add(-10, 21, 5, "leaf");
-  for (let y = 16; y <= 20; y++) {
-    const half = y <= 17 ? 4 : y === 20 ? 1 : 3 - (y - 18);
-    box(lower, [-half, half - 1], [y, y], [4, 5], y === 16 ? "rind" : y === 17 ? "rindLight" : "berry");
-  }
-  for (const [x, y] of [
-    [-2, 18],
-    [1, 18],
-    [0, 19],
-  ])
-    lower.add(x, y, 6, "seed");
-  ellipsoid(lower, [8.5, 18, 4.5], [2, 2.5, 1.6], (x, y, z) => ((x + y + z) % 2 ? "grape" : "grapeDeep"));
-  lower.add(8, 21, 4, "stem");
-  // On the top shelf: two puddings, a covered bowl and a bottle of water.
-  for (const x of [-12, -8]) {
-    box(lower, [x, x + 2], [28, 29], [4, 6], "pudding");
-    box(lower, [x, x + 2], [30, 30], [4, 6], "caramel");
-  }
-  ellipsoid(lower, [0, 29, 4.5], [3.5, 1.6, 2.5], "china");
-  box(lower, [-2, 2], [31, 31], [4, 5], "cake");
-  box(lower, [7, 9], [28, 35], [4, 5], "glass");
-  lower.add(8, 36, 4, "milkBlue");
-
-  const upper = part();
-  box(upper, [-13, 12], [SPLIT + 2, TOP - 2], [1, 1], "inside");
-  box(upper, [-13, 12], [50, 50], [2, 7], "insideShelf");
-  // A tub of strawberry ice cream with a white lid, two ice lollies on sticks, a bag of peas, an ice tray.
-  box(upper, [-12, -5], [42, 45], [3, 7], "icecream");
-  box(upper, [-12, -5], [46, 46], [3, 7], "frame");
-  for (const [x, c] of [
-    [-1, "juice"],
-    [2, "berry"],
-  ]) {
-    box(upper, [x, x + 1], [43, 47], [4, 5], c);
-    upper.add(x, 42, 4, "woodLight");
-  }
-  box(upper, [-12, -6], [51, 54], [3, 6], (x, y) => (y === 54 ? "frameShade" : "melon"));
-  box(upper, [3, 11], [51, 51], [3, 7], "iceBlue");
-  for (let x = 4; x <= 10; x += 2) box(upper, [x, x], [52, 52], [4, 6], "frame");
-  const insides = [lower, upper].map((p) => {
-    const m = solid(p, COLORS, glowing); // lit from within
+  const insideOf = [
+    (p) => {
+      box(p, [-13, 12], [3, SPLIT - 2], [1, 1], "inside");
+      for (const y of [15, 27]) box(p, [-13, 12], [y, y], [2, 7], "insideShelf");
+      for (const y of [3, 8]) box(p, [-13, 12], [y, y], [2, 7], "insideShelf"); // the crisper drawer's rails
+      stockFridge(p);
+    },
+    (p) => {
+      box(p, [-13, 12], [SPLIT + 2, TOP - 2], [1, 1], "inside");
+      box(p, [-13, 12], [50, 50], [2, 7], "insideShelf");
+      stockFreezer(p);
+    },
+  ];
+  const insides = insideOf.map(() => {
+    const m = new THREE.Mesh(new THREE.BufferGeometry(), glowing); // lit from within
     m.visible = false;
     fridgeGroup.add(m);
     return m;
   });
+  function restock(i) {
+    const p = part();
+    insideOf[i](p);
+    insides[i].geometry.dispose();
+    insides[i].geometry = solid(p).geometry;
+  }
+  insides.forEach((_, i) => restock(i));
 
   // The doors, both hinged on the left. Sauces stand in the fridge door's racks.
   const doors = [
@@ -837,6 +825,7 @@ export function buildHouse(scene) {
   const fridge = { openers: 0, freezers: 0, k: [0, 0] };
   updates.push((t, dt) => {
     [fridge.openers, fridge.freezers].forEach((n, i) => {
+      if (n > 0 && fridge.k[i] < 0.02) restock(i); // opening from shut
       fridge.k[i] += ((n > 0 ? 1 : 0) - fridge.k[i]) * (1 - Math.exp(-5 * dt));
       doors[i].rotation.y = -1.6 * fridge.k[i];
       insides[i].visible = fridge.k[i] > 0.02;
@@ -885,6 +874,36 @@ export function buildHouse(scene) {
   ellipsoid(shelfOnWall, [12, 67, BACK + 3.5], [3, 2.6, 2.4], (x, y, z) => (hash(x, y, z) < 0.3 ? "plantLight" : "plant"));
   for (let y = 58; y <= 62; y++) shelfOnWall.add(14, y, BACK + 5, "plant"); // a trailing stem
   place(house, mesh(shelfOnWall), [COUNTER[0], 0, 0]);
+
+  // An umbrella rack on the wall between the door and the foot of the stairs, out of everyone's way: a
+  // little wooden board with two brass hooks, her pink umbrella and his navy one hanging from them by their
+  // hooked handles. Each goes when it is taken.
+  const BROLLY_RACK = [-35, BACK + 1];
+  const rack = part();
+  box(rack, [-5, 5], [33, 35], [0, 0], (x, y) => (y === 33 ? "woodDeep" : "woodMid"));
+  for (const x of [-3, 3]) {
+    rack.add(x, 34, 1, "brass");
+    rack.add(x, 33, 2, "brass");
+  }
+  place(house, mesh(rack), [BROLLY_RACK[0], 0, BROLLY_RACK[1]]);
+  const UMBRELLA_COLORS = { girl: ["umbrellaPink", "white"], boy: ["umbrellaNavy", "umbrellaNavyDark"] };
+  const standUmbrellas = Object.fromEntries(
+    Object.entries(UMBRELLA_COLORS).map(([who, [c1, c2]], i) => {
+      const p = part();
+      box(p, [0, 0], [-17, 0], [0, 0], "woodDeep");
+      for (let y = -14; y <= -4; y++) {
+        const r = y < -12 || y > -6 ? 0 : 1;
+        box(p, [-r, r], [y, y], [-r, r], (x, yy, z) => ((x + yy + z) % 4 === 0 ? c2 : c1));
+      }
+      for (const [x, y] of [
+        [0, 1],
+        [1, 2],
+        [2, 1],
+      ])
+        p.add(x, y, 0, "woodDeep"); // the hooked handle, over the hook
+      return [who, place(house, mesh(p), [BROLLY_RACK[0] + (i ? 3 : -3) - 1, 31, BROLLY_RACK[1] + 2])];
+    })
+  );
 
   // The pedal bin between the counter and the door: a steel can whose lid flips up when something goes in.
   const BIN = [-69, -104];
@@ -1085,7 +1104,12 @@ export function buildHouse(scene) {
     for (let a = 0; a < 12; a++)
       rgbPart.add(33 + Math.round(2.4 * Math.cos((a * Math.PI) / 6)), fy + Math.round(2.4 * Math.sin((a * Math.PI) / 6)), 5, "white");
   const rgb = place(house, solid(rgbPart, COLORS, new THREE.MeshBasicMaterial({ vertexColors: true })), [DESK[0], Y, DESK[1]]);
-  const power = place(house, new THREE.Mesh(new THREE.BoxGeometry(2, 0.6, 2), new THREE.MeshBasicMaterial()), [DESK[0] + 35, Y + 23.8, DESK[1] + 1]);
+  // The power light, small, in the front right corner of the top.
+  const power = place(house, new THREE.Mesh(new THREE.BoxGeometry(1, 0.4, 1), new THREE.MeshBasicMaterial()), [
+    DESK[0] + 36.2,
+    Y + 23.7,
+    DESK[1] + 3.2,
+  ]);
   footprint(DESK[0] - 27, DESK[0] + 38, BACK, DESK[1] + 10);
 
   // His white headphones on their stand, the band over the hook and a cup hanging either side, their
@@ -1723,22 +1747,26 @@ export function buildHouse(scene) {
   // A table for two with a cloth runner, a jug of flowers at one end and two places laid, and two chairs on
   // the far side, so the two of them sit facing the room. A dish from the oven goes in the middle.
   const DINING = [62, 92];
+  const HALF = 25; // half its length
+  const [NEAR, FAR] = [-11, 12]; // its depth: the edge by the chairs, and the front edge
+  const PLACE = 13; // each place, and its chair, either side of the middle
   const dining = part();
-  box(dining, [-25, 24], [12, 13], [-9, 8], (x, y, z) =>
-    y === 13 && Math.abs(z + 0.5) <= 4.5 ? (x % 4 === 0 ? "frameShade" : "frame") : y === 12 || z === 8 ? "woodMid" : "woodLight"
+  box(dining, [-HALF, HALF - 1], [12, 13], [NEAR, FAR], (x, y, z) =>
+    y === 13 && Math.abs(z - 0.5) <= 5.5 ? (x % 4 === 0 ? "frameShade" : "frame") : y === 12 || z === FAR ? "woodMid" : "woodLight"
   );
-  for (const x of [-24, 22]) for (const z of [-8, 6]) box(dining, [x, x + 1], [0, 11], [z, z + 1], "woodMid");
-  for (const x of [-13, 13])
-    ellipsoid(dining, [x, 14, -4], [3, 0.5, 2.5], (vx, vy, vz) => ((vx - x) ** 2 + (vz + 4) ** 2 > 3 ? "chinaBlue" : "china"));
-  for (let y = 14; y <= 18; y++) ellipsoid(dining, [-20, y, 3], [1.6, 0.5, 1.6], y === 18 ? "glass" : "mugBlue");
+  for (const x of [1 - HALF, HALF - 3]) for (const z of [NEAR + 1, FAR - 2]) box(dining, [x, x + 1], [0, 11], [z, z + 1], "woodMid");
+  for (const x of [-PLACE, PLACE])
+    ellipsoid(dining, [x, 14, NEAR + 5], [3, 0.5, 2.5], (vx, vy, vz) => ((vx - x) ** 2 + (vz - NEAR - 5) ** 2 > 3 ? "chinaBlue" : "china"));
+  const JUG = 5 - HALF;
+  for (let y = 14; y <= 18; y++) ellipsoid(dining, [JUG, y, 5], [1.6, 0.5, 1.6], y === 18 ? "glass" : "mugBlue");
   [
-    [-21, 20, 3, "red"],
-    [-19, 21, 3, "yellow"],
-    [-20, 22, 4, "pink"],
-    [-20, 20, 2, "leaf"],
+    [JUG - 1, 20, 5, "red"],
+    [JUG + 1, 21, 5, "yellow"],
+    [JUG, 22, 6, "pink"],
+    [JUG, 20, 4, "leaf"],
   ].forEach(([x, y, z, c]) => ellipsoid(dining, [x, y, z], [1.2, 1.2, 1.2], c));
   place(house, mesh(dining), [DINING[0], 0, DINING[1]]);
-  footprint(DINING[0] - 25, DINING[0] + 25, DINING[1] - 9, DINING[1] + 9);
+  footprint(DINING[0] - HALF, DINING[0] + HALF, DINING[1] + NEAR, DINING[1] + FAR);
   const tableDish = place(house, new THREE.Group(), [DINING[0], 14.5, DINING[1] + 1]);
   const tableDishes = Object.fromEntries(DISHES.map((kind) => [kind, place(tableDish, buildDish(kind), [0, 0, 0])]));
   const dinner = { dish: null }; // what is on the table (props.js's DISHES), or nothing
@@ -1748,7 +1776,7 @@ export function buildHouse(scene) {
   box(diningChair, [-5, 5], [7, 8], [-4, 4], (x, y) => (y === 8 ? "woodLight" : "woodMid"));
   for (const x of [-5, 4]) for (const z of [-4, 3]) box(diningChair, [x, x + 1], [0, 6], [z, z + 1], "woodMid");
   box(diningChair, [-5, 5], [9, 19], [-5, -5], (x, y) => (y === 19 || Math.abs(x) === 5 || y === 14 ? "woodMid" : "woodLight"));
-  for (const x of [-13, 13]) {
+  for (const x of [-PLACE, PLACE]) {
     place(house, mesh(diningChair), [DINING[0] + x, 0, DINE_Z]);
     footprint(DINING[0] + x - 6, DINING[0] + x + 6, DINE_Z - 6, DINE_Z + 5);
   }
@@ -1853,96 +1881,42 @@ export function buildHouse(scene) {
   for (let z = -20; z <= 104; z += 8) if (Math.abs(z - GARDEN_DOOR.z) > 4) stone(161, z);
   house.add(mesh(stones));
 
-  // The vegetables, each at three stages: just planted, growing, and ready to pick. A builder fills a part
-  // with one plant at stage `s`, standing on y = 0 round (0, 0).
-  const sprout = (p, leaf) => {
-    box(p, [0, 0], [0, 2], [0, 0], "stem");
-    for (const x of [-1, 1]) p.add(x, 2 + (x > 0 ? 1 : 0), 0, leaf);
-  };
-  const leafy = (light, dark) => (x, y, z) => (hash(x, y, z) < 0.3 ? dark : light);
-  const VEG = {
-    // Tomatoes on a vine up a cane: green ones among yellow flowers, then red and shining.
-    tomato(p, s) {
-      if (!s) return sprout(p, "tomLeaf");
-      const top = s === 1 ? 11 : 16;
-      box(p, [0, 0], [0, top], [-2, -2], "woodLight");
-      for (let y = 3; y <= top - 2; y += 3) ellipsoid(p, [y % 2 ? 1.5 : -1.5, y, 0], [2.6, 1.8, 2.2], leafy("tomLeaf", "plant"));
-      const fruit =
-        s === 1
-          ? [
-              [1, 6, 2],
-              [-2, 9, 2],
-            ]
-          : [
-              [2, 5, 2],
-              [-2, 8, 2],
-              [1, 11, 2],
-              [-1, 13, 1],
-              [3, 9, 1],
-            ];
-      for (const [x, y, z] of fruit) {
-        ellipsoid(p, [x, y, z], [1.3, 1.3, 1.3], s === 1 ? "tomGreen" : "tomato");
-        p.add(x, y + 1, z, "stem");
-        if (s === 2) p.add(x - 1, y, z + 1, "tomatoShine");
-      }
-      if (s === 1)
-        for (const [x, y] of [
-          [-1, 5],
-          [2, 9],
-        ])
-          p.add(x, y, 3, "yellow");
-    },
-    // Eggplants: a leafy bush on purple stems, a lilac flower, then glossy purple fruit hanging under it.
-    eggplant(p, s) {
-      if (!s) return sprout(p, "eggLeaf");
-      const r = s === 1 ? 3.6 : 4.8;
-      box(p, [0, 0], [0, 3], [0, 0], "eggStem");
-      ellipsoid(p, [0, 3 + r, 0], [r, r * 0.9, r * 0.85], leafy("eggLeaf", "plant"));
-      for (const [x, y] of [
-        [-2, 3],
-        [2, 4],
-      ])
-        p.add(x, y, 1, "eggStem");
-      if (s === 1) p.add(1, 4 + r, 3, "lilac");
-      else
-        for (const [x, y] of [
-          [-3, 3],
-          [2.5, 4],
-          [0, 2],
-        ]) {
-          ellipsoid(p, [x, y, 4], [1.3, 2.6, 1.3], "eggplant");
-          p.add(Math.round(x), Math.round(y) + 3, 4, "eggCap");
-          p.add(Math.round(x) - 1, Math.round(y) + 1, 5, "eggplantShine");
-        }
-    },
-    // Napa cabbage: a loose rosette, then a tall head, white at the base and frilly green on top.
-    napa(p, s) {
-      if (!s) return sprout(p, "napaGreen");
-      ellipsoid(p, [0, 1, 0], [s === 1 ? 3.5 : 5, 1.2, s === 1 ? 3.5 : 5], leafy("napaLeaf", "napaGreen"));
-      if (s === 1) ellipsoid(p, [0, 3, 0], [2.4, 2.4, 2.4], leafy("napaGreen", "napaLeaf"));
-      else
-        ellipsoid(p, [0, 7, 0], [3.4, 6.5, 3.4], (x, y, z) =>
-          y <= 6 ? (hash(x, y, z) < 0.2 ? "napaPale" : "napaWhite") : y <= 8 ? "napaPale" : leafy("napaGreen", "napaLeaf")(x, y, z)
-        );
-    },
-    // Cabbage: a rosette of broad outer leaves, then a round firm head in the middle.
-    cabbage(p, s) {
-      if (!s) return sprout(p, "cabbageLeaf");
-      ellipsoid(p, [0, 1.5, 0], [s === 1 ? 4 : 5.5, 1.5, s === 1 ? 4 : 5.5], (x, y, z) =>
-        (x === 0 || z === 0) && y === 2 ? "cabbageVein" : "cabbageLeaf"
-      );
-      if (s === 2) ellipsoid(p, [0, 5, 0], [3.8, 3.6, 3.8], (x, y, z) => ((x + y) % 4 === 0 ? "cabbageVein" : "cabbage"));
-    },
-  };
+  // The beds, each with three plants of one vegetable (veg.js), every plant its own; a bed sown again comes
+  // up with new ones. The soil is crumbly, darker where wet; a little painted marker at the path end says
+  // what grows there.
   const BEDS = [
-    { kind: "tomato", z: [-20, -3] },
-    { kind: "eggplant", z: [7, 24] },
-    { kind: "napa", z: [56, 73] },
-    { kind: "cabbage", z: [85, 102] },
+    { kind: "tomato", z: [-20, -3], sign: ["tomato", "tomLeaf"] },
+    { kind: "eggplant", z: [7, 24], sign: ["eggplant", "eggCap"] },
+    { kind: "napa", z: [56, 73], sign: ["napaWhite", "napaGreen"] },
+    { kind: "cabbage", z: [85, 102], sign: ["cabbage", "cabbageLeaf"] },
   ];
   const PLANT_X = [176, 186, 196];
+  const soilTexture = (len) =>
+    pixelTexture(33, len, (g, w, h) => {
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          const r = hash(x, y + len, 21);
+          g.fillStyle = r < 0.12 ? "#56391f" : r < 0.3 ? "#7a5639" : r > 0.985 ? "#a39280" : "#6b4a32";
+          g.fillRect(x, y, 1, 1);
+        }
+    }).tex;
+  const markers = part();
+  // Sow a bed: three new plants, each drawn at its three stages.
+  function sow(bed) {
+    bed.plants3d?.forEach((pl) => pl.forEach((m) => (house.remove(m), m.geometry.dispose())));
+    bed.plants3d = PLANT_X.map((x) => {
+      const seed = Math.floor(Math.random() * 2 ** 31);
+      return [0, 1, 2].map((s) => {
+        const p = part();
+        VEG[bed.kind](p, s, seeded(seed));
+        const m = place(house, mesh(p), [x, 3, bed.zc], hash(seed % 997, s, 3) * 0.8 - 0.4);
+        m.visible = false;
+        return m;
+      });
+    });
+  }
   const garden = {
-    beds: BEDS.map(({ kind, z: [z0, z1] }, i) => {
+    beds: BEDS.map(({ kind, z: [z0, z1], sign }, i) => {
       const zc = (z0 + z1) / 2;
       const frame = part();
       box(frame, [169, 203], [0, 3], [z0, z1], (x, y, z) => (y === 3 ? "woodDeep" : (x + z) % 9 === 0 ? "woodDeep" : "woodMid"), [
@@ -1950,33 +1924,27 @@ export function buildHouse(scene) {
       ]);
       house.add(mesh(frame));
       footprint(169, 204, z0, z1 + 1);
-      const soil = place(house, new THREE.Mesh(new THREE.BoxGeometry(33, 1, z1 - z0 - 1), new THREE.MeshLambertMaterial({ color: COLORS.soil })), [
-        186,
-        2.5,
-        zc,
-      ]);
-      const stages = [0, 1, 2].map((s) => {
-        const p = part();
-        VEG[kind](p, s);
-        const g = new THREE.Group();
-        for (const x of PLANT_X) {
-          const m = place(g, mesh(p), [x, 3, zc]);
-          m.rotation.y = hash(x, i, s) * 0.8 - 0.4;
-        }
-        g.visible = false;
-        house.add(g);
-        return g;
-      });
-      return {
+      const soil = place(
+        house,
+        new THREE.Mesh(new THREE.BoxGeometry(33, 1, z1 - z0 - 1), new THREE.MeshLambertMaterial({ map: soilTexture(z1 - z0 - 1) })),
+        [186, 2.5, zc]
+      );
+      // The marker: a stake with a little board painted with the vegetable.
+      box(markers, [171, 171], [3, 9], [z0 + 2, z0 + 2], "woodLight");
+      box(markers, [170, 172], [8, 10], [z0 + 3, z0 + 3], (x, y) => (x === 171 && y === 9 ? sign[0] : x === 171 && y === 10 ? sign[1] : "frame"));
+      const bed = {
         kind,
+        z: [z0, z1],
         stage: [2, 1, 0, 1][i],
         growth: Math.random() * 0.6,
         wet: 0,
         soil,
-        stages,
+        zc,
         at: [161, zc],
         plants: PLANT_X.map((x) => [x, 8, zc]),
       };
+      sow(bed);
+      return bed;
     }),
     // Water bed `i`: the soil darkens, and it grows faster while it is wet.
     water(i) {
@@ -1986,14 +1954,41 @@ export function buildHouse(scene) {
     harvest(i) {
       const bed = garden.beds[i];
       Object.assign(bed, { stage: 0, growth: 0 });
+      sow(bed);
       return bed.kind;
     },
     ripe: (i) => garden.beds[i].stage === 2,
     thirsty: (i) => garden.beds[i].stage < 2 && garden.beds[i].wet < 0.3,
     picked: 0, // vegetables brought in and kept in the fridge, for cooking
   };
-  const dry = new THREE.Color(COLORS.soil);
-  const wet = new THREE.Color(COLORS.soilWet);
+  house.add(mesh(markers));
+  // Flowers along the picket fence, at the front and down the far side, in clumps of a few colours.
+  const flowers = part();
+  const BLOOMS = ["pink", "yellow", "white", "lilac", "red"];
+  // A clump: a few stems of one colour, each with a leaf and a flower of four petals round a yellow eye (a
+  // white one round a yellow eye too, a yellow one round an orange one).
+  const clump = (x, z, k) => {
+    const color = BLOOMS[Math.floor(hash(k, 0, 8) * BLOOMS.length)];
+    for (let n = 0; n < 2 + Math.floor(hash(x, z, 4) * 3); n++) {
+      const [fx, fz] = [x + Math.round(hash(k, n, 5) * 4) - 2, z + Math.round(hash(n, k, 6) * 2) - 1];
+      const h = 3 + Math.floor(hash(fx, fz, 7) * 3);
+      box(flowers, [fx, fx], [0, h - 1], [fz, fz], "stem");
+      flowers.add(fx + (n % 2 ? 1 : -1), 1 + (n % 2), fz, "leaf");
+      for (const [dx, dz] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ])
+        flowers.add(fx + dx, h, fz + dz, color);
+      flowers.add(fx, h, fz, color === "yellow" ? "orange" : "yellow");
+    }
+  };
+  for (let x = 167, k = 0; x <= 204; x += 6, k++) if (hash(x, 1, 9) < 0.85) clump(x, 105, k);
+  for (let z = -22, k = 50; z <= 98; z += 6, k++) if (hash(z, 2, 9) < 0.75) clump(206, z, k);
+  house.add(mesh(flowers));
+  const dry = new THREE.Color("#ffffff");
+  const wet = new THREE.Color("#8f8278");
   updates.push((t, dt) => {
     for (const bed of garden.beds) {
       bed.wet = Math.max(0, bed.wet - dt / 150);
@@ -2001,10 +1996,16 @@ export function buildHouse(scene) {
         bed.growth += dt / (bed.wet > 0 ? 70 : 260);
         if (bed.growth >= 1) Object.assign(bed, { stage: bed.stage + 1, growth: 0 });
       }
-      bed.stages.forEach((g, s) => (g.visible = s === bed.stage));
+      bed.plants3d.forEach((pl) => pl.forEach((m, s) => (m.visible = s === bed.stage)));
       bed.soil.material.color.lerpColors(dry, wet, Math.min(1, bed.wet * 1.5));
     }
   });
+  // The sprinkler between the beds, on its hose from the tap by the garden door (sprinkler.js).
+  const sprinkler = buildSprinkler(house, water);
+  footprint(...sprinkler.footprint, false);
+  garden.sprinkler = sprinkler;
+  updates.push((t, dt) => sprinkler.update(t, dt));
+
   // The garden's watering can, by the door when nobody has it.
   const gardenCan = part();
   box(gardenCan, [-2, 2], [0, 3], [-1, 1], (x, y) => (y === 0 ? "canDark" : "can"));
@@ -2064,6 +2065,7 @@ export function buildHouse(scene) {
     });
   });
   garden.butterfly = butterfly;
+  garden.fireflies = fireflies;
 
   /* ---------- on the walls: a clock, a picture and string lights ---------- */
 
@@ -2164,19 +2166,30 @@ export function buildHouse(scene) {
     ),
     armchair: seat("armchair", ARMCHAIR, 0, 19, [ARMCHAIR[0], 9.5, ARMCHAIR[1] + 2]),
     chair: seat("chair", CHAIR, Math.PI, -16, null), // sat down into from behind, rolled in to the desk
-    dine0: seat("dine0", [DINING[0] - 13, DINE_Z], 0, -16, null), // the same, at the table
-    dine1: seat("dine1", [DINING[0] + 13, DINE_Z], 0, -16, null),
-    // In bed, lying back with the head on the pillow; the spot at the foot of the bed to get in from.
+    dine0: seat("dine0", [DINING[0] - PLACE, DINE_Z], 0, -16, null), // the same, at the table
+    dine1: seat("dine1", [DINING[0] + PLACE, DINE_Z], 0, -16, null),
+    // In bed, lying back with the head on the pillow (turned about the hips, actor.js); where to sit on the
+    // end of the bed to get in, facing out, and the spot at the foot of the bed in front of it.
     ...Object.fromEntries(
       [-1, 1].map((side, i) => [
         `bed${i}`,
-        { key: `bed${i}`, x: BED[0] + side * 13, z: -63, y: MATTRESS + 7.5, yaw: 0, front: [BED[0] + side * 13, -48], slot: i },
+        {
+          key: `bed${i}`,
+          x: BED[0] + side * 13,
+          z: -71,
+          y: MATTRESS - 1.5,
+          yaw: 0,
+          end: [BED[0] + side * 13, -62],
+          front: [BED[0] + side * 13, -48],
+          slot: i,
+        },
       ])
     ),
   };
   const spots = {
     seats,
-    fridge: { at: [-119, -70], yaw: facing([-119, -70], FRIDGE) },
+    // Beside the fridge, at its handle, so as not to stand between it and the viewer.
+    fridge: { at: [-106, -79], yaw: facing([-106, -79], [FRIDGE[0] + 4, FRIDGE[1] + 12]) },
     tin: { at: [COUNTER[0] + 14, -78], yaw: Math.PI },
     stove: { at: [-126, potTop[1]], yaw: -Math.PI / 2, pot: stove.pot },
     // The oven: beside its door (which comes down in front of it), and the middle of it.
@@ -2219,7 +2232,7 @@ export function buildHouse(scene) {
     gardenDoor: { inside: [134, GARDEN_DOOR.z], outside: [158, GARDEN_DOOR.z] },
     can: { at: [158, 50], yaw: 0 },
     beds: garden.beds.map((bed) => ({ at: bed.at, yaw: Math.PI / 2, plants: bed.plants })),
-    sunny: [186, GARDEN_DOOR.z], // a patch of grass between the beds
+    sunny: [184, GARDEN_DOOR.z + 9], // a patch of grass between the beds, by the sprinkler
     watchPc: { at: [CHAIR[0] - 30, CHAIR[1] + 16] }, // beside his chair, not in front of him or the headphones
     dining: { beg: [DINING[0] - 40, DINE_Z + 2], dish: [DINING[0], 16, DINING[1] + 1] }, // where the dog sits hoping for a bite, and the dish
     rug: [
@@ -2232,6 +2245,8 @@ export function buildHouse(scene) {
     tv: tvFace(0, 57, 0),
     monitor: [DESK[0] + 1.5, Y + 30, DESK[1] - 4],
     window: [BED[0], (WIN_BACK.y[0] + WIN_BACK.y[1]) / 2, BACK],
+    // Where to take an umbrella off the rack, or hang it back.
+    umbrellas: { at: [BROLLY_RACK[0], BACK + 13], yaw: Math.PI },
     // The front door: where to wait inside it, and out on the path.
     door: { x: DOOR.x, inside: BACK + 14, outside: BACK - 30 },
   };
@@ -2256,6 +2271,20 @@ export function buildHouse(scene) {
   drawMonitor(0);
   drawSideMonitor(0);
 
+  // How hard it is raining (0 to 1, weather.js): the veil over the windows and the open door, streaks
+  // running down it, and the clouds gone grey.
+  const grey = new THREE.Color("#8d97a3");
+  function rain(k, t) {
+    if (k > 0.3 !== overcast) {
+      overcast = k > 0.3;
+      drawSky();
+    }
+    rainMat.opacity = doorRainMat.opacity = k;
+    rainVeil.tex.offset.set(0.02 * t, (t * 1.6) % 1);
+    doorRain.tex.offset.set(0.02 * t, (t * 1.2) % 1);
+    cloudMat.color.setRGB(1, 1, 1).lerp(grey, k);
+  }
+
   return {
     group: house,
     obstacles,
@@ -2263,6 +2292,13 @@ export function buildHouse(scene) {
     spots,
     floorY,
     dress,
+    rain,
+    // The umbrellas on the rack by the door: `take(who)` and `put(who)` (who: "girl" or "boy").
+    umbrellas: {
+      take: (who) => (standUmbrellas[who].visible = false),
+      put: (who) => (standUmbrellas[who].visible = true),
+      in: (who) => standUmbrellas[who].visible,
+    },
     update: (t, dt) => updates.forEach((u) => u(t, dt)),
     tv: {
       // `mode`: "off", "show" or "game".

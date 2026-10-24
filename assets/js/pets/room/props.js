@@ -3,7 +3,8 @@
  * the red book, the laptop, the game controllers, an ice cream or a juice box
  * from the fridge, a watering can, the bag of pet food, a treat for the dog,
  * a basket of vegetables from the garden, a log for the fire, the cat's mess on
- * its way to the bin, a roast chicken or a lasagna for the oven (the oven and
+ * its way to the bin, an umbrella (rolled up, or open over the head), a roast
+ * chicken or a lasagna for the oven (the oven and
  * the table show the same dishes), and the dog's ball, which flies, rolls and
  * is carried in her mouth; and how they hold their arms for the computer, the
  * stove, the fire and the headphones.
@@ -63,7 +64,13 @@ const COLORS = {
   cheese: "#f2c14e",
   cheeseBrown: "#d08a33",
   sauce: "#c8412f",
+  umbrellaPink: "#f28aa8",
+  umbrellaNavy: "#3f5a8a",
+  umbrellaNavyDark: "#2f4670",
+  shaft: "#8f6440",
 };
+// Each one's umbrella: the two colours of its panels.
+const UMBRELLAS = { girl: ["umbrellaPink", "white"], boy: ["umbrellaNavy", "umbrellaNavyDark"] };
 
 export const HOLDS = {
   carry: [[-0.25, -1.15, 0.15, 0, 0], null], // the right hand holding something in front, the left swinging
@@ -102,6 +109,7 @@ export const HOLDS = {
     [-0.6, -0.35, 0.25, 0, 0],
     [-0.6, -0.35, -0.25, 0, 0],
   ], // hands on the knees, to push up off a seat
+  umbrella: [[-0.95, -1.35, 0, -0.5, 0], null], // an open umbrella held up beside the head
 };
 
 // Holds that move: typing, the mouse and the keys, mashing buttons, stirring, clapping, cheering, licking
@@ -139,6 +147,18 @@ export const MOVES = {
     ];
   },
   lick: (t) => [[-1.25 - 0.3 * Math.max(0, Math.sin(t * 2.4)), -1.35, 0.5, 0, 0], null],
+  // Turning a tap or a sprinkler's head: the hand out in front, the wrist working.
+  twist: (t) => [[-1.2, -0.35, 0.2, 0, 0.35 * Math.sin(t * 6)], null],
+  // Caught by the sprinkler: both hands up over the head, flapping.
+  flail: (t) => [
+    [-2.5 + 0.35 * Math.sin(t * 15), -1.1, 0, -0.35, 0],
+    [-2.5 + 0.35 * Math.sin(t * 15 + 1.7), -1.1, 0, 0.35, 0],
+  ],
+  // Shaking the water off the hands, or a rolled-up umbrella.
+  shake: (t) => [
+    [-0.85, -1.25 + 0.45 * Math.sin(t * 24), 0.25, 0, 0],
+    [-0.85, -1.25 + 0.45 * Math.sin(t * 24 + 0.8), -0.25, 0, 0],
+  ],
 };
 
 const hidden = (o) => {
@@ -146,9 +166,9 @@ const hidden = (o) => {
   return o;
 };
 
-// Props for one person: built on their rig and shown or hidden by their activities. Those carried in a
-// hand ride on its forearm; the ones used sitting down sit in front of the body.
-export function propsFor(rig) {
+// Props for one person (`who`: "girl" or "boy"): built on their rig and shown or hidden by their
+// activities. Those carried in a hand ride on its forearm; the ones used sitting down sit in front of the body.
+export function propsFor(rig, who) {
   const right = rig.hands[0];
   const body = rig.pose;
   const at = (parent, object, [x, y, z], [rx, ry, rz] = [0, 0, 0]) => {
@@ -295,7 +315,55 @@ export function propsFor(rig) {
   // A dish from the fridge for the oven, and out of it for the table, carried in both hands.
   const dishes = Object.fromEntries(DISHES.map((kind) => [kind, at(body, buildDish(kind), [0, 11, 8])]));
 
-  const all = { bookShut, open, laptop, laptopShut, pad, iceCream, juice, can, bag: bagHolder, treat, basket, log, mess, ...dishes };
+  // Their umbrella: rolled up, hanging from the hand by its hooked handle; or open, held up beside the head
+  // (HOLDS.umbrella), the shaft leaning in so the canopy is over it: eight panels, a scalloped edge and a tip.
+  const [c1, c2] = UMBRELLAS[who];
+  const rolled = part();
+  box(rolled, [0, 0], [-17, 0], [0, 0], "shaft");
+  for (let y = -14; y <= -4; y++) {
+    const r = y < -12 || y > -6 ? 0 : 1;
+    box(rolled, [-r, r], [y, y], [-r, r], (x, yy, z) => ((x + yy + z) % 4 === 0 ? c2 : c1));
+  }
+  [
+    [1, 1],
+    [2, 1],
+    [2, 0],
+  ].forEach(([x, y]) => rolled.add(x, y, 0, "shaft"));
+  const umbrella = at(right, rolled.mesh(COLORS), [0, -1, 1]);
+  const openP = part();
+  const R = 13;
+  box(openP, [0, 0], [0, 30], [0, 0], "shaft");
+  for (let x = -R; x <= R; x++)
+    for (let z = -R; z <= R; z++) {
+      const r = Math.hypot(x, z);
+      if (r > R) continue;
+      const panel = Math.floor(((Math.atan2(z, x) + Math.PI) / (2 * Math.PI)) * 8);
+      const scallop = r > R - 1.2 && Math.abs(((Math.atan2(z, x) + Math.PI) / (2 * Math.PI)) * 8 - panel - 0.5) < 0.25;
+      const y = 31 - Math.round(5 * (r / R) ** 2) - (scallop ? 1 : 0);
+      for (let dy = 0; dy <= (r > 7 ? 1 : 0); dy++) openP.add(x, y + dy, z, panel % 2 ? c2 : c1);
+    }
+  openP.add(0, 32, 0, "shaft");
+  openP.add(0, 33, 0, "shaft");
+  const umbrellaOpen = at(body, openP.mesh(COLORS), [-10, 19, 4], [0, 0, -0.22]);
+
+  const all = {
+    bookShut,
+    open,
+    laptop,
+    laptopShut,
+    pad,
+    iceCream,
+    juice,
+    can,
+    bag: bagHolder,
+    treat,
+    basket,
+    log,
+    mess,
+    umbrella,
+    umbrellaOpen,
+    ...dishes,
+  };
   return {
     ...all,
     leaf,

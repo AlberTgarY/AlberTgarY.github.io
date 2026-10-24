@@ -310,7 +310,8 @@ export function buildBoy() {
   const SIT_LIFT = 2.5; // his seat on the cushion
   const lieDrop = 4; // kneeling
   const amount = {}; // how far into each pose, eased from 0 to 1
-  const ease = (name, on, rate, dt) => (amount[name] = approach(amount[name] || 0, on ? 1 : 0, rate, dt));
+  // Ease a pose in or out (`on`), or towards how far in it should be (a number from 0 to 1).
+  const ease = (name, on, rate, dt) => (amount[name] = approach(amount[name] || 0, typeof on === "number" ? on : on ? 1 : 0, rate, dt));
   const phase = { wave: 0, clap: 0, pat: 0 };
   return {
     label: "Voxel boy in a blue T-shirt and glasses, click to say hi",

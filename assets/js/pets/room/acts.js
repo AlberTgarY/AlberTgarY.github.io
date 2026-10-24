@@ -58,7 +58,7 @@ export function makeActs(home, life) {
   const LIVING = ["sofa0", "sofa1", "sofa2", "armchair"];
   const SOFA = ["sofa0", "sofa1", "sofa2"];
   const freeSeat = (keys = LIVING) => keys.some((k) => !holder(k));
-  const level = (y) => (x, z) => Math.abs(floorY(x, z) - y) < 0.5;
+  const level = (y) => (x, z) => Math.abs(floorY(x, z) - y) < 0.01; // the top stair is only half a voxel lower
   const ground = level(0);
   const flat = (x, z) => ground(x, z) || level(LOFT.y)(x, z); // not on the stairs
   const toward = ([x, z], right, front) => [x + right * R[0] + front * F[0], z + right * R[1] + front * F[1]];
@@ -80,17 +80,23 @@ export function makeActs(home, life) {
     ...Object.values(spots).flatMap((s) => (Array.isArray(s?.at) ? [s.at] : [])),
     ...Object.values(spots.seats).map((s) => s.front),
     ...spots.rug,
+    ...spots.fireside,
+    spots.sunny,
     ...Object.keys(spots.bowls).map((name) => bowlSide(byName[name])),
   ];
   // A free spot on a floor (not the stairs) in `area` that `ok` accepts, clear of everyone else, of where
   // they are going, and of the spots activities go to.
   const offPlaces = (x, z) => PLACES.every(([px, pz]) => Math.hypot(px - x, pz - z) > 12);
+  // The garden is no place to be while it rains, or while the sprinkler is going.
+  const sprinkler = house.garden.sprinkler;
+  const gardenWet = () => home.weather.raining || home.weather.k > 0.05 || sprinkler.spraying();
   function freeSpot(a, [xs, zs] = ROOM, room = 26, ok = flat) {
     return nav.randomSpot(
       xs,
       zs,
       (x, z) =>
         ok(x, z) &&
+        !(x > X1 - 4 && gardenWet()) &&
         offPlaces(x, z) &&
         home.actors.every(
           (o) => o === a || o.out || (Math.hypot(o.x - x, o.z - z) > room && (!o.goal || Math.hypot(o.goal[0] - x, o.goal[1] - z) > room))
@@ -198,11 +204,7 @@ export function makeActs(home, life) {
     a.asleep = true;
     yield* linger(a, rnd(70, 120), { stop: () => !a.asleep || !home.night });
     yield* wait(a, 1.2); // awake, a look about
-    yield* outOfBed(a);
-    a.hold = MOVES.stretch;
-    a.since = t();
-    yield* wait(a, 2.4);
-    a.hold = null;
+    yield* outOfBed(a, seat);
   }
 
   // A snack from the fridge (an ice cream from the freezer, up top), eaten there and then; the dog may come
@@ -909,8 +911,16 @@ export function makeActs(home, life) {
     yield* linger(a, rnd(2, 5));
   }
 
-  // Doing nothing much for a moment.
+  // Doing nothing much for a moment; first off any spot someone may be sent to (where it just was, say),
+  // so as not to be in their way when they come.
   function* rest(a) {
+    if (a.above() < 0.5 && !offPlaces(a.x, a.z)) {
+      const spot = freeSpot(a, [
+        [a.x - 30, a.x + 30],
+        [a.z - 30, a.z + 30],
+      ]);
+      if (spot) yield* walk(a, spot);
+    }
     if (a.name === "cat" && Math.random() < 0.5) a.sit = true;
     yield* linger(a, rnd(3, 7));
   }
@@ -1125,11 +1135,140 @@ export function makeActs(home, life) {
     a.hold = null;
   }
 
+  /* ----- the sprinkler ----- */
+
+  // The sprinkler (by day, out of the rain): on at the tap by the garden door, and a happy look at the jet
+  // going round over the beds. Now and then its head was left facing the tap, and the jet comes straight at
+  // them: hands over the head, they run over through it to turn the head round, then stand shaking the water
+  // off their hands, dripping (and leave wet footprints indoors).
+  function* sprinkle(a) {
+    if (sprinkler.on || !claim(a, "sprinkler")) return;
+    onEnd(a, () => sprinkler.wrong && sprinkler.fix()); // never left soaking the tap
+    const { tap, fix, head, tap3 } = sprinkler.spots;
+    yield* walk(a, tap.at);
+    yield* turn(a, tap.yaw);
+    a.look = tap3;
+    a.hold = MOVES.twist;
+    yield* wait(a, 0.9);
+    a.hold = null;
+    sprinkler.start(t(), Math.random() < 0.3);
+    a.look = head;
+    if (sprinkler.wrong) {
+      yield* until(() => a.wet > 0.12, 2.5);
+      a.pop("room-pop room-pop-drop");
+      a.hold = MOVES.flail;
+      a.hop();
+      yield* wait(a, 0.8);
+      yield* walk(a, fix.at, 1.8);
+      yield* turn(a, fix.yaw);
+      a.lie = true; // crouched by it
+      a.hold = MOVES.twist;
+      yield* wait(a, 0.8);
+      sprinkler.fix();
+      a.hold = null;
+      a.lie = false;
+      yield* wait(a, 0.5);
+      a.look = null;
+      yield* turn(a, V);
+      a.hold = MOVES.shake;
+      yield* wait(a, 1.3);
+      a.hold = null;
+      a.pop("room-pop room-pop-drop");
+      a.beHappy(1.5); // and laughs it off
+      yield* wait(a, 1);
+    } else {
+      yield* wait(a, 1.6);
+      a.pop();
+      a.beHappy(1.5);
+      yield* wait(a, 1.2);
+    }
+    a.look = null;
+    release(a, "sprinkler");
+    yield* walk(a, spots.gardenDoor.inside); // in, out of the way of the spray
+  }
+  // Off again at the tap, once it has run a while (life.js sends someone).
+  function* sprinklerOff(a) {
+    if (!sprinkler.on || !claim(a, "sprinkler")) return;
+    const { tap, tap3 } = sprinkler.spots;
+    const rain = () => home.weather.raining;
+    if (rain()) a.hold = MOVES.flail; // out into it, hands over the head
+    yield* walk(a, tap.at, rain() ? 1.8 : 1);
+    yield* turn(a, tap.yaw);
+    a.look = tap3;
+    a.hold = MOVES.twist;
+    yield* wait(a, 0.9);
+    sprinkler.stop(t());
+    a.hold = null;
+    a.look = null;
+    release(a, "sprinkler");
+    if (rain()) return yield* shelter(a);
+    yield* wait(a, 0.6);
+    yield* walk(a, spots.gardenDoor.inside);
+  }
+  // Caught in the garden by the rain (life.js sends them in, whatever they were doing): in through the
+  // garden door at a run, a person with hands over the head; inside, wet through, the rain shaken off the
+  // hands, or the dog shaking herself nose to tail, dripping, and wet footprints after.
+  function* shelter(a) {
+    if (a.human) a.hold = MOVES.flail;
+    yield* walk(a, spots.gardenDoor.inside, 1.8);
+    a.hold = null;
+    a.wet = Math.max(a.wet, 0.4);
+    yield* turn(a, V);
+    if (a.human) {
+      a.hold = MOVES.shake;
+      yield* wait(a, 1.2);
+      a.hold = null;
+    } else if (a.name === "collie") {
+      a.shakeUntil = t() + 1.3;
+      yield* wait(a, 1.4);
+    }
+  }
+  // The dog in the sprinkler: bounding over to where the jet is about to come round to, waiting for it
+  // with her eyes on it, and leaping and snapping at the drops as it comes down on her; again and again;
+  // then out of the garden to shake herself off, and in with wet paws.
+  function* splash(a) {
+    if (!claim(a, "splash")) return;
+    const [sx, sz] = sprinkler.at;
+    const lawn = (x, z) => x > X1 + 6 && ground(x, z) && Math.hypot(x - sx, z - sz) > 14;
+    const heading = (x, z) => Math.atan2(x - sx, z - sz);
+    for (let k = 0; k < 5 && sprinkler.on && !sprinkler.wrong; k++) {
+      const ahead = sprinkler.heading + 1; // where the jet comes round to in about 3 s
+      const r = rnd(16, 36);
+      const [x, z] = [sx + Math.sin(ahead) * r, sz + Math.cos(ahead) * r];
+      const spot = nav.randomSpot([x - 12, x + 12], [z - 12, z + 12], lawn);
+      if (!spot) continue;
+      yield* walk(a, spot, 1.6);
+      a.look = sprinkler.spots.head;
+      a.bow = true; // ready for it
+      yield* until(() => Math.abs(wrap(sprinkler.heading - heading(a.x, a.z))) < 0.12 || !sprinkler.on, 6);
+      a.bow = false;
+      a.happy = true;
+      for (let j = 0; j < 3; j++) {
+        a.hop();
+        yield* wait(a, 0.45);
+      }
+      yield* wait(a, rnd(0.3, 0.8));
+    }
+    a.bow = false;
+    a.happy = false;
+    a.look = null;
+    release(a, "splash");
+    sprinkler.splashedAt = t();
+    yield* walk(a, spots.gardenDoor.outside);
+    if (a.wet > 0.05) {
+      a.shakeUntil = t() + 1.3;
+      yield* wait(a, 1.4);
+    }
+  }
+
   /* ----- the walk: out of the front door, and back in ----- */
 
   // The dog on her lead, often the other person too; the cat stays home (and, with them all out, gets up to
   // mischief). They line up in single file inside the door, the dog first, clip on her lead, and
   // go out; out of sight they are out for a while, then come back in the same way, and the dog is petted.
+  // In the rain each of them takes their umbrella off the rack first and puts it up on the step, and the
+  // dog has her raincoat on; back in, umbrellas down and shaken and back on the rack, the dog shakes
+  // herself, and they all leave wet footprints for a few steps.
   function* outing(a) {
     const { door } = spots;
     const dog = byName.collie;
@@ -1179,11 +1318,26 @@ export function makeActs(home, life) {
       }
       ev.party.forEach((m) => (m.who.walking = false));
     }
+    // Umbrellas up on the step.
+    const umbrellas = ev.party.map((m) => m.who).filter((w) => w.umbrella);
+    umbrellas.forEach((w) => {
+      w.props.only("umbrellaOpen");
+      w.hold = HOLDS.umbrella;
+      w.umbrella = "open";
+    });
     yield* file(door.inside, door.outside, -1);
     house.door.open = false;
     yield* wait(a, rnd(14, 24));
     house.door.open = true;
     yield* wait(a, 0.6);
+    // In from a wet street, with wet feet (and a dog in her raincoat wet on her legs and head); caught in
+    // the rain without an umbrella or a raincoat (it came on while they were out), soaked through.
+    if (home.weather.raining || home.weather.wet > 0.3)
+      ev.party.forEach(({ who }) => {
+        const covered = who.umbrella || who.raincoat || !home.weather.raining;
+        who.wetFeet = who.human ? 7 : 10;
+        who.wet = Math.max(who.wet, covered ? (who.human ? 0.1 : 0.5) : 0.7);
+      });
     yield* file(door.outside, door.inside, 1);
     house.door.open = false;
     ev.party.forEach((m) => {
@@ -1192,16 +1346,76 @@ export function makeActs(home, life) {
       m.who.face(V);
     });
     a.leads = false;
+    // Umbrellas down and the rain shaken off them; caught without one, the rain shaken off the hands.
+    umbrellas.forEach((w) => {
+      w.props.only("umbrella");
+      w.umbrella = "rolled";
+    });
+    const shakers = ev.party.map((m) => m.who).filter((w) => w.human && (w.umbrella || w.wet > 0.3));
+    shakers.forEach((w) => {
+      w.hold = MOVES.shake;
+      w.since = t();
+    });
+    if (shakers.length) yield* wait(a, 0.9);
+    shakers.forEach((w) => (w.hold = null));
     ev.over = true;
+    if (a.umbrella) yield* stowUmbrella(a);
     walked.forEach((p) => later(a, act("pet", petPet, p))); // well done
+  }
+  // Their umbrella off the rack by the door (if it is there); put back however the walk ends.
+  function* takeUmbrella(a) {
+    if (!house.umbrellas.in(a.name) || !(yield* until(() => claim(a, "rack"), 8))) return;
+    const { at, yaw } = spots.umbrellas;
+    yield* walk(a, at);
+    yield* turn(a, yaw);
+    a.hold = HOLDS.reach; // up to the hook
+    yield* wait(a, 0.5);
+    house.umbrellas.take(a.name);
+    a.props.only("umbrella");
+    a.umbrella = "rolled";
+    a.hold = null;
+    release(a, "rack");
+    onEnd(a, () => {
+      if (!a.umbrella) return;
+      house.umbrellas.put(a.name);
+      a.umbrella = null;
+      a.props.only();
+    });
+  }
+  function* stowUmbrella(a) {
+    yield* until(() => claim(a, "rack"), 8); // one at a time
+    const { at, yaw } = spots.umbrellas;
+    yield* walk(a, at);
+    yield* turn(a, yaw);
+    a.hold = HOLDS.reach; // up to the hook
+    yield* wait(a, 0.5);
+    house.umbrellas.put(a.name);
+    a.props.only();
+    a.umbrella = null;
+    a.hold = null;
+    yield* wait(a, 0.3);
+    release(a, "rack");
   }
   function* walkAlong(a, ev, m) {
     yield* lineUp(a, ev, m);
     yield* until(() => ev.over, LONG_WAIT); // the host walks everyone
     a.walking = false;
+    if (a.umbrella) yield* stowUmbrella(a);
+    if (a.raincoat || (a.name === "collie" && a.wet > 0.3)) {
+      a.shakeUntil = t() + 1.3; // nose to tail
+      yield* wait(a, 1.4);
+      a.raincoat = false;
+    }
   }
   function* lineUp(a, ev, m) {
     const { door } = spots;
+    if (home.weather.raining) {
+      if (a.human) yield* takeUmbrella(a);
+      else {
+        a.raincoat = true;
+        onEnd(a, () => (a.raincoat = false));
+      }
+    }
     yield* walk(a, [door.x, door.inside + m.behind]);
     a.face(Math.PI);
     if (!ev.over) ev.ready.add(a);
@@ -1470,7 +1684,7 @@ export function makeActs(home, life) {
     if (!p || !available(p) || p.above() > 0.5) return;
     const ev = event(a, "pet", { stroking: false, done: false });
     if (!invite(p, act("petted", bePetted, ev))) return;
-    const [spot, side] = beside(a, [p.x, p.z], 15);
+    const [spot, side] = beside(a, p.walking && p.goal ? p.goal : [p.x, p.z], 15); // where it is going to be
     if (!spot) return;
     yield* walk(a, spot);
     if (!(yield* until(() => p.state === "wait" || ev.over, 6)) || ev.over) return;
@@ -1613,7 +1827,8 @@ export function makeActs(home, life) {
     a.lie = false;
   }
   function* toRug(a) {
-    const free = [0, 1, 2, 3].filter((k) => !holder(`rug${k}`));
+    const clear = ([x, z]) => home.actors.every((o) => o === a || o.out || Math.hypot(o.x - x, o.z - z) > 10);
+    const free = [0, 1, 2, 3].filter((k) => !holder(`rug${k}`) && clear(spots.rug[k])); // nobody standing there
     if (!free.length) return false;
     const k = pick(free);
     claim(a, `rug${k}`);
@@ -1771,17 +1986,53 @@ export function makeActs(home, life) {
     a.ground = null;
   }
 
-  // Up on the window sill over the bed (by way of the bed), watching the sky and any bird going by.
+  // The wiggle before a pounce: crouched low, eyes on the spot, the rump swaying side to side.
+  function* wiggle(a, target, secs) {
+    a.look = target;
+    a.bow = true;
+    const yaw = Math.atan2(target[0] - a.x, target[2] - a.z);
+    const t0 = t();
+    while (t() - t0 < secs) {
+      a.face(yaw + 0.14 * Math.sin((t() - t0) * 22));
+      yield;
+    }
+    a.face(yaw);
+    a.bow = false;
+  }
+
+  // Up on the window sill over the bed (by way of the bed), watching the sky and any bird going by. Either
+  // a hop up and a hop on; or, with nobody in the bed, as a game: the wiggle and a pounce onto the end of
+  // it, a bounce or two on the quilt for the fun of it, a bound on up it, the wiggle again with her eyes
+  // on the sill, and the leap, landing pleased with herself.
   function* perch(a) {
     if (!claim(a, "sill") || !claim(a, "bedFoot")) return;
     const { at, bed: onBed, on, yaw } = spots.sill;
     yield* walk(a, at);
     a.ground = at;
-    yield* hop(a, onBed);
-    yield* wait(a, 0.2);
-    yield* hop(a, on);
-    a.face(yaw);
-    a.sit = true;
+    const bedFree = humans.every((h) => !h.seatKey?.startsWith("bed"));
+    if (bedFree && Math.random() < 0.5) {
+      const end = [onBed[0], onBed[1], onBed[2] + 6];
+      yield* wiggle(a, end, rnd(0.8, 1.3));
+      yield* hop(a, end);
+      a.happy = true;
+      for (let k = 0; k < 2; k++) {
+        a.hop();
+        yield* wait(a, 0.55);
+      }
+      yield* hop(a, onBed);
+      yield* wiggle(a, on, rnd(0.9, 1.4));
+      yield* hop(a, on);
+      a.face(yaw);
+      a.sit = true;
+      yield* wait(a, 1.2);
+      a.happy = false;
+    } else {
+      yield* hop(a, onBed);
+      yield* wait(a, 0.2);
+      yield* hop(a, on);
+      a.face(yaw);
+      a.sit = true;
+    }
     yield* linger(a, rnd(15, 30), {
       dozeAt: dozeChance(0.2, 0.5),
       each() {
@@ -1859,7 +2110,7 @@ export function makeActs(home, life) {
     if (!claim(a, "butterfly")) return;
     const b = house.garden.butterfly;
     const inGarden = (x, z) => x > X1 + 6 && z > LOFT.z1 + 6 && ground(x, z);
-    const clear = (x, z) => inGarden(x, z) && home.actors.every((o) => o === a || o.out || Math.hypot(o.x - x, o.z - z) > 18); // not on top of the dog sunbathing
+    const clear = (x, z) => inGarden(x, z) && offPlaces(x, z) && home.actors.every((o) => o === a || o.out || Math.hypot(o.x - x, o.z - z) > 18); // not on top of the dog sunbathing
     a.look = { facePoint: () => b.position.toArray() };
     for (let k = 0; k < 3 && !home.night; k++) {
       const { x, z } = b.position;
@@ -1959,10 +2210,27 @@ export function makeActs(home, life) {
     dress: (a) => a.name === "girl" && !home.night && !holder("closet"),
     fire: () => !house.fire.lit && !holder("fire"),
     fireside: () => house.fire.lit && [0, 1].some((k) => !holder(`fireside${k}`)),
-    garden: () => !home.night && !holder("garden") && [0, 1, 2, 3].some((i) => house.garden.ripe(i) || house.garden.thirsty(i)),
+    garden: () => !home.night && !gardenWet() && !holder("garden") && [0, 1, 2, 3].some((i) => house.garden.ripe(i) || house.garden.thirsty(i)),
     sunbathe: (a) =>
-      !home.night && !holder("sunny") && home.actors.every((o) => o === a || o.out || Math.hypot(o.x - spots.sunny[0], o.z - spots.sunny[1]) > 20),
-    chase: () => !home.night && !holder("butterfly"),
+      !home.night &&
+      !gardenWet() &&
+      !holder("sunny") &&
+      home.actors.every((o) => o === a || o.out || Math.hypot(o.x - spots.sunny[0], o.z - spots.sunny[1]) > 20),
+    chase: () => !home.night && !gardenWet() && !holder("butterfly"),
+    sprinkle: (a) =>
+      !home.night &&
+      t() - sprinkler.since > 120 && // not just turned off
+      !gardenWet() &&
+      !home.weather.raining &&
+      ["sprinkler", "garden", "sunny", "butterfly", "splash"].every((k) => !holder(k)) &&
+      home.actors.every((o) => o === a || o.out || o.x < X1 - 4),
+    splash: () =>
+      sprinkler.on &&
+      !sprinkler.wrong &&
+      sprinkler.pressure > 0.7 &&
+      t() - (sprinkler.splashedAt ?? -Infinity) > 60 &&
+      !home.weather.raining &&
+      !holder("splash"),
   };
   const petAPet = function* (a) {
     yield* petPet(a, pick(pets.filter((p) => available(p) && p.above() < 0.5)));
@@ -2003,7 +2271,11 @@ export function makeActs(home, life) {
     garden,
     sunbathe,
     chase,
+    sprinkle,
+    splash,
     // Only when asked.
+    sprinklerOff,
+    shelter,
     hungry,
     feed,
     scold,

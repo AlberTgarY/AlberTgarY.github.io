@@ -6,12 +6,12 @@
  * forever: a walk that gets stuck arrives anyway, and a wait has an end.
  ******************************************************************************/
 
-import { clamp, pick } from "../stage.js";
+import { clamp, pick, rnd } from "../stage.js";
 import { smoothstep } from "../models/voxels.js";
 import { HOLDS, MOVES } from "./props.js";
 
 const HOP_TIME = 0.45; // s for a hop up onto something, or down
-const BED_TIME = 0.8; // s to lie back into bed, or to sit up and get out
+const BED_TIME = 1.1; // s to lie back into bed from sitting on the end of it, or to sit up again
 // The ways a person gets up off a seat: straight up, leaning forward with the hands on the knees and
 // pushing up, or with a stretch first. Never the same way twice running, so two getting up together don't
 // move as one.
@@ -208,19 +208,32 @@ export function makeSteps(home) {
     a.ground = null;
   }
 
-  // Into bed (a person): from the foot of the bed, facing away from it, lie back onto it and slide up till
-  // the head is on the pillow; the pose follows `abed` (actor.js).
+  // Into bed (a person): at the foot of the bed, sit back on the end of it, as on a seat; a moment, then
+  // lie back, the legs swinging up onto it, and wriggle up till the head is on the pillow. The pose follows
+  // `abed` (actor.js).
   function* intoBed(a, bed) {
     yield* walk(a, bed.front);
     a.ground = bed.front;
     yield* turn(a, bed.yaw);
+    a.seated = true;
+    yield* glide(a, bed.end, 0.55);
+    yield* wait(a, rnd(0.4, 0.9));
+    a.seated = false;
     a.abed = true;
-    yield* arc(a, [bed.x, bed.y, bed.z], BED_TIME, 3);
+    yield* arc(a, [bed.x, bed.y, bed.z], BED_TIME, 0);
   }
-  function* outOfBed(a) {
-    const [x, z] = a.ground;
+  // Out of bed: sit up on the end of it, a stretch, and up onto the feet.
+  function* outOfBed(a, bed) {
+    const [x, z] = bed.end;
     a.abed = false;
-    yield* arc(a, [x, floorY(x, z), z], BED_TIME, 3);
+    a.seated = true;
+    yield* arc(a, [x, floorY(x, z), z], BED_TIME, 0);
+    a.hold = MOVES.stretch;
+    a.since = clock.t;
+    yield* wait(a, 2.4);
+    a.hold = null;
+    a.seated = false;
+    yield* glide(a, a.ground, 0.5);
     a.ground = null;
   }
 

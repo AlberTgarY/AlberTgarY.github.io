@@ -14,6 +14,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { VOX, clamp, approach, rnd, pick, wrap, spring, stepSpring } from "../stage.js";
 import { smoothstep } from "../models/voxels.js";
+import { HIP_PIVOT } from "../models/chibi.js";
 import { VIEW_YAW } from "./view.js";
 
 const FACE_AWAY = 0.8; // how far a person's face turns from the viewer at most, while turned towards the room
@@ -68,6 +69,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
     seated: false, // a person sitting on a seat
     lie: false, // a pet lying down, or a person kneeling
     abed: false, // a person lying in bed
+    lainDown: false, // and all the way down on the pillow
     phones: false, // the boy's headphones on his head
     sit: false, // a pet sitting up
     bow: false, // a pet in a play bow, ready to play
@@ -91,6 +93,13 @@ export function makeActor(name, rig, kind, home, size = 1) {
     nextAt: 0,
     out: false, // out on a walk
     hungry: false,
+    // Water (room.js, prints.js): how soaked it is (0 to 1, dripping), how many wet footprints it has
+    // still to leave indoors, until when it shakes itself dry (a pet), and whether it wears its raincoat.
+    wet: 0,
+    wetFeet: 0,
+    shakeUntil: -1,
+    raincoat: false,
+    umbrella: null, // a person's umbrella in hand: "rolled" or "open"
   };
 
   a.setState = (state, secs = 0, trick = null) => {
@@ -208,6 +217,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
   let bowing = 0;
   let stride = 0;
   let gait = 0;
+  let footfall = 0; // which footfall the gait is at, to tell when a foot comes down
   let breathPhase = Math.random() * 6;
   let lid = 1;
   let blinkAt = rnd(1, 3);
@@ -288,6 +298,9 @@ export function makeActor(name, rig, kind, home, size = 1) {
     bowing = approach(bowing, a.bow && !lieDown && !a.sit && !walking ? 1 : 0, 7, dt);
     stride = approach(stride, walking ? 1 : 0, 6, dt);
     if (stride > 0.01) gait += Math.PI * 2 * rig.gaitHz * stride * dt * Math.max(1, a.pace * 0.8);
+    const fall = Math.floor(gait / Math.PI);
+    if (fall !== footfall && walking) home.stepped?.(a, fall & 1);
+    footfall = fall;
 
     // Breathing (slower when asleep), the walk bounce, a hop, and sinking down to lie.
     breathPhase += ((Math.PI * 2) / (3 + lying + (sleeping ? 1 : 0))) * dt;
@@ -301,7 +314,9 @@ export function makeActor(name, rig, kind, home, size = 1) {
     const bounce = 0.7 * stride * Math.abs(Math.sin(gait));
     rig.pose.position.y = hop + bounce + 0.25 * breath - rig.lieDrop * lying;
     rig.pose.scale.y = 1 + 0.012 * breath;
-    inBed = approach(inBed, a.abed ? 1 : 0, 5, dt);
+    inBed = approach(inBed, a.abed ? 1 : 0, 2.5, dt);
+    const lieBack = smoothstep(0, 1, inBed);
+    a.lainDown = a.abed && inBed > 0.9; // in bed and lying back, for the quilt to come up over them
     shadow.visible = inBed < 0.05;
     shadow.scale.set(rig.shadow[0] * (1 - hop / 24), rig.shadow[1] * (1 - hop / 24), 1);
     shadow.material.opacity = 0.26 * (1 - hop / 16);
@@ -366,15 +381,25 @@ export function makeActor(name, rig, kind, home, size = 1) {
       leash: a.leads ? nearerHand() : -1,
       stroke: a.state === "stroke" ? nearerHand() : -1,
       company: a.company,
-      seated: a.seated,
+      seated: a.human && inBed > 0.001 ? 1 - lieBack : a.seated, // lying back from sitting on the end of the bed
       sit: sitting,
       hold: holdW > 0.01 ? { w: holdW, mix: armW, arms: holdArms } : null,
       talk: a.talk,
       phones: a.phones,
     });
     if (rig.legs && bowing > 0.01) playBow(rig, BOW * bowing);
-    // In bed, a person lies back from the feet, the head towards the pillow; the nightcap comes off.
-    if (a.human) rig.pose.rotation.x = (-Math.PI / 2) * smoothstep(0, 1, inBed);
+    // Shaking itself dry, nose to tail, fast.
+    if (t < a.shakeUntil) rig.pose.rotation.z += 0.32 * Math.sin(t * 42) * Math.min(1, (a.shakeUntil - t) * 3);
+    if (rig.raincoat) rig.raincoat.visible = a.raincoat;
+    // In bed, a person lies back about the hips from sitting on the end of it, the head towards the pillow,
+    // the legs coming up onto it as the sitting eases out; the nightcap comes off.
+    if (a.human) {
+      const back = (-Math.PI / 2) * lieBack;
+      const [hy, hz] = HIP_PIVOT;
+      rig.pose.rotation.x = back;
+      rig.pose.position.y += hy * (1 - Math.cos(back)) + hz * Math.sin(back);
+      rig.pose.position.z += hz * (1 - Math.cos(back)) - hy * Math.sin(back);
+    }
     rig.hat.visible = night && inBed < 0.05 && !a.phones;
     a.show("z", sleeping ? "room-z" : a.state === "petted" && rig.purrs ? "room-z room-note" : null);
     placeBadges();
