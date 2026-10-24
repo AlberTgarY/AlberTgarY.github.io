@@ -68,6 +68,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
     pace: 1, // walking speed as a multiple of its own
     seated: false, // a person sitting on a seat
     lie: false, // a pet lying down, or a person kneeling
+    lean: 0, // a person leaning about the hips: back (negative, pulling at something) or forward
     abed: false, // a person lying in bed
     lainDown: false, // and all the way down on the pillow
     phones: false, // the boy's headphones on his head
@@ -212,6 +213,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
   let tilt = 0;
   const droop = spring(0, 3.5); // 0 standing, 1 lying (or kneeling)
   let inBed = 0; // 0 up, 1 lying back in bed
+  let lean = 0;
   let night = false;
   let sitting = 0;
   let bowing = 0;
@@ -392,9 +394,10 @@ export function makeActor(name, rig, kind, home, size = 1) {
     if (t < a.shakeUntil) rig.pose.rotation.z += 0.32 * Math.sin(t * 42) * Math.min(1, (a.shakeUntil - t) * 3);
     if (rig.raincoat) rig.raincoat.visible = a.raincoat;
     // In bed, a person lies back about the hips from sitting on the end of it, the head towards the pillow,
-    // the legs coming up onto it as the sitting eases out; the nightcap comes off.
+    // the legs coming up onto it as the sitting eases out; the nightcap comes off. Up, they may lean.
     if (a.human) {
-      const back = (-Math.PI / 2) * lieBack;
+      lean = approach(lean, a.lean, 12, dt);
+      const back = (-Math.PI / 2) * lieBack + lean;
       const [hy, hz] = HIP_PIVOT;
       rig.pose.rotation.x = back;
       rig.pose.position.y += hy * (1 - Math.cos(back)) + hz * Math.sin(back);

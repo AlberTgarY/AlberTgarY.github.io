@@ -9,8 +9,9 @@
  * vegetables from the garden when there are some) or bake a roast chicken or a
  * lasagna in the oven, and eat it together at the table, read, water the plant,
  * work on the laptop, play a video game together on the sofa, chat, nap,
- * stretch, stroll, light the fire, look after the garden (watering the beds, and
- * picking what is ripe for the fridge), take the dog out for a walk through the
+ * stretch, stroll, light the fire, look after the garden (picking what is ripe
+ * into the basket and taking it straight to the fridge, sowing a bed picked
+ * clean with something new, and watering), take the dog out for a walk through the
  * front door, play fetch with her, pet and feed the pets, tidy up the cat's
  * mess, and go to bed at night. He plays on his computer in the loft, his white
  * headphones off their stand and on his head, talking to his team, cheering
@@ -28,6 +29,8 @@ import { rnd, pick, clamp, wrap } from "../stage.js";
 import { LOFT, X1 } from "./house.js";
 import { LOOKS } from "../models/girl-outfits.js";
 import { HOLDS, MOVES, DISHES } from "./props.js";
+import { VEG } from "./veg.js";
+import { part } from "../models/voxels.js";
 import { GAMES } from "./screens.js";
 import { makeSteps } from "./steps.js";
 import { VIEW_YAW } from "./view.js";
@@ -50,7 +53,7 @@ const DOWNSTAIRS = [
 export function makeActs(home, life) {
   const { clock, house, nav, byName, humans } = home;
   const { spots, floorY } = house;
-  const { walk, turn, wait, until, hop, glide, sitOn, getUp, intoBed, outOfBed } = makeSteps(home);
+  const { walk, stepTo, turn, wait, until, hop, glide, sitOn, getUp, intoBed, outOfBed } = makeSteps(home);
   const { claim, holder, release, act, event, available, invite, later, onEnd } = life;
   const t = () => clock.t;
   const other = (a) => humans.find((h) => h !== a);
@@ -82,6 +85,8 @@ export function makeActs(home, life) {
     ...spots.rug,
     ...spots.fireside,
     spots.sunny,
+    ...spots.beds.flatMap((b) => [b.at, b.marker.at, b.watch, ...b.plants.map((p) => p.at)]),
+    house.garden.basket.homeStand,
     ...Object.keys(spots.bowls).map((name) => bowlSide(byName[name])),
   ];
   // A free spot on a floor (not the stairs) in `area` that `ok` accepts, clear of everyone else, of where
@@ -292,17 +297,20 @@ export function makeActs(home, life) {
     if (!claim(a, "stove")) return;
     onEnd(a, () => (house.stove.on = false));
     const { garden } = house;
-    if (garden.picked > 0 && claim(a, "fridge")) {
-      // The vegetables from the garden out of the fridge first, for the pot.
+    if (garden.store.length && claim(a, "fridge")) {
+      // A bunch of the garden's vegetables out of the crisper first, for the pot (the oldest).
       yield* walk(a, spots.fridge.at);
       yield* turn(a, spots.fridge.yaw);
       a.atFridge = true;
       yield* wait(a, 0.5);
+      a.look = spots.fridge.crisper;
       a.hold = HOLDS.pick;
       yield* wait(a, 0.8);
-      garden.picked--;
-      a.props.only("basket");
-      a.props.pick(pick(garden.beds).kind);
+      const bunch = part();
+      VEG[garden.takeOut()].stored(bunch, 0, 0);
+      a.props.holdPiece(bunch);
+      a.props.only("piece");
+      a.look = null;
       a.atFridge = false;
       a.hold = HOLDS.carry;
       release(a, "fridge");
@@ -1058,47 +1066,381 @@ export function makeActs(home, life) {
     a.lie = false;
   }
 
-  // The garden (by day): pick whatever is ripe and put it in the fridge, or else water the beds that are dry.
+  // The garden (by day): the basket first if it was left out, with whatever is in it; then whatever is ripe,
+  // picked into the basket and taken straight to the fridge; else a bed picked clean sown again; else the
+  // dry beds watered.
   function* garden(a) {
     const g = house.garden;
     if (!claim(a, "garden")) return;
-    const ripe = [0, 1, 2, 3].filter(g.ripe);
-    if (ripe.length) return yield* harvest(a, pick(ripe));
-    const dry = [0, 1, 2, 3].filter(g.thirsty);
+    const beds = (test) => [0, 1, 2, 3].filter(test);
+    const ripe = beds(g.ripe);
+    if (!holder("basket") && (ripe.length || g.basket.out())) return yield* harvest(a, ripe.length ? pick(ripe) : null);
+    const spent = beds(g.spent);
+    if (spent.length) return yield* sow(a, pick(spent));
+    const dry = beds(g.thirsty);
     if (dry.length) yield* waterBeds(a, dry.slice(0, 2));
   }
+
+  // Harvest: the basket from by the garden door (or wherever it was left), set down at each plant of bed `i`
+  // in turn while they pick it clean, the dog maybe sitting on the path to watch; then in through the door
+  // with it, straight to the fridge, the empty basket back out by the door, and the bed sown again. Cut
+  // short, the basket is left where it is, or put down where they stand, for whoever comes for it next.
   function* harvest(a, i) {
-    const bed = spots.beds[i];
-    yield* walk(a, bed.at);
-    yield* turn(a, bed.yaw);
-    a.look = bed.plants[1];
-    a.lie = true; // kneeling
-    yield* wait(a, 0.6);
-    a.hold = HOLDS.pick;
-    yield* wait(a, 1.2);
-    const kind = house.garden.harvest(i);
-    a.props.only("basket");
-    a.props.pick(kind);
-    home.popAt(bed.plants[1], "room-pop room-pop-sparkle");
-    a.hold = HOLDS.carry;
-    a.lie = false;
-    a.look = null;
-    a.beHappy(1.5);
-    yield* wait(a, 0.8);
+    const { basket } = house.garden;
+    if (!claim(a, "basket")) return;
+    onEnd(a, () => basket.carrier === a && basket.setDown(atHand(a, 6), a.yaw, [a.x, a.z]));
+    yield* takeBasket(a);
+    if (i !== null) yield* pickBed(a, i);
     release(a, "garden");
-    // In through the garden door and into the fridge with it.
-    if (claim(a, "fridge")) {
-      yield* walk(a, spots.fridge.at);
-      yield* turn(a, spots.fridge.yaw);
-      a.atFridge = true;
-      yield* wait(a, 0.5);
-      a.hold = HOLDS.pick;
-      yield* wait(a, 0.8);
-      a.atFridge = false;
-    }
-    house.garden.picked++;
-    a.props.only();
+    if (basket.bunches.length) yield* toFridge(a);
+    yield* walk(a, basket.homeStand);
+    yield* bend(a, basket.homeAt, () => {
+      basket.goHome();
+      a.props.only();
+    });
     a.hold = null;
+    release(a, "basket");
+    // Back out in the garden with the basket: on to sow a bed picked clean (the one just picked, if it was).
+    const g = house.garden;
+    const next = i !== null && g.spent(i) ? i : [0, 1, 2, 3].find(g.spent);
+    if (next !== undefined && !home.night && !gardenWet() && claim(a, "garden")) yield* sow(a, next);
+  }
+  // A point `d` to the right of `a` (the hand things are set down with), or at its feet if that is no place.
+  const atHand = (a, d) => {
+    const at = [a.x - d * Math.cos(a.yaw), a.z + d * Math.sin(a.yaw)];
+    return home.house.obstacles.some(([x0, x1, z0, z1]) => at[0] > x0 && at[0] < x1 && at[1] > z0 && at[1] < z1) ? [a.x, a.z] : at;
+  };
+  // Bend down (facing `to`, a point on the floor, if given) for something done there (`then()`), and up.
+  function* bend(a, to, then) {
+    if (to) yield* turn(a, Math.atan2(to[0] - a.x, to[1] - a.z));
+    a.lie = true;
+    a.hold = HOLDS.pick;
+    yield* wait(a, 0.45);
+    then();
+    yield* wait(a, 0.25);
+    a.lie = false;
+  }
+  function* takeBasket(a) {
+    const { basket } = house.garden;
+    yield* walk(a, basket.stand);
+    yield* bend(a, basket.at, () => {
+      basket.pickUp(a);
+      a.props.only("basket");
+      a.props.fill(basket.pieces());
+    });
+    a.hold = HOLDS.basket;
+  }
+  // The basket set down at their right hand (by `stand`, where they are), or taken up again.
+  function* basketDown(a, at) {
+    const { basket } = house.garden;
+    yield* bend(a, null, () => {
+      basket.setDown(at, a.yaw, [a.x, a.z]);
+      a.props.only();
+    });
+    a.hold = null;
+  }
+  function* basketUp(a) {
+    const { basket } = house.garden;
+    yield* bend(a, null, () => {
+      basket.pickUp(a);
+      a.props.only("basket");
+      a.props.fill(basket.pieces());
+    });
+    a.hold = HOLDS.basket;
+  }
+  // Between the path and a spot by a bed (behind a plant, at the marker): straight out to the path, along it,
+  // and straight in, so never across a bed (as the way from the nearest free floor might go).
+  function* toBed(a, sp, at) {
+    const path = sp.at[0];
+    if (Math.abs(a.z - at[1]) > 2.5 || a.x < path) {
+      if (a.x > path) yield* stepTo(a, [path, a.z]);
+      yield* walk(a, [path, at[1]]);
+    }
+    yield* stepTo(a, at);
+  }
+  const offBed = (a, sp) => stepTo(a, [sp.at[0], a.z]);
+  // Pick bed `i` clean, plant by plant: from behind each (facing it, and the viewer), the basket set down at
+  // the right hand, kneeling to the low ones, every piece in turn from the top down into a bunch of its own
+  // in the basket. Now and then a moment: a strawberry tasted, a fine one held up to admire, a stubborn
+  // carrot that comes up all at once, a heavy pumpkin and a wipe of the brow. The dog, if she came to watch,
+  // gets a carrot.
+  function* pickBed(a, i) {
+    const g = house.garden;
+    const { basket } = g;
+    const veg = VEG[g.beds[i].kind];
+    const sp = spots.beds[i];
+    const ev = askToBeg(a, sp.watch, 0.5);
+    const moments = { taste: !!veg.taste && Math.random() < 0.8, admire: Math.random() < 0.6, stuck: Math.random() < 0.6, wipe: !!veg.heavy };
+    for (const k of [0, 1, 2]) {
+      const fruits = g.left(i, k);
+      if (!fruits.length) continue;
+      const spot = sp.plants[k];
+      yield* toBed(a, sp, spot.at);
+      yield* turn(a, 0);
+      yield* basketDown(a, spot.basket);
+      const bunch = { kind: g.beds[i].kind, pieces: [] }; // into the basket with its first piece
+      a.lie = veg.low;
+      yield* wait(a, 0.4);
+      for (const f of fruits.sort((p, q) => q.at[1] - p.at[1])) yield* pickOne(a, i, k, f, bunch, moments);
+      Object.assign(a, { lie: false, look: null, hold: null, lean: 0 });
+      yield* wait(a, 0.3);
+      yield* basketUp(a);
+    }
+    const dog = byName.collie;
+    if (ev && veg === VEG.carrot && dog.state === "beg") {
+      // A carrot for the dog, held out low; she takes it and hops.
+      yield* stepTo(a, [sp.watch[0] + 10, sp.watch[1]]);
+      halfTowards(a, dog.x, dog.z, 0.3);
+      yield* wait(a, 0.4);
+      const bunch = basket.bunches.at(-1);
+      if (bunch) {
+        a.props.holdPiece(bunch.pieces.pop());
+        if (!bunch.pieces.length) basket.bunches.pop();
+        a.props.fill(basket.pieces());
+        a.props.only("basket", "piece");
+        a.hold = [HOLDS.treat[0], HOLDS.basket[1]];
+        yield* wait(a, 1);
+        ev.treat = true;
+        a.props.only("basket");
+        a.hold = HOLDS.basket;
+        yield* wait(a, 0.6);
+      }
+    }
+    if (ev) ev.over = true;
+    a.beHappy(1.5);
+    yield* wait(a, 0.4);
+    yield* offBed(a, sp);
+  }
+  // One piece off plant `k` of bed `i`, by the kind's way of harvesting it, into `bunch` in the basket.
+  function* pickOne(a, i, k, f, bunch, moments) {
+    const g = house.garden;
+    const { basket } = g;
+    const veg = VEG[g.beds[i].kind];
+    const into = [basket.at[0], 2, basket.at[1]];
+    a.look = f.at;
+    let piece;
+    if (veg.how === "pull") {
+      // Both hands on the tops, a tug or two, and up it comes; a stubborn one takes more, and comes up all at
+      // once, sending them back a step.
+      const stuck = moments.stuck && Math.random() < 0.5;
+      if (stuck) moments.stuck = false;
+      a.hold = HOLDS.grip;
+      yield* wait(a, 0.3);
+      a.hold = MOVES.tug;
+      a.since = t();
+      for (let n = 0; n < (stuck ? 4 : 2); n++) {
+        a.lean = stuck ? -0.22 : -0.14;
+        yield* wait(a, 0.2);
+        a.lean = 0.04;
+        yield* wait(a, 0.18);
+      }
+      piece = g.take(i, k, f);
+      a.props.holdPiece(piece);
+      a.props.only("piece");
+      a.hold = HOLDS.pick;
+      if (stuck) {
+        a.lean = -0.45;
+        a.hop();
+        yield* glide(a, [a.x, a.z - 1.5], 0.25);
+        a.pop("room-pop room-pop-star");
+        yield* wait(a, 0.5);
+        a.lean = 0;
+        a.beHappy(1.2);
+        yield* wait(a, 0.4);
+      } else {
+        a.lean = -0.12;
+        yield* wait(a, 0.3);
+        a.lean = 0;
+      }
+    } else if (veg.how === "lift") {
+      // Both hands round it, a little twist this way and that to free it, and lifted out in both arms.
+      a.hold = HOLDS.grip;
+      yield* wait(a, 0.35);
+      for (const side of [1, -1, 1]) {
+        a.lean = 0.05 * side;
+        yield* wait(a, 0.16);
+      }
+      piece = g.take(i, k, f);
+      a.props.holdPiece(piece, true);
+      a.props.only("armful");
+      a.hold = HOLDS.tray;
+      a.lean = veg.heavy ? -0.18 : -0.08;
+      a.nod = veg.heavy ? -0.1 : 0;
+      yield* wait(a, veg.heavy ? 0.8 : 0.5);
+      a.lean = 0;
+      a.nod = 0;
+      a.beHappy(1);
+      yield* wait(a, 0.3);
+      a.look = into;
+      a.hold = HOLDS.grip;
+      yield* wait(a, 0.35);
+      yield* intoBasket(a, piece, bunch);
+      if (moments.wipe && !g.left(i, k).length && k === 2) {
+        moments.wipe = false;
+        a.hold = MOVES.wipe;
+        a.since = t();
+        yield* wait(a, 1);
+      }
+      return;
+    } else {
+      a.hold = f.at[1] - a.y > 10 ? HOLDS.reachUp : HOLDS.pick;
+      yield* wait(a, rnd(0.35, 0.55));
+      piece = g.take(i, k, f);
+      a.props.holdPiece(piece);
+      a.props.only("piece");
+      if (moments.taste && Math.random() < 0.35) {
+        // Into the mouth instead: mmm.
+        moments.taste = false;
+        a.look = null;
+        a.hold = HOLDS.taste;
+        yield* wait(a, 0.45);
+        a.props.only();
+        a.nod = 0.15;
+        a.happy = true;
+        a.pop();
+        yield* wait(a, 1.1);
+        a.nod = 0;
+        a.happy = false;
+        return;
+      }
+    }
+    if (moments.admire && Math.random() < 0.2) {
+      // A fine one: held up to admire.
+      moments.admire = false;
+      a.look = null;
+      a.hold = HOLDS.admire;
+      a.happy = true;
+      yield* wait(a, 0.45);
+      a.pop("room-pop room-pop-star");
+      yield* wait(a, 0.9);
+      a.happy = false;
+    }
+    a.look = into;
+    a.hold = HOLDS.drop;
+    yield* wait(a, 0.35);
+    yield* intoBasket(a, piece, bunch);
+  }
+  function* intoBasket(a, piece, bunch) {
+    const { basket } = house.garden;
+    if (!bunch.pieces.length) basket.bunches.push(bunch);
+    bunch.pieces.push(piece);
+    basket.refill();
+    a.props.only();
+    yield* wait(a, 0.15);
+  }
+  // The basket in to the fridge: set down at their feet, the door opened, and kneeling, each bunch from it
+  // into the crisper; then the door shut, and the basket taken up again.
+  function* toFridge(a) {
+    const g = house.garden;
+    const { basket } = g;
+    const { fridge } = spots;
+    if (!claim(a, "fridge")) {
+      // Someone is at it: wait a little way off till they are done.
+      yield* walk(a, [fridge.at[0] + 14, fridge.at[1] + 18]);
+      yield* turn(a, fridge.yaw);
+      if (!(yield* until(() => claim(a, "fridge"), 40))) return;
+    }
+    yield* walk(a, fridge.at);
+    yield* turn(a, fridge.yaw);
+    yield* basketDown(a, atHand(a, 6));
+    a.atFridge = true;
+    yield* wait(a, 0.5);
+    a.lie = true;
+    yield* wait(a, 0.3);
+    while (basket.bunches.length) {
+      a.look = [basket.at[0], 2, basket.at[1]];
+      a.hold = HOLDS.drop;
+      yield* wait(a, 0.35);
+      const bunch = basket.bunches.shift();
+      basket.refill();
+      a.props.holdPiece(bunch.pieces[0]);
+      a.props.only("piece");
+      a.look = fridge.crisper;
+      a.hold = HOLDS.pick;
+      yield* wait(a, 0.45);
+      g.put(bunch.kind);
+      a.props.only();
+      yield* wait(a, 0.2);
+    }
+    Object.assign(a, { lie: false, look: null, hold: null });
+    yield* wait(a, 0.3);
+    a.atFridge = false;
+    release(a, "fridge");
+    a.beHappy(1);
+    yield* basketUp(a);
+  }
+
+  // Sowing bed `i`, picked clean: a packet of seeds of something none of the beds has, its marker painted for
+  // it; then at each plant what is left of the old one pulled up and tossed aside, a hole dug, the seeds
+  // sprinkled in and patted down, and up comes a sprout; then the new bed watered. Cut short, the rest of the
+  // bed is sown next time.
+  function* sow(a, i) {
+    const g = house.garden;
+    const sp = spots.beds[i];
+    a.props.packet(g.plan(i));
+    a.props.only("seeds");
+    a.hold = HOLDS.packet;
+    yield* toBed(a, sp, sp.marker.at);
+    yield* turn(a, Math.PI / 2);
+    a.lie = true;
+    a.look = sp.marker.look;
+    a.hold = [HOLDS.pick[0], HOLDS.packet[1]];
+    yield* wait(a, 0.9);
+    g.relabel(i);
+    home.popAt(sp.marker.look, "room-pop room-pop-sparkle");
+    yield* wait(a, 0.4);
+    a.lie = false;
+    for (const k of [0, 1, 2]) {
+      if (g.sown(i, k)) continue;
+      const spot = sp.plants[k];
+      yield* toBed(a, sp, spot.at);
+      yield* turn(a, 0);
+      a.lie = true;
+      a.look = spot.plant;
+      a.hold = HOLDS.packet;
+      yield* wait(a, 0.4);
+      if (g.leftover(i, k)) {
+        // Pulled up with a tug, and tossed aside.
+        a.hold = MOVES.tug;
+        a.since = t();
+        for (let n = 0; n < 2; n++) {
+          a.lean = -0.15;
+          yield* wait(a, 0.2);
+          a.lean = 0.04;
+          yield* wait(a, 0.18);
+        }
+        a.props.holdPiece(g.clear(i, k));
+        a.props.only("piece");
+        a.lean = -0.1;
+        a.hold = HOLDS.throwOut;
+        yield* wait(a, 0.35);
+        a.props.only("seeds");
+        a.lean = 0;
+        a.hold = HOLDS.packet;
+        yield* wait(a, 0.2);
+      }
+      a.hold = MOVES.dig;
+      yield* wait(a, 0.9);
+      a.hold = MOVES.sprinkle;
+      yield* wait(a, 0.8);
+      g.sowOne(i, k);
+      a.hold = MOVES.pat;
+      yield* wait(a, 0.7);
+      a.hold = HOLDS.packet;
+      a.lie = false;
+      yield* wait(a, 0.25);
+    }
+    g.done(i);
+    yield* offBed(a, sp);
+    a.props.only();
+    a.look = null;
+    a.hold = MOVES.shake; // the soil off the hands
+    yield* wait(a, 0.6);
+    a.hold = null;
+    a.beHappy(1.5);
+    home.popAt(sp.mid, "room-pop room-pop-sparkle");
+    yield* wait(a, 0.5);
+    if (!gardenWet()) yield* waterBeds(a, [i]);
   }
   function* waterBeds(a, beds) {
     const { garden: g } = house;
@@ -1114,14 +1456,14 @@ export function makeActs(home, life) {
       const bed = spots.beds[i];
       yield* walk(a, bed.at);
       yield* turn(a, bed.yaw);
-      a.look = bed.plants[1];
+      a.look = bed.mid;
       yield* wait(a, 0.5);
       home.drops.pour(a.props.spout, 3);
       onEnd(a, () => home.drops.pour(null));
       yield* wait(a, 3);
       home.drops.pour(null);
       g.water(i);
-      home.popAt(bed.plants[1], "room-pop room-pop-sparkle");
+      home.popAt(bed.mid, "room-pop room-pop-sparkle");
       a.beHappy(1);
       a.look = null;
       yield* wait(a, 0.4);
@@ -2210,7 +2552,16 @@ export function makeActs(home, life) {
     dress: (a) => a.name === "girl" && !home.night && !holder("closet"),
     fire: () => !house.fire.lit && !holder("fire"),
     fireside: () => house.fire.lit && [0, 1].some((k) => !holder(`fireside${k}`)),
-    garden: () => !home.night && !gardenWet() && !holder("garden") && [0, 1, 2, 3].some((i) => house.garden.ripe(i) || house.garden.thirsty(i)),
+    garden: () => {
+      const g = house.garden;
+      const beds = [0, 1, 2, 3];
+      return (
+        !home.night &&
+        !gardenWet() &&
+        !holder("garden") &&
+        ((!holder("basket") && (g.basket.out() || beds.some(g.ripe))) || beds.some((i) => g.spent(i) || g.thirsty(i)))
+      );
+    },
     sunbathe: (a) =>
       !home.night &&
       !gardenWet() &&

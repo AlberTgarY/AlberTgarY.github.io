@@ -173,6 +173,7 @@ export function makeLife(home) {
       harnessed: false,
       sit: false,
       lie: false,
+      lean: 0,
       asleep: false,
       phones: false,
       cowed: false,

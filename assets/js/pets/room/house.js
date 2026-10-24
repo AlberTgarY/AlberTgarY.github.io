@@ -31,8 +31,8 @@ import { LOOKS, OUTFIT_PALETTE } from "../models/girl-outfits.js";
 import { pick } from "../stage.js";
 import { CHANNELS, GAMES, drawChannel, drawTvGame, drawPcGame } from "./screens.js";
 import { DISHES, buildDish } from "./props.js";
-import { FOOD_COLORS, stockFridge, stockFreezer } from "./fridge-food.js";
-import { VEG, VEG_COLORS, seeded } from "./veg.js";
+import { FOOD_COLORS, stockFridge, stockCrisper, shopCrisper, stockFreezer } from "./fridge-food.js";
+import { VEG, KINDS, VEG_COLORS, seeded, extent, basketPart, fillBasket } from "./veg.js";
 import { buildSprinkler } from "./sprinkler.js";
 
 export const X0 = -150; // the left wall
@@ -180,7 +180,6 @@ const COLORS = {
   kirbyMouth: "#c73f55",
   binInside: "#3a3d45",
   lettuce: "#8fd16a",
-  carrot: "#f08a2c",
   eggTray: "#c9a477",
   rind: "#3f8f3a",
   rindLight: "#d8f0c0",
@@ -205,8 +204,6 @@ const COLORS = {
   stoneDark: "#aaa192",
   log: "#8a5a34",
   logEnd: "#e0bd8f",
-  wicker: "#c08d58",
-  wickerDark: "#9e6f40",
   logChar: "#4a3226",
   ash: "#8e8680",
   fireRed: "#e0452c",
@@ -218,22 +215,6 @@ const COLORS = {
   wallCap: "#c9ae8a",
   soil: "#6b4a32",
   soilWet: "#3f2a1c",
-  tomLeaf: "#4f9a3a",
-  tomGreen: "#a3d15a",
-  tomato: "#e0402e",
-  tomatoShine: "#ff9a8a",
-  eggLeaf: "#5f9a49",
-  eggStem: "#6b3f73",
-  eggplant: "#5b2a6e",
-  eggplantShine: "#9a62b5",
-  eggCap: "#4f8a3e",
-  napaGreen: "#8cc265",
-  napaLeaf: "#6fae52",
-  napaWhite: "#eef3d9",
-  napaPale: "#d6e8a8",
-  cabbage: "#a8d38a",
-  cabbageLeaf: "#6fae52",
-  cabbageVein: "#cfe8b4",
 };
 
 // A canvas texture drawn texel by texel, one texel per voxel, kept crisp.
@@ -534,11 +515,10 @@ export function buildHouse(scene, water) {
   /* ---------- the windows and the front door ---------- */
 
   // The sky outside: blue with drifting clouds and the odd bird by day, deep blue with stars and the moon
-  // by night. Both windows show it.
+  // by night. Each window shows its own patch of it, the sun or the moon only in the one over the bed.
   const SKY = [44, 46];
-  const sky = pixelTexture(...SKY, () => {});
+  const skies = [0, 1].map(() => pixelTexture(...SKY, () => {})); // the back window's, the left one's
   let overcast = false; // raining: no sun, moon or stars
-  const skyMat = new THREE.MeshBasicMaterial({ map: sky.tex });
   const clouds = pixelTexture(SKY[0] * 2, SKY[1], () => {});
   clouds.tex.wrapS = THREE.RepeatWrapping;
   clouds.tex.repeat.set(0.5, 1);
@@ -558,9 +538,9 @@ export function buildHouse(scene, water) {
   rainVeil.tex.wrapS = rainVeil.tex.wrapT = THREE.RepeatWrapping;
   const rainMat = new THREE.MeshBasicMaterial({ map: rainVeil.tex, transparent: true, opacity: 0, depthWrite: false });
   // A pane of sky `w` x `h` voxels, showing that much of it.
-  function skyPane(w, h, at, rotY) {
+  function skyPane(sky, w, h, at, rotY) {
     for (const [mat, lift] of [
-      [skyMat, 0],
+      [new THREE.MeshBasicMaterial({ map: sky.tex }), 0],
       [cloudMat, 0.1],
       [rainMat, 0.2],
     ]) {
@@ -571,18 +551,20 @@ export function buildHouse(scene, water) {
       m.translateZ(lift);
     }
   }
-  skyPane(WIN_BACK.x[1] - WIN_BACK.x[0] + 1, WIN_BACK.y[1] - WIN_BACK.y[0] + 1, [
+  skyPane(skies[0], WIN_BACK.x[1] - WIN_BACK.x[0] + 1, WIN_BACK.y[1] - WIN_BACK.y[0] + 1, [
     (WIN_BACK.x[0] + WIN_BACK.x[1]) / 2,
     (WIN_BACK.y[0] + WIN_BACK.y[1]) / 2,
     BACK - 2,
   ]);
   skyPane(
+    skies[1],
     WIN_LEFT.z[1] - WIN_LEFT.z[0] + 1,
     WIN_LEFT.y[1] - WIN_LEFT.y[0] + 1,
     [X0 - 2, (WIN_LEFT.y[0] + WIN_LEFT.y[1]) / 2, (WIN_LEFT.z[0] + WIN_LEFT.z[1]) / 2],
     Math.PI / 2
   );
-  function drawSky() {
+  const drawSky = () => skies.forEach(drawSkyOf);
+  function drawSkyOf(sky, i) {
     const { g } = sky;
     const grad = g.createLinearGradient(0, 0, 0, SKY[1]);
     grad.addColorStop(0, night ? "#18234a" : "#7fc0ec");
@@ -592,14 +574,15 @@ export function buildHouse(scene, water) {
     if (overcast) {
       // Nothing but cloud.
     } else if (night) {
-      for (let i = 0; i < 22; i++) {
-        g.fillStyle = i % 5 ? "#e9ecff" : "#ffe9a8";
-        g.fillRect(Math.floor(hash(i, 3, 1) * SKY[0]), Math.floor(hash(i, 5, 2) * SKY[1] * 0.8), 1, 1);
+      for (let k = 0; k < 22; k++) {
+        g.fillStyle = k % 5 ? "#e9ecff" : "#ffe9a8";
+        g.fillRect(Math.floor(hash(k, 3, 1 + i) * SKY[0]), Math.floor(hash(k, 5, 2 + i) * SKY[1] * 0.8), 1, 1);
       }
       g.fillStyle = "#fff4c2"; // a crescent moon
-      for (let y = -5; y <= 5; y++)
-        for (let x = -5; x <= 5; x++) if (x * x + y * y <= 25 && (x + 3) ** 2 + (y - 1) ** 2 > 18) g.fillRect(30 + x, 9 + y, 1, 1);
-    } else {
+      if (!i)
+        for (let y = -5; y <= 5; y++)
+          for (let x = -5; x <= 5; x++) if (x * x + y * y <= 25 && (x + 3) ** 2 + (y - 1) ** 2 > 18) g.fillRect(30 + x, 9 + y, 1, 1);
+    } else if (!i) {
       g.fillStyle = "#fff6c9"; // the sun peeking in at the corner
       for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) if (x * x + y * y <= 36) g.fillRect(34 + x, 6 + y, 1, 1);
     }
@@ -739,7 +722,8 @@ export function buildHouse(scene, water) {
   // A rounded retro fridge in mint, no taller than they can reach: the fridge below and the freezer above,
   // each door swinging open towards the front on its own and the inside lit up. In the fridge, two glass
   // shelves over the crisper drawer, and sauces in the door; in the freezer, a shelf. What is on the shelves
-  // changes each time a door opens (fridge-food.js). Magnets and a photo on the door.
+  // changes each time a door opens (fridge-food.js), but for the garden's vegetables in the crisper, which
+  // stay till they are cooked. Magnets and a photo on the door.
   const FRIDGE = [-132, -97];
   const fridgeGroup = new THREE.Group();
   fridgeGroup.position.set(FRIDGE[0], 0, FRIDGE[1]);
@@ -774,11 +758,27 @@ export function buildHouse(scene, water) {
     fridgeGroup.add(m);
     return m;
   });
+  // The crisper drawer, drawn apart so that vegetables can go in while the door is open: the garden's
+  // (`store`, kinds, the oldest first), then as much of what was bought as there is room for.
+  const store = [];
+  let bought = [];
+  const crisper = new THREE.Mesh(new THREE.BufferGeometry(), glowing);
+  fridgeGroup.add(crisper);
+  function restockCrisper() {
+    const p = part();
+    stockCrisper(p, store, bought);
+    crisper.geometry.dispose();
+    crisper.geometry = solid(p).geometry;
+  }
   function restock(i) {
     const p = part();
     insideOf[i](p);
     insides[i].geometry.dispose();
     insides[i].geometry = solid(p).geometry;
+    if (i === 0) {
+      bought = shopCrisper();
+      restockCrisper();
+    }
   }
   insides.forEach((_, i) => restock(i));
 
@@ -830,6 +830,7 @@ export function buildHouse(scene, water) {
       doors[i].rotation.y = -1.6 * fridge.k[i];
       insides[i].visible = fridge.k[i] > 0.02;
     });
+    crisper.visible = insides[0].visible;
     fridgeLight.intensity = 0.8 * Math.max(...fridge.k);
   });
 
@@ -1644,9 +1645,9 @@ export function buildHouse(scene, water) {
   fireLight.position.set(0, 14, 22);
   tvGroup.add(fireLight);
   turnedFootprint(TV.at, TV.turn, [-24, 23, 0, 17]);
-  const basket = part();
+  const logBasket = part();
   for (let y = 0; y <= 7; y++)
-    ellipsoid(basket, [0, y, 0], [5.5, 0.5, 4.5], (x, yy, z) => ((x + y + z) % 2 ? "wicker" : "wickerDark"), [
+    ellipsoid(logBasket, [0, y, 0], [5.5, 0.5, 4.5], (x, yy, z) => ((x + y + z) % 2 ? "wicker" : "wickerDark"), [
       { has: (x, yy, z) => y >= 2 && (x / 4.2) ** 2 + (z / 3.2) ** 2 < 1 },
     ]);
   for (const [z, y] of [
@@ -1654,8 +1655,8 @@ export function buildHouse(scene, water) {
     [1.5, 4],
     [0, 6],
   ])
-    for (let x = -5; x <= 5; x++) ellipsoid(basket, [x, y, z], [0.5, 1.3, 1.3], Math.abs(x) === 5 ? "logEnd" : "log");
-  place(house, mesh(basket), [X0 + 8, 0, 103], Math.PI / 2);
+    for (let x = -5; x <= 5; x++) ellipsoid(logBasket, [x, y, z], [0.5, 1.3, 1.3], Math.abs(x) === 5 ? "logEnd" : "log");
+  place(house, mesh(logBasket), [X0 + 8, 0, 103], Math.PI / 2);
   footprint(X0, X0 + 15, 96, 110);
   // The fire, once lit, burns for a while, then dies down.
   const fire = { lit: false, until: 0, k: 0 };
@@ -1881,14 +1882,16 @@ export function buildHouse(scene, water) {
   for (let z = -20; z <= 104; z += 8) if (Math.abs(z - GARDEN_DOOR.z) > 4) stone(161, z);
   house.add(mesh(stones));
 
-  // The beds, each with three plants of one vegetable (veg.js), every plant its own; a bed sown again comes
-  // up with new ones. The soil is crumbly, darker where wet; a little painted marker at the path end says
-  // what grows there.
-  const BEDS = [
-    { kind: "tomato", z: [-20, -3], sign: ["tomato", "tomLeaf"] },
-    { kind: "eggplant", z: [7, 24], sign: ["eggplant", "eggCap"] },
-    { kind: "napa", z: [56, 73], sign: ["napaWhite", "napaGreen"] },
-    { kind: "cabbage", z: [85, 102], sign: ["cabbage", "cabbageLeaf"] },
+  // The beds, each with three plants of one vegetable (veg.js), every plant its own, and no two beds growing
+  // the same one. What is ripe is picked off a plant piece by piece (the vine, the bush or the outer leaves
+  // staying); a bed picked clean is cleared and sown again, plant by plant, with a vegetable none of the
+  // beds has (and so not the one it just had). The soil is crumbly, darker where wet; a little painted
+  // marker at the path end says what grows there.
+  const BED_Z = [
+    [-20, -3],
+    [7, 24],
+    [56, 73],
+    [85, 102],
   ];
   const PLANT_X = [176, 186, 196];
   const soilTexture = (len) =>
@@ -1900,23 +1903,61 @@ export function buildHouse(scene, water) {
           g.fillRect(x, y, 1, 1);
         }
     }).tex;
-  const markers = part();
-  // Sow a bed: three new plants, each drawn at its three stages.
-  function sow(bed) {
-    bed.plants3d?.forEach((pl) => pl.forEach((m) => (house.remove(m), m.geometry.dispose())));
-    bed.plants3d = PLANT_X.map((x) => {
-      const seed = Math.floor(Math.random() * 2 ** 31);
-      return [0, 1, 2].map((s) => {
-        const p = part();
-        VEG[bed.kind](p, s, seeded(seed));
-        const m = place(house, mesh(p), [x, 3, bed.zc], hash(seed % 997, s, 3) * 0.8 - 0.4);
-        m.visible = false;
-        return m;
-      });
+  // Plant `k` of `bed`, of `kind`: drawn at its three stages, the ripe one apart from what is picked off it
+  // (`fruits`, each with where it is in the room), only one stage showing at a time.
+  function grow(bed, k, kind) {
+    const seed = Math.floor(Math.random() * 2 ** 31);
+    const at = [PLANT_X[k], 3, bed.zc];
+    const yaw = hash(seed % 997, k, 3) * 0.8 - 0.4;
+    const plant = { fresh: false, meshes: [], body: null, fruits: [] };
+    for (const s of [0, 1, 2]) {
+      const p = part();
+      const fruits = [];
+      VEG[kind].draw(p, s, seeded(seed), () => (s < 2 ? p : fruits[fruits.push(part()) - 1]));
+      plant.meshes.push(place(house, new THREE.Mesh(new THREE.BufferGeometry(), solidMaterial), at, yaw));
+      if (s < 2) plant.meshes[s].geometry = solid(p).geometry;
+      else {
+        plant.body = p;
+        plant.fruits = fruits.map((q) => {
+          const [lx, ly, lz] = extent(q).mid;
+          const [x, z] = turned([at[0], at[2]], yaw, [lx, lz]);
+          return { part: q, at: [x, at[1] + ly, z], taken: false };
+        });
+      }
+    }
+    plant.meshes.push(place(house, new THREE.Mesh(new THREE.BufferGeometry(), solidMaterial), at, yaw));
+    redraw(plant);
+    return plant;
+  }
+  // The ripe plant as it is now: what is left of the fruit on it, and the rest of it (where fruit and leaf
+  // meet, the fruit shows).
+  function redraw(plant) {
+    const [body, fruit] = [part(), part()];
+    for (const f of plant.fruits) if (!f.taken) for (const v of f.part.list()) fruit.add(...v);
+    for (const v of plant.body.list()) if (!fruit.has(v[0], v[1], v[2])) body.add(...v);
+    [body, fruit].forEach((p, i) => {
+      plant.meshes[2 + i].geometry.dispose();
+      plant.meshes[2 + i].geometry = solid(p).geometry;
     });
   }
+  function uproot(bed, k) {
+    bed.plants[k]?.meshes.forEach((m) => (house.remove(m), m.geometry.dispose()));
+    bed.plants[k] = null;
+  }
+  // The marker: a stake with a little board painted with the vegetable.
+  function paintMarker(bed, kind) {
+    const p = part();
+    const [z0] = bed.z;
+    const [c1, c2] = VEG[kind].sign;
+    box(p, [171, 171], [3, 9], [z0 + 2, z0 + 2], "woodLight");
+    box(p, [170, 172], [8, 10], [z0 + 3, z0 + 3], (x, y) => (x === 171 && y === 9 ? c1 : x === 171 && y === 10 ? c2 : "frame"));
+    bed.marker.geometry.dispose();
+    bed.marker.geometry = solid(p).geometry;
+  }
+  const STORE = 4; // bunches of the garden's vegetables the crisper holds; the oldest is eaten first
+  const startKinds = [...KINDS].sort(() => Math.random() - 0.5);
   const garden = {
-    beds: BEDS.map(({ kind, z: [z0, z1], sign }, i) => {
+    beds: BED_Z.map(([z0, z1], i) => {
       const zc = (z0 + z1) / 2;
       const frame = part();
       box(frame, [169, 203], [0, 3], [z0, z1], (x, y, z) => (y === 3 ? "woodDeep" : (x + z) % 9 === 0 ? "woodDeep" : "woodMid"), [
@@ -1929,39 +1970,90 @@ export function buildHouse(scene, water) {
         new THREE.Mesh(new THREE.BoxGeometry(33, 1, z1 - z0 - 1), new THREE.MeshLambertMaterial({ map: soilTexture(z1 - z0 - 1) })),
         [186, 2.5, zc]
       );
-      // The marker: a stake with a little board painted with the vegetable.
-      box(markers, [171, 171], [3, 9], [z0 + 2, z0 + 2], "woodLight");
-      box(markers, [170, 172], [8, 10], [z0 + 3, z0 + 3], (x, y) => (x === 171 && y === 9 ? sign[0] : x === 171 && y === 10 ? sign[1] : "frame"));
       const bed = {
-        kind,
+        kind: startKinds[i],
+        next: null, // what it is being sown with
         z: [z0, z1],
-        stage: [2, 1, 0, 1][i],
+        zc,
+        stage: [2, 1, 0, 2][i], // 0 just sown, 1 growing, 2 ripe, 3 picked clean
         growth: Math.random() * 0.6,
         wet: 0,
         soil,
-        zc,
-        at: [161, zc],
-        plants: PLANT_X.map((x) => [x, 8, zc]),
+        marker: place(house, new THREE.Mesh(new THREE.BufferGeometry(), solidMaterial), [0, 0, 0]),
+        plants: [],
       };
-      sow(bed);
+      bed.plants = PLANT_X.map((x, k) => grow(bed, k, bed.kind));
+      paintMarker(bed, bed.kind);
       return bed;
     }),
+    // The garden's vegetables in the fridge, a bunch from each plant picked, the oldest first.
+    store,
     // Water bed `i`: the soil darkens, and it grows faster while it is wet.
     water(i) {
       garden.beds[i].wet = 1;
     },
-    // Pick bed `i` and sow it again; what was picked.
-    harvest(i) {
-      const bed = garden.beds[i];
-      Object.assign(bed, { stage: 0, growth: 0 });
-      sow(bed);
-      return bed.kind;
-    },
     ripe: (i) => garden.beds[i].stage === 2,
+    spent: (i) => garden.beds[i].stage === 3,
     thirsty: (i) => garden.beds[i].stage < 2 && garden.beds[i].wet < 0.3,
-    picked: 0, // vegetables brought in and kept in the fridge, for cooking
+    // What is still on plant `k` of bed `i` to be picked.
+    left: (i, k) => (garden.beds[i].stage === 2 ? garden.beds[i].plants[k].fruits.filter((f) => !f.taken) : []),
+    // Pick `fruit` off plant `k` of bed `i`; the piece picked. The bed is picked clean once nothing is left.
+    take(i, k, fruit) {
+      const bed = garden.beds[i];
+      fruit.taken = true;
+      redraw(bed.plants[k]);
+      if (bed.plants.every((pl) => pl.fruits.every((f) => f.taken))) bed.stage = 3;
+      return fruit.part;
+    },
+    // What bed `i` is to be sown with: a vegetable no bed has or is being sown with.
+    plan(i) {
+      const { beds } = garden;
+      beds[i].next ??= pick(KINDS.filter((kind) => beds.every((b) => b.kind !== kind && b.next !== kind)));
+      return beds[i].next;
+    },
+    // Its marker painted with that.
+    relabel: (i) => paintMarker(garden.beds[i], garden.beds[i].next),
+    // Whether there is something of plant `k` of bed `i` to pull up before sowing: the plant as it was left
+    // after picking (nothing, after carrots), not one just sown.
+    leftover(i, k) {
+      const pl = garden.beds[i].plants[k];
+      return !!pl && !pl.fresh && pl.body.list().length > 0;
+    },
+    // Pull up what is left of plant `k` of bed `i`; what came up.
+    clear(i, k) {
+      const { body } = garden.beds[i].plants[k];
+      uproot(garden.beds[i], k);
+      return body;
+    },
+    // Sow plant `k` of bed `i` (once planned): a sprout comes up.
+    sowOne(i, k) {
+      const bed = garden.beds[i];
+      uproot(bed, k);
+      bed.plants[k] = grow(bed, k, bed.next);
+      bed.plants[k].fresh = true;
+    },
+    sown: (i, k) => !!garden.beds[i].plants[k]?.fresh,
+    // Bed `i` sown all along: it starts to grow.
+    done(i) {
+      const bed = garden.beds[i];
+      if (!bed.next) return;
+      garden.relabel(i);
+      bed.plants.forEach((pl, k) => pl?.fresh || garden.sowOne(i, k));
+      bed.plants.forEach((pl) => (pl.fresh = false));
+      Object.assign(bed, { kind: bed.next, next: null, stage: 0, growth: 0 });
+    },
+    // A bunch of `kind` into the crisper, or the oldest out of it (for the pot).
+    put(kind) {
+      store.push(kind);
+      if (store.length > STORE) store.shift();
+      restockCrisper();
+    },
+    takeOut() {
+      const kind = store.shift();
+      restockCrisper();
+      return kind;
+    },
   };
-  house.add(mesh(markers));
   // Flowers along the picket fence, at the front and down the far side, in clumps of a few colours.
   const flowers = part();
   const BLOOMS = ["pink", "yellow", "white", "lilac", "red"];
@@ -1996,7 +2088,12 @@ export function buildHouse(scene, water) {
         bed.growth += dt / (bed.wet > 0 ? 70 : 260);
         if (bed.growth >= 1) Object.assign(bed, { stage: bed.stage + 1, growth: 0 });
       }
-      bed.plants3d.forEach((pl) => pl.forEach((m, s) => (m.visible = s === bed.stage)));
+      // Each plant at the bed's stage (a sprout, once just sown); picked clean, what is left of it.
+      for (const pl of bed.plants) {
+        if (!pl) continue;
+        const s = pl.fresh ? 0 : Math.min(bed.stage, 2);
+        pl.meshes.forEach((m, j) => (m.visible = j === s || (s === 2 && j === 3)));
+      }
       bed.soil.material.color.lerpColors(dry, wet, Math.min(1, bed.wet * 1.5));
     }
   });
@@ -2018,6 +2115,44 @@ export function buildHouse(scene, water) {
   ])
     gardenCan.add(0, y, z, "canDark");
   garden.can = place(house, mesh(gardenCan), [156, 0, 60], -0.6);
+
+  // The garden basket, by the door across from the can when nobody has it out: set down beside them at a
+  // bed while they pick, carried in full to the fridge and back out empty. What is in it is in bunches, one
+  // from each plant picked. Left wherever someone had to leave it (run in from the rain), till it is fetched.
+  const BASKET_HOME = { at: [155, 17], yaw: Math.PI / 2, stand: [161, 12] };
+  const basketMesh = new THREE.Group();
+  basketMesh.add(mesh(basketPart(part())));
+  const basketFill = new THREE.Group();
+  basketMesh.add(basketFill);
+  house.add(basketMesh);
+  const basket = {
+    bunches: [], // [{ kind, pieces }]
+    carrier: null,
+    at: BASKET_HOME.at,
+    stand: BASKET_HOME.stand, // where to stand to pick it up
+    home: true,
+    homeAt: BASKET_HOME.at,
+    homeStand: BASKET_HOME.stand,
+    // Whether it is anywhere but by the door, empty.
+    out: () => !basket.home || basket.bunches.length > 0,
+    pieces: () => basket.bunches.flatMap((b) => b.pieces),
+    // Set down at [x, z], turned by `yaw`, by someone standing at `stand`.
+    setDown(at, yaw, stand, home = false) {
+      Object.assign(basket, { carrier: null, at, stand, home });
+      basketMesh.position.set(at[0], floorY(...at), at[1]);
+      basketMesh.rotation.y = yaw;
+      basketMesh.visible = true;
+      basket.refill();
+    },
+    goHome: () => basket.setDown(BASKET_HOME.at, BASKET_HOME.yaw, BASKET_HOME.stand, true),
+    pickUp(a) {
+      Object.assign(basket, { carrier: a, home: false });
+      basketMesh.visible = false;
+    },
+    refill: () => fillBasket(basketFill, basket.pieces(), solid),
+  };
+  basket.goHome();
+  garden.basket = basket;
 
   // A white butterfly over the beds by day, and fireflies over the garden at night.
   const wingPart = part();
@@ -2189,7 +2324,7 @@ export function buildHouse(scene, water) {
   const spots = {
     seats,
     // Beside the fridge, at its handle, so as not to stand between it and the viewer.
-    fridge: { at: [-106, -79], yaw: facing([-106, -79], [FRIDGE[0] + 4, FRIDGE[1] + 12]) },
+    fridge: { at: [-106, -79], yaw: facing([-106, -79], [FRIDGE[0] + 4, FRIDGE[1] + 12]), crisper: [FRIDGE[0], 6, FRIDGE[1] + 5] },
     tin: { at: [COUNTER[0] + 14, -78], yaw: Math.PI },
     stove: { at: [-126, potTop[1]], yaw: -Math.PI / 2, pot: stove.pot },
     // The oven: beside its door (which comes down in front of it), and the middle of it.
@@ -2231,8 +2366,18 @@ export function buildHouse(scene, water) {
     // The garden: through the door, the can by it, and each bed (from the path, facing it).
     gardenDoor: { inside: [134, GARDEN_DOOR.z], outside: [158, GARDEN_DOOR.z] },
     can: { at: [158, 50], yaw: 0 },
-    beds: garden.beds.map((bed) => ({ at: bed.at, yaw: Math.PI / 2, plants: bed.plants })),
-    sunny: [184, GARDEN_DOOR.z + 9], // a patch of grass between the beds, by the sprinkler
+    // For each bed: on the path facing it (to water it), the middle of it, where to kneel to its marker,
+    // behind each plant (facing it and the viewer) with the basket set down at the right hand, and where the
+    // dog sits on the path to watch.
+    beds: garden.beds.map(({ z: [z0], zc }) => ({
+      at: [161, zc],
+      yaw: Math.PI / 2,
+      mid: [186, 8, zc],
+      marker: { at: [164, z0 + 3], look: [171, 9, z0 + 3] },
+      plants: PLANT_X.map((x) => ({ at: [x, z0 - 3], basket: [x - 7, z0 - 3], plant: [x, 5, zc] })),
+      watch: [157, z0 - 2],
+    })),
+    sunny: [177, 31], // a patch of grass between the beds, by the sprinkler, out of the way of the beds' work
     watchPc: { at: [CHAIR[0] - 30, CHAIR[1] + 16] }, // beside his chair, not in front of him or the headphones
     dining: { beg: [DINING[0] - 40, DINE_Z + 2], dish: [DINING[0], 16, DINING[1] + 1] }, // where the dog sits hoping for a bite, and the dish
     rug: [

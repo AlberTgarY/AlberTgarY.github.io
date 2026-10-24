@@ -1,8 +1,8 @@
 /*******************************************************************************
  * The steps the playground's activities (acts.js) are made of: walking
- * somewhere (up and down the stairs too), turning, waiting, hopping up or
- * down, sitting down and getting up, and getting into bed and out again. Each
- * is a generator that yields once a frame until it is done, and none can take
+ * somewhere (up and down the stairs too, or a few steps along a garden bed),
+ * turning, waiting, hopping up or down, sitting down and getting up, and
+ * getting into bed and out again. Each is a generator that yields once a frame until it is done, and none can take
  * forever: a walk that gets stuck arrives anyway, and a wait has an end.
  ******************************************************************************/
 
@@ -69,6 +69,29 @@ export function makeSteps(home) {
         }
         yield;
       }
+    } finally {
+      a.walking = false;
+      a.pace = 1;
+    }
+  }
+
+  // A few steps straight to [x, z] close by, as along a garden bed from one plant to the next, where the way
+  // round (out onto the free floor and back) would be silly.
+  function* stepTo(a, [x, z], pace = 0.7) {
+    a.goal = [x, z];
+    a.pace = pace;
+    a.walking = true;
+    try {
+      for (;;) {
+        const d = Math.hypot(x - a.x, z - a.z);
+        const stride = a.speed * pace * clock.dt;
+        if (d <= stride) break;
+        a.faceTowards(x, z);
+        a.x += ((x - a.x) / d) * stride;
+        a.z += ((z - a.z) / d) * stride;
+        yield;
+      }
+      [a.x, a.z] = [x, z];
     } finally {
       a.walking = false;
       a.pace = 1;
@@ -237,5 +260,5 @@ export function makeSteps(home) {
     a.ground = null;
   }
 
-  return { walk, turn, wait, until, hop, glide, sitOn, getUp, intoBed, outOfBed };
+  return { walk, stepTo, turn, wait, until, hop, glide, sitOn, getUp, intoBed, outOfBed };
 }

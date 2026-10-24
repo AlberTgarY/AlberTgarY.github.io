@@ -69,7 +69,7 @@ export function makeRoom(stage) {
     clock,
     pointer,
     house,
-    nav: makeNav(house.bounds, house.obstacles),
+    nav: makeNav(house.bounds, house.obstacles, floorY),
     actors: [],
     humans: [],
     pets: [],

@@ -1,11 +1,14 @@
 /*******************************************************************************
  * What is in the playground's fridge (house.js): each time a door opens, its
  * shelves are stocked afresh from what they might hold, so it is never quite
- * the same twice. Every food is drawn into a voxel part with its left end at
- * x and its bottom at y, standing between z = 3 and 6 (the shelves are 6 deep).
+ * the same twice; the vegetables brought in from the garden (veg.js) stay in
+ * the crisper till they are cooked. Every food is drawn into a voxel part with
+ * its left end at x and its bottom at y, standing between z = 3 and 6 (the
+ * shelves are 6 deep).
  ******************************************************************************/
 
 import { box, ellipsoid, hash } from "../models/voxels.js";
+import { VEG, STORED_W } from "./veg.js";
 
 // The colours of the food, beside the ones it shares with the props (girl-props.js) and the house.
 export const FOOD_COLORS = {
@@ -294,14 +297,30 @@ function stock(p, foods, x0, x1, y, room, used) {
   }
 }
 
-// The fridge, below: the crisper on the floor (y 4 to 7), and three shelves, on y 9, 16 and 28.
+// The fridge, below: three shelves, on y 9, 16 and 28 (the crisper drawer under them is stocked apart).
 export function stockFridge(p) {
   const used = new Set();
-  stock(p, IN_CRISPER, -13, 12, 4, 4, used);
   stock(p, ON_SHELF, -12, 12, 9, 6, used);
   stock(p, ON_SHELF_TALL, -12, 12, 16, 11, used);
   stock(p, [...ON_SHELF, ...ON_SHELF_TALL], -12, 12, 28, 11, used);
 }
+
+// The crisper, on the fridge's floor (y 4 to 7): the garden's vegetables (`produce`, kinds) from the left,
+// the oldest first, then as much of `bought` (from shopCrisper) as there is room for.
+export function stockCrisper(p, produce, bought) {
+  let x = -13;
+  for (const kind of produce) {
+    VEG[kind].stored(p, x, 4);
+    x += STORED_W + 1;
+  }
+  for (const food of bought) {
+    if (x + food.w - 1 > 12) break;
+    food.draw(p, x, 4);
+    x += food.w + 1;
+  }
+}
+// What was bought for the crisper this time: a random few, in a random order.
+export const shopCrisper = () => IN_CRISPER.filter(() => Math.random() < 0.7).sort(() => Math.random() - 0.5);
 
 /* ---------- the freezer ---------- */
 

@@ -26,7 +26,6 @@ const CORNERS = [
 
 export function makeView() {
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
-  renderer.setPixelRatio(1); // one canvas px per CSS px, drawn crisp, like the pets
   const camera = new THREE.PerspectiveCamera(20, 1, 600, 2400);
   const toCamera = new THREE.Vector3(Math.sin(VIEW_YAW) * Math.cos(PITCH), Math.sin(PITCH), Math.cos(VIEW_YAW) * Math.cos(PITCH));
   camera.position.copy(TARGET).addScaledVector(toCamera, DISTANCE);
@@ -54,6 +53,8 @@ export function makeView() {
     camera.fov = (2 * Math.atan(fullH / 2 / (scale * DISTANCE)) * 180) / Math.PI;
     camera.aspect = fullW / fullH;
     camera.setViewOffset(fullW, fullH, fullW / 2 + cx - width / 2, fullH / 2 - up, width, H);
+    // Drawn at the screen's own resolution (a phone has 2 or 3 device px per CSS px), not stretched up from CSS px.
+    renderer.setPixelRatio(Math.min(3, window.devicePixelRatio || 1));
     renderer.setSize(width, H, false);
     view.canvas.style.width = `${width}px`;
     view.canvas.style.height = `${H}px`;

@@ -9,7 +9,7 @@
 const CELL = 4; // voxels
 const CLEARANCE = 7; // kept between the middle of someone walking and the furniture
 
-export function makeNav([x0, x1, z0, z1], obstacles) {
+export function makeNav([x0, x1, z0, z1], obstacles, floorY) {
   const cols = Math.ceil((x1 - x0) / CELL);
   const rows = Math.ceil((z1 - z0) / CELL);
   const blocked = new Uint8Array(cols * rows);
@@ -59,20 +59,39 @@ export function makeNav([x0, x1, z0, z1], obstacles) {
   const isFree = (i, j) => inside(i, j) && !blocked[j * cols + i];
   const free = (x, z) => isFree(...cellOf(x, z));
 
-  // The free cell nearest (x, z), searching outwards ring by ring.
+  // Whether the straight way from (ax, az) to (bx, bz) goes through a piece of furniture (other than one
+  // (ax, az) is in, as a seat is).
+  function throughFurniture(ax, az, bx, bz) {
+    const n = Math.ceil(Math.hypot(bx - ax, bz - az));
+    return obstacles.some(([ox0, ox1, oz0, oz1]) => {
+      const inside = (x, z) => x > ox0 && x < ox1 && z > oz0 && z < oz1;
+      if (inside(ax, az)) return false;
+      for (let k = 1; k <= n; k++) if (inside(ax + ((bx - ax) * k) / n, az + ((bz - az) * k) / n)) return true;
+      return false;
+    });
+  }
+
+  // The free cell nearest (x, z) on the same floor (not up on the loft from the garden below it, say) and
+  // in a straight line from it without going through furniture (not across a garden bed from behind it),
+  // searching outwards ring by ring; failing that, just the nearest on the same floor.
   function nearestFree(x, z) {
     const [i0, j0] = cellOf(x, z).map((c, k) => Math.min(Math.max(c, 0), (k ? rows : cols) - 1));
-    for (let r = 0; r < Math.max(cols, rows); r++) {
+    const y = floorY(x, z);
+    let fallback = null;
+    let last = Math.max(cols, rows);
+    for (let r = 0; r < last; r++) {
       let best = null;
       for (let j = j0 - r; j <= j0 + r; j++)
         for (let i = i0 - r; i <= i0 + r; i++) {
-          if (Math.max(Math.abs(i - i0), Math.abs(j - j0)) !== r || !isFree(i, j)) continue;
+          if (Math.max(Math.abs(i - i0), Math.abs(j - j0)) !== r || !isFree(i, j) || Math.abs(floorY(cx(i), cz(j)) - y) > 2) continue;
           const d = (cx(i) - x) ** 2 + (cz(j) - z) ** 2;
-          if (!best || d < best[2]) best = [i, j, d];
+          if (!fallback) last = Math.min(last, r + 12); // looking a dozen rings further at most
+          if (!fallback || d < fallback[2]) fallback = [i, j, d];
+          if ((!best || d < best[2]) && !throughFurniture(x, z, cx(i), cz(j))) best = [i, j, d];
         }
       if (best) return best;
     }
-    return null;
+    return fallback;
   }
 
   // Whether a straight line stays on free cells.

@@ -2,7 +2,8 @@
  * What the girl and the boy pick up in the playground, and how they hold it:
  * the red book, the laptop, the game controllers, an ice cream or a juice box
  * from the fridge, a watering can, the bag of pet food, a treat for the dog,
- * a basket of vegetables from the garden, a log for the fire, the cat's mess on
+ * the garden basket, what was just picked (in a hand, or in both arms), a
+ * packet of seeds, a log for the fire, the cat's mess on
  * its way to the bin, an umbrella (rolled up, or open over the head), a roast
  * chicken or a lasagna for the oven (the oven and
  * the table show the same dishes), and the dog's ball, which flies, rolls and
@@ -19,9 +20,11 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { part, ellipsoid, box, pivotGroup, cells, hash } from "../models/voxels.js";
 import { PROP_COLORS, foodBag } from "../models/girl-props.js";
+import { VEG, KINDS, VEG_COLORS, basketPart, fillBasket, extent, empty } from "./veg.js";
 
 const COLORS = {
   ...PROP_COLORS,
+  ...VEG_COLORS,
   page: "#fbf6ea",
   pageLine: "#d9d0bd",
   cover: "#c94f4f",
@@ -43,15 +46,6 @@ const COLORS = {
   canDark: "#6fa6d6",
   ball: "#d6e04a",
   ballSeam: "#f7f7ea",
-  wicker: "#c08d58",
-  wickerDark: "#9e6f40",
-  tomato: "#e0402e",
-  eggplant: "#5b2a6e",
-  eggCap: "#4f8a3e",
-  napaWhite: "#eef3d9",
-  napaGreen: "#8cc265",
-  cabbage: "#a8d38a",
-  cabbageLeaf: "#6fae52",
   log: "#8a5a34",
   logEnd: "#e0bd8f",
   platter: "#f7f3ea",
@@ -110,7 +104,21 @@ export const HOLDS = {
     [-0.6, -0.35, -0.25, 0, 0],
   ], // hands on the knees, to push up off a seat
   umbrella: [[-0.95, -1.35, 0, -0.5, 0], null], // an open umbrella held up beside the head
+  // In the garden: the basket hanging from the left hand; reaching up to a tomato; a piece dropped into
+  // the basket set down at the right hand; both hands on carrot tops or round a head; held up to admire; a
+  // strawberry to the mouth; the seed packet in the left hand.
+  basket: [null, [-0.15, -0.35, -0.05, 0.1, 0]],
+  reachUp: [[-1.75, -0.35, 0.15, 0, 0], null],
+  drop: [[-0.45, -0.3, -0.05, -0.45, 0], null],
+  grip: [
+    [-1.0, -0.3, 0.3, 0, 0],
+    [-1.0, -0.3, -0.3, 0, 0],
+  ],
+  admire: [[-2.2, -0.9, 0.35, 0, 0], null],
+  taste: [[-1.3, -1.9, 0.5, 0, 0], null],
+  packet: [null, [-0.7, -0.9, -0.2, 0, 0]],
 };
+const PACKET = HOLDS.packet[1];
 
 // Holds that move: typing, the mouse and the keys, mashing buttons, stirring, clapping, cheering, licking
 // an ice cream.
@@ -154,6 +162,23 @@ export const MOVES = {
     [-2.5 + 0.35 * Math.sin(t * 15), -1.1, 0, -0.35, 0],
     [-2.5 + 0.35 * Math.sin(t * 15 + 1.7), -1.1, 0, 0.35, 0],
   ],
+  // Tugging at carrot tops, both hands pulling back.
+  tug: (t, e) => {
+    const k = 0.25 * Math.max(0, Math.sin(e * 11));
+    return [
+      [-0.95 + k, -0.25, 0.3, 0, 0],
+      [-0.95 + k, -0.25, -0.3, 0, 0],
+    ];
+  },
+  // Sowing: digging a hole, sprinkling seeds from the fingers and patting the soil down, the packet in the
+  // left hand; and wiping the brow.
+  dig: (t) => [[-0.95 + 0.18 * Math.sin(t * 10), -0.2 - 0.1 * Math.sin(t * 10), 0.15, 0, 0], PACKET],
+  sprinkle: (t) => [[-1.05, -0.4, 0.15, 0, 0.35 * Math.sin(t * 16)], PACKET],
+  pat: (t) => [
+    [-0.95 + 0.15 * Math.abs(Math.sin(t * 9)), -0.15, 0.25, 0, 0],
+    [-0.95 + 0.15 * Math.abs(Math.sin(t * 9 + 1.5)), -0.15, -0.25, 0, 0],
+  ],
+  wipe: (t) => [[-2.5, -1.8, 0.55 + 0.25 * Math.sin(t * 9), 0, 0], null],
   // Shaking the water off the hands, or a rolled-up umbrella.
   shake: (t) => [
     [-0.85, -1.25 + 0.45 * Math.sin(t * 24), 0.25, 0, 0],
@@ -269,28 +294,22 @@ export function propsFor(rig, who) {
     [0, -1, 1.5]
   );
 
-  // A little wicker basket on the arm with what was just picked in the garden (`pick(kind)` fills it).
-  const basketP = part();
-  for (let y = 0; y <= 2; y++) ellipsoid(basketP, [0, y, 0], [2.6, 0.5, 2], (x, yy, z) => ((x + y + z) % 2 ? "wicker" : "wickerDark"));
-  for (let a = 0; a <= Math.PI; a += 0.3) basketP.add(Math.round(2.4 * Math.cos(a)), 3 + Math.round(2.4 * Math.sin(a)), 0, "wickerDark"); // the handle
-  const basket = at(right, basketP.mesh(COLORS), [0, -6, 1.5]);
-  const fills = Object.fromEntries(
-    Object.entries({
-      tomato: ["tomato", "tomato"],
-      eggplant: ["eggplant", "eggCap"],
-      napa: ["napaWhite", "napaGreen"],
-      cabbage: ["cabbage", "cabbageLeaf"],
-    }).map(([kind, [a, b]]) => {
+  // The garden basket hanging by its handle from the left hand (HOLDS.basket), level, with what is in it
+  // (`fill`); what was just picked, in the right hand or in both arms (`holdPiece`); a packet of seeds with
+  // the vegetable on it in the left hand (`packet`).
+  const basket = at(rig.hands[1], basketPart(part()).mesh(COLORS), [0, -9.2, 0.5], [0.5, Math.PI / 2, 0]);
+  const basketFill = new THREE.Group();
+  basket.add(basketFill);
+  const piece = at(right, new THREE.Group(), [0, -1.5, 1.5]);
+  const armful = at(body, new THREE.Group(), [0, 11, 8]);
+  const seeds = at(rig.hands[1], new THREE.Group(), [0, -1.5, 1.5], [0, Math.PI / 2, 0]);
+  const packets = Object.fromEntries(
+    KINDS.map((kind) => {
       const p = part();
-      for (const [x, z] of [
-        [-1, 0],
-        [1, 0],
-        [0, 1],
-      ])
-        p.add(x, 3, z, a);
-      p.add(0, 4, 0, b);
+      const [c1, c2] = VEG[kind].sign;
+      box(p, [-1, 1], [-2, 2], [0, 0], (x, y) => (x === 0 && y === 0 ? c1 : x === 0 && y === 1 ? c2 : "packet"));
       const m = p.mesh(COLORS);
-      basket.add(m);
+      seeds.add(m);
       return [kind, m];
     })
   );
@@ -358,6 +377,9 @@ export function propsFor(rig, who) {
     bag: bagHolder,
     treat,
     basket,
+    piece,
+    armful,
+    seeds,
     log,
     mess,
     umbrella,
@@ -373,9 +395,20 @@ export function propsFor(rig, who) {
     only(...names) {
       Object.entries(all).forEach(([name, o]) => (o.visible = names.includes(name)));
     },
-    // Fill the basket with `kind` (garden.js's beds).
-    pick(kind) {
-      Object.entries(fills).forEach(([k, m]) => (m.visible = k === kind));
+    // The basket holding `pieces` (parts, veg.js).
+    fill: (pieces) => fillBasket(basketFill, pieces, (p) => p.mesh(COLORS)),
+    // `part` in the right hand (or in both arms), its middle where it is held; shown with only().
+    holdPiece(part, inArms = false) {
+      const holder = inArms ? armful : piece;
+      empty(holder);
+      const m = part.mesh(COLORS);
+      const { mid } = extent(part);
+      m.position.set(-mid[0], -mid[1], -mid[2]);
+      holder.add(m);
+    },
+    // The seed packet for `kind`; shown with only().
+    packet(kind) {
+      Object.entries(packets).forEach(([k, m]) => (m.visible = k === kind));
     },
   };
 }
