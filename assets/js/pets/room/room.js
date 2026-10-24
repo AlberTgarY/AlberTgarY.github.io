@@ -74,6 +74,8 @@ export function makeRoom(stage) {
   const wardrobe = dressGirl(home.byName.girl.rig);
   home.outfit = {
     want: null,
+    choosing: false, // on her way to change, the pick still open (acts.js dressUp)
+    into: null, // behind the screen, what she is changing into
     get current() {
       return wardrobe.current;
     },
@@ -178,12 +180,21 @@ export function makeRoom(stage) {
     hit,
     onCloset,
     // A visitor's pick of what she should wear (girl-outfits.js's LOOKS): changing into it is the next thing
-    // she does, by day (at night, in the morning); a new pick while she is at it, she follows. Picking what
-    // she has on just makes her happy, or calls the change off. She is pleased to be asked (unless asleep).
+    // she does, by day (at night, in the morning); a new pick while she is on her way to change, she follows,
+    // and one while she is changing is for next time. Picking what she has on (or is changing into) calls off
+    // a change she is on her way to, or one still to come; otherwise it just makes her happy. She is pleased
+    // to be asked (unless asleep).
     chooseOutfit(k) {
+      const { outfit } = home;
       const girl = home.byName.girl;
-      const changing = girl.jobName === "dress" || girl.pending?.name === "dress";
-      home.outfit.want = k === home.outfit.current && !changing ? null : k;
+      if (k !== (outfit.into ?? outfit.current) || outfit.choosing) outfit.want = k;
+      else {
+        outfit.want = null;
+        if (girl.pending?.name === "dress") {
+          girl.pending = null;
+          girl.interrupt = false; // no need to cut short what she is doing after all
+        }
+      }
       if (!girl.asleep) girl.cheer();
     },
     layout: (width, maxHeight) => view.layout(width, maxHeight),

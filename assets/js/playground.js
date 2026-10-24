@@ -135,8 +135,8 @@ function outfitPicker(stage, room, toggles) {
     });
   }
   function mark() {
-    const { current, want } = room.home.outfit;
-    buttons.forEach((b, k) => b.setAttribute("aria-pressed", String(k === (want ?? current))));
+    const { current, into, want } = room.home.outfit;
+    buttons.forEach((b, k) => b.setAttribute("aria-pressed", String(k === (want ?? into ?? current))));
   }
   function close() {
     panel.classList.remove("open");

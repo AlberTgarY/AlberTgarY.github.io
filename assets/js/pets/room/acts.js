@@ -925,7 +925,12 @@ export function makeActs(home, life) {
   function* dressUp(a) {
     const wardrobe = home.outfit;
     if (!claim(a, "closet")) return;
-    onEnd(a, () => house.closet.hang([wardrobe.current])); // however it ends, only what she has on is off the rail
+    wardrobe.choosing = true; // until she is behind the screen, a pick changes her mind
+    onEnd(a, () => {
+      wardrobe.choosing = false;
+      wardrobe.into = null;
+      house.closet.hang([wardrobe.current]); // however it ends, only what she has on is off the rail
+    });
     yield* walk(a, spots.closet.at);
     yield* turn(a, spots.closet.yaw);
     a.look = spots.closet.rail;
@@ -940,6 +945,7 @@ export function makeActs(home, life) {
       if (want === wardrobe.current) {
         // Called off: what she has on will do.
         wardrobe.want = null;
+        wardrobe.choosing = false;
         house.closet.hang([wardrobe.current]);
         a.hold = null;
         a.look = null;
@@ -965,11 +971,14 @@ export function makeActs(home, life) {
       house.closet.hang([wardrobe.current]); // back on its hanger
       want = wardrobe.want;
     }
+    wardrobe.choosing = false;
+    wardrobe.into = want;
     yield* turn(a, V);
     a.hold = MOVES.stretch; // over the head and off, and the new ones on
     a.since = t();
     yield* wait(a, 1.4);
     wardrobe.wear(want);
+    wardrobe.into = null;
     house.closet.hang([want]);
     if (wardrobe.want === want) wardrobe.want = null;
     yield* wait(a, 1);

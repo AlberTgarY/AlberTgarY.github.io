@@ -199,9 +199,14 @@ const COLORS = {
   logEnd: "#e0bd8f",
   wicker: "#c08d58",
   wickerDark: "#9e6f40",
+  logChar: "#4a3226",
+  ash: "#8e8680",
   fireRed: "#e0452c",
   fireOrange: "#f58a2c",
   fireYellow: "#ffd75a",
+  fireCore: "#fff4c8",
+  ember: "#ff7a2a",
+  emberDeep: "#d2401c",
   wallCap: "#c9ae8a",
   soil: "#6b4a32",
   soilWet: "#3f2a1c",
@@ -1520,11 +1525,19 @@ export function buildHouse(scene) {
   box(hearth, [-24, 23], [0, 1], [8, 17], (x, y, z) => ((x + z) % 7 === 0 ? "stoneDark" : "stone")); // the hearth stone
   for (const x of [-8, 7]) box(hearth, [x, x], [2, 3], [3, 6], "steelDark"); // the grate
   box(hearth, [-9, 8], [3, 3], [3, 6], "steelDark");
+  // The logs, charred underneath, and the ash below them; here and there along the bottom of a log and in
+  // the ash, an ember (drawn glowing, below).
+  const logs = part();
   for (const [z, y] of [
     [4, 5],
     [5.5, 7],
   ])
-    for (let x = -7; x <= 6; x++) ellipsoid(hearth, [x, y, z], [0.5, 1.4, 1.4], x === -7 || x === 6 ? "logEnd" : "log");
+    for (let x = -7; x <= 6; x++)
+      ellipsoid(logs, [x, y, z], [0.5, 1.4, 1.4], (xx, yy) => (x === -7 || x === 6 ? "logEnd" : yy < y ? "logChar" : "log"));
+  for (let x = -10; x <= 9; x++) for (let z = 2; z <= 6; z++) if (!hearth.has(x, 2, z)) logs.add(x, 2, z, "ash");
+  const emberList = logs.list().filter(([x, y, z, c]) => (c === "logChar" || c === "ash") && hash(x, y + 40, z) < (c === "ash" ? 0.3 : 0.4));
+  emberList.forEach((v) => (v[3] = hash(v[0], v[2], 9) < 0.5 ? "ember" : "emberDeep"));
+  logs.list().forEach(([x, y, z, c]) => !emberList.some((e) => e[0] === x && e[1] === y && e[2] === z) && hearth.add(x, y, z, c));
   // On the mantel: the games console, a photo of the two of them, and two candles.
   box(hearth, [-5, 4], [38, 39], [1, 6], "console");
   box(hearth, [-4, 3], [39, 39], [7, 7], "steelDark");
@@ -1544,22 +1557,65 @@ export function buildHouse(scene) {
   );
   candles.material = new THREE.MeshBasicMaterial();
   tvGroup.add(candles);
-  const flames = [0, 1, 2].map((frame) => {
+  // The fire, in frames shown in random turn: tongues of flame of different heights rising from between and
+  // behind the logs, leaning one way or the other as they go up, white-hot at the root and yellow, orange
+  // and then red towards the tips, thicker where hottest; now and then a loose flicker over a tip.
+  const FLAME_FRAMES = 8;
+  const flames = Array.from({ length: FLAME_FRAMES }, (_, f) => {
     const p = part();
-    for (let k = 0; k < 5; k++) {
-      const x = -8 + k * 4 + (frame === k % 3 ? 1 : 0);
-      const tall = 7 + Math.round(5 * hash(k, frame, 7)) - (k === 0 || k === 4 ? 3 : 0);
-      for (let y = 0; y < tall; y++) {
-        const w = Math.max(0, Math.round(2.2 * (1 - y / tall)));
-        for (let dx = -w; dx <= w; dx++)
-          p.add(x + dx, 7 + y, 4 + (y % 2), y < tall * 0.35 ? (dx ? "fireRed" : "fireOrange") : y < tall * 0.75 ? "fireOrange" : "fireYellow");
+    const tongues = [-6, -2, 2, 6].map((x, k) => ({
+      x: x + 2 * (hash(k, f, 11) - 0.5),
+      h: (k === 0 || k === 3 ? 6 : 8) + 5 * hash(k, f, 12),
+      w: 2.4 + 1.2 * hash(k, f, 13),
+      lean: 4 * (hash(k, f, 14) - 0.5),
+    }));
+    for (let x = -10; x <= 9; x++)
+      for (let y = 0; y < 14; y++) {
+        let heat = 0;
+        let tip = 0; // how far up its tongue, for the hottest
+        for (const t of tongues) {
+          const u = y / t.h;
+          const d = u < 1 ? 1 - Math.abs(x - t.x - t.lean * u * u) / (t.w * (1 - u) ** 0.5) : 0;
+          if (d * (1 - 0.75 * u) > heat) [heat, tip] = [d * (1 - 0.75 * u), u];
+        }
+        if (heat <= 0) continue;
+        const color = heat > 0.6 ? "fireCore" : heat > 0.38 ? "fireYellow" : tip > 0.6 && heat < 0.15 ? "fireRed" : "fireOrange";
+        const depth = heat > 0.42 ? 2 : 1;
+        for (let z = 5 - depth; z <= 4 + depth; z++) if (!logs.has(x, 4 + y, z)) p.add(x, 4 + y, z, color);
       }
-    }
+    tongues.forEach((t, k) => {
+      if (hash(k, f, 15) < 0.4) p.add(Math.round(t.x + t.lean), 4 + Math.round(t.h) + 1, 4, "fireRed");
+    });
     const m = solid(p, COLORS, flameMat);
     m.visible = false;
     tvGroup.add(m);
     return m;
   });
+  // The embers, glowing with the fire and going dark once it is out; and the glow of the fire on the back
+  // of the firebox, brightest low in the middle.
+  const emberMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const embers = solid(
+    (() => {
+      const p = part();
+      emberList.forEach((v) => p.add(...v));
+      return p;
+    })(),
+    COLORS,
+    emberMat
+  );
+  tvGroup.add(embers);
+  const backGlow = pixelTexture(22, 20, (g, w, h) => {
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const r = Math.hypot((x + 0.5 - w / 2) / (w / 2), (h - y - 0.5) / h);
+        g.fillStyle = `rgba(255, 120, 40, ${Math.max(0, 0.75 * (1 - r)).toFixed(2)})`;
+        g.fillRect(x, y, 1, 1);
+      }
+  });
+  const glowMat = new THREE.MeshBasicMaterial({ map: backGlow.tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  const fireGlow = new THREE.Mesh(new THREE.PlaneGeometry(22, 20), glowMat);
+  fireGlow.position.set(-0.5, 11.5, 1.55);
+  tvGroup.add(fireGlow);
   const fireLight = new THREE.PointLight(0xff9a4a, 0, 120, 0);
   fireLight.position.set(0, 14, 22);
   tvGroup.add(fireLight);
@@ -1585,14 +1641,18 @@ export function buildHouse(scene) {
     if (fire.lit && t > fire.until) fire.lit = false;
     fire.k += ((fire.lit ? 1 : 0) - fire.k) * (1 - Math.exp(-1.5 * dt));
     if (t > flameAt) {
-      frame = (frame + 1 + Math.floor(Math.random() * 2)) % 3;
-      flameAt = t + 0.1 + Math.random() * 0.08;
+      frame = (frame + 1 + Math.floor(Math.random() * (FLAME_FRAMES - 1))) % FLAME_FRAMES;
+      flameAt = t + 0.08 + Math.random() * 0.08;
     }
     flames.forEach((m, i) => {
       m.visible = fire.k > 0.05 && i === frame;
       m.scale.y = Math.max(0.2, fire.k);
     });
-    fireLight.intensity = fire.k * (0.9 + 0.15 * Math.sin(t * 13) * Math.sin(t * 7.3));
+    const flicker = 0.9 + 0.15 * Math.sin(t * 13) * Math.sin(t * 7.3);
+    fireLight.intensity = fire.k * flicker;
+    emberMat.color.setScalar(0.12 + 0.88 * Math.min(1, 1.5 * fire.k) * (0.85 + 0.15 * Math.sin(t * 5.1 + Math.sin(t * 1.7))));
+    fireGlow.visible = fire.k > 0.02;
+    glowMat.opacity = fire.k * flicker;
     candles.visible = night;
   });
 
