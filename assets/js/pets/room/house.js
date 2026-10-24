@@ -1046,9 +1046,10 @@ export function buildHouse(scene) {
   const Y = LOFT.y;
   // The boy's desk: a white top on a drawer unit and legs; his monitor on its stand with a second one on
   // its left stood on end, a keyboard with a glow under its keys, a mouse on its pad and a mug; in front of
-  // the screen on end, his white headphones on their stand while he is not wearing them, and a little Kirby
-  // on a Warp Star just behind them. The right end is clear (the cat lies there to watch him play). His computer stands on the floor beside the desk, its fans glowing in colours that
-  // slowly change, and the white power light on its top lit only while it is on.
+  // the screen on end, his white headphones on their stand while he is not wearing them, and at the right
+  // end a little Kirby on a Warp Star. His computer stands on the floor beside the desk (the cat lies on top
+  // to watch him play), its fans glowing in colours that slowly change, and the white power light on its top
+  // lit only while it is on.
   const DESK = [54, -100]; // clear of the top of the stairs, to walk past
   const desk = part();
   box(desk, [-27, 26], [14, 15], [-9, 9], (x, y, z) => (y === 14 || z === 9 ? "deskShade" : "desk"));
@@ -1097,7 +1098,7 @@ export function buildHouse(scene) {
 
   // The little Kirby: on a yellow Warp Star over a cloud with a solar panel, on a lilac base. Built at half
   // a voxel to the voxel; while the sun is up the star and Kirby rock from side to side.
-  const kirby = place(house, new THREE.Group(), [DESK[0] - 21, Y + 15.5, DESK[1] - 0.5], 0.35);
+  const kirby = place(house, new THREE.Group(), [DESK[0] + 20, Y + 15.5, DESK[1] - 5], 0.35);
   kirby.scale.setScalar(0.5);
   const kirbyBase = part();
   for (let y = 0; y <= 3; y++) ellipsoid(kirbyBase, [0, y, 0], [6.5, 0.5, 5], y === 3 ? "kirbyBaseTop" : "kirbyBase");
@@ -2138,8 +2139,8 @@ export function buildHouse(scene) {
     // On the bed (between the two of them, at their feet) and up on the window sill over it.
     bedFoot: { at: [BED[0], -48], on: [BED[0], ON_BED, -68] },
     sill: { at: [BED[0], -48], bed: [BED[0], ON_BED, -72], on: [BED[0] + 4, WIN_BACK.y[0] - 2, BACK + 3], yaw: Math.PI / 2 },
-    // The cat's place on the desk, at its right end, lying facing out with her head by the edge.
-    desk: { at: [DESK[0] + 20, -78], on: [DESK[0] + 20, Y + 16, DESK[1] + 3], yaw: -0.3 },
+    // The cat's place on top of his computer, lying facing out.
+    tower: { at: [DESK[0] + 33, -78], on: [DESK[0] + 33, Y + 24, DESK[1] + 2], yaw: 0 },
     phones: [DESK[0] - 21, Y + 26, DESK[1] + 4], // the headphones on their stand
     phonesAt: { at: [DESK[0] - 16, -80], yaw: Math.PI }, // where to reach them from
     bin: { at: [BIN[0], -86], yaw: Math.PI, lid: [BIN[0], 17, BIN[1]] },

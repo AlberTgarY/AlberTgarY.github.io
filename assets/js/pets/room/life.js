@@ -68,7 +68,7 @@ const MENUS = {
     sleep: 30,
   },
   collie: { bed: 15, rug: 14, stroll: 14, zoomies: 7, visit: 14, sniff: 6, sunbathe: 8, fireside: 14, rest: 30 },
-  cat: { nap: 22, perch: 10, climb: 12, groom: 12, stroll: 10, visit: 10, cuddle: 6, desk: 8, chase: 8, fireside: 12, rest: 18 },
+  cat: { nap: 22, perch: 10, climb: 12, groom: 12, stroll: 10, visit: 10, cuddle: 6, tower: 8, chase: 8, fireside: 12, rest: 18 },
 };
 const NIGHT = {
   nap: 2,

@@ -14,7 +14,7 @@
  * front door, play fetch with her, pet and feed the pets, tidy up the cat's
  * mess, and go to bed at night. He plays on his computer in the loft, his white
  * headphones off their stand and on his head, talking to his team, cheering
- * when he wins; she may come up and watch, and the cat sits on the desk. She
+ * when he wins; she may come up and watch, and the cat lies on his computer. She
  * changes her clothes in the dressing corner (her own idea, or the visitor's
  * choice) and twirls in front of the mirror. The collie naps in her bed, lies on
  * the rug or out in the sun, has the zoomies, visits them and sniffs the cat;
@@ -566,7 +566,7 @@ export function makeActs(home, life) {
 
   // The boy at his computer in the loft: his headphones off their stand and on, a few games, talking to his
   // team through the mic; a win and he spins his chair round to cheer, a loss and he slumps. The girl may
-  // come up to watch, and he gives the cat a look if she comes to sit on the desk. The headphones go back on
+  // come up to watch, and he gives the cat a look if she comes to lie on his computer. The headphones go back on
   // their stand after.
   function* pc(a) {
     if (!claim(a, "pc")) return;
@@ -615,7 +615,7 @@ export function makeActs(home, life) {
         a.talk = t() < talkUntil;
         house.pc.talking = a.talk;
         if (!a.talk) a.show("say", null);
-        if (holder("desk") === cat && cat.above() > 5 && t() > catAt) {
+        if (holder("tower") === cat && cat.above() > 5 && t() > catAt) {
           lookUntil = t() + 1.4;
           catAt = t() + rnd(6, 10);
           a.pop();
@@ -1790,11 +1790,11 @@ export function makeActs(home, life) {
     yield* getUp(a);
   }
 
-  // Onto the desk beside his screen while he plays, lying there to watch (and maybe doze off).
-  function* desk(a) {
+  // Up onto his computer, warm beside the desk, while he plays, lying there to watch (and maybe doze off).
+  function* tower(a) {
     const ev = byName.boy?.event;
-    if (!ev || ev.kind !== "pc" || ev.over || !claim(a, "desk")) return;
-    const { at, on, yaw } = spots.desk;
+    if (!ev || ev.kind !== "pc" || ev.over || !claim(a, "tower")) return;
+    const { at, on, yaw } = spots.tower;
     yield* walk(a, at);
     if (ev.over) return;
     a.ground = at;
@@ -1944,7 +1944,7 @@ export function makeActs(home, life) {
     sniff: () => byName.cat && available(byName.cat) && byName.cat.above() < 0.5,
     perch: () => !holder("sill") && !holder("bedFoot"),
     climb: () => !holder("tree"),
-    desk: () => playing() && !holder("desk"),
+    tower: () => playing() && !holder("tower"),
     groom: (a) => a.above() < 0.5,
     cuddle: () => byName.collie?.asleep && byName.collie.above() < 0.5,
     dress: (a) => a.name === "girl" && !home.night && !holder("closet"),
@@ -1985,7 +1985,7 @@ export function makeActs(home, life) {
     sniff,
     perch,
     climb: (a) => climb(a),
-    desk,
+    tower,
     groom,
     cuddle,
     dress: dressUp,
