@@ -11,6 +11,7 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { part, ellipsoid, box, pivotGroup, surfaceOf, paintEyes, approach, smoothstep, nightcap, CAP_COLORS } from "./voxels.js";
+import { limbs, poseLimbs } from "./chibi.js";
 import { PROP_COLORS, cucumber, foodBag, riceBowl, teaCup, garden, sofaCorner, bed, FLOWERS } from "./girl-props.js";
 import { freshPicker, evenly } from "../choose.js";
 
@@ -92,54 +93,35 @@ export function buildGirl() {
   const bodyPart = torso(false);
   wear(pose, torso);
 
-  // Legs: short and bare, in loose shorts and white slides (long pyjama trousers at night). They swing
-  // from the hips; to sit, the thighs turn forward and the shins fold back under them (the knee hinges at
-  // the back of the leg).
-  const legs = [-1, 1].map((side) => {
-    const x0 = side > 0 ? 1 : -2;
-    const loose = side > 0 ? [1, 4] : [-4, -1];
-    const hip = pivotGroup(pose, [x0 + 0.5, 8.5, -0.5]);
-    wear(hip.inner, (night) => {
-      const thigh = part();
-      box(thigh, [x0, x0 + 1], [5, 8], [-1, 0], "skin");
-      box(thigh, loose, [night ? 5 : 6, 8], [-2, 1], night ? pyjama : gingham);
-      return thigh;
-    });
-    const knee = pivotGroup(hip.inner, [x0 + 0.5, 4.5, -1.5]);
-    wear(knee.inner, (night) => {
-      const shin = part();
-      box(shin, [x0, x0 + 1], [1, 4], [-1, 0], "skin");
-      if (night) box(shin, side > 0 ? [1, 3] : [-3, -1], [2, 4], [-2, 1], (x, y, z) => (y === 2 ? "pjTrim" : pyjama(x, y, z)));
-      box(shin, [x0, x0 + 1], [0, 0], [-1, 2], "sole");
-      box(shin, [x0, x0 + 1], [1, 1], [0, 1], "strap");
-      box(shin, [x0, x0 + 1], [1, 1], [2, 2], "skin"); // toes
-      return shin;
-    });
-    return { hip, knee };
-  });
-
-  // Arms in baggy sleeves that half cover the hands: the upper arm pivots at the shoulder, the forearm at
-  // the elbow.
-  const arms = [-1, 1].map((side) => {
-    const x0 = side > 0 ? 5 : -7;
-    const shoulder = pivotGroup(pose, [side * 6, 18.5, -0.5]);
-    shoulder.outer.rotation.order = "YXZ"; // turning about y swings a raised arm in towards the middle
-    wear(shoulder.inner, (night) => {
-      const upper = part();
-      box(upper, [x0, x0 + 2], [14, 19], [-2, 1], night ? pyjama : "sweater");
-      return upper;
-    });
-    const elbow = pivotGroup(shoulder.inner, [side * 6, 13.5, -0.5]);
-    wear(elbow.inner, (night) => {
-      const fore = part();
-      box(fore, [x0, x0 + 2], [10, 13], [-2, 1], (x, y, z) => (y > 10 ? (night ? pyjama(x, y, z) : "sweater") : night ? "pjTrim" : "rib"));
-      box(fore, side > 0 ? [x0, x0 + 1] : [x0 + 1, x0 + 2], [8, 9], [-1, 0], "skin");
-      return fore;
-    });
-    const hand = new THREE.Object3D(); // where she holds the leads
-    hand.position.set(side * 5.5, 8, -0.5);
-    elbow.inner.add(hand);
-    return { shoulder, elbow, hand };
+  // Legs: short and bare, in loose shorts and white slides (long pyjama trousers at night); arms in baggy
+  // sleeves that half cover the hands (chibi.js has the joints).
+  const body = limbs(pose, wear, {
+    thigh(side, x0, night) {
+      const p = part();
+      box(p, [x0, x0 + 1], [5, 8], [-1, 0], "skin");
+      box(p, side > 0 ? [1, 4] : [-4, -1], [night ? 5 : 6, 8], [-2, 1], night ? pyjama : gingham);
+      return p;
+    },
+    shin(side, x0, night) {
+      const p = part();
+      box(p, [x0, x0 + 1], [1, 4], [-1, 0], "skin");
+      if (night) box(p, side > 0 ? [1, 3] : [-3, -1], [2, 4], [-2, 1], (x, y, z) => (y === 2 ? "pjTrim" : pyjama(x, y, z)));
+      box(p, [x0, x0 + 1], [0, 0], [-1, 2], "sole");
+      box(p, [x0, x0 + 1], [1, 1], [0, 1], "strap");
+      box(p, [x0, x0 + 1], [1, 1], [2, 2], "skin"); // toes
+      return p;
+    },
+    upper(side, x0, night) {
+      const p = part();
+      box(p, [x0, x0 + 2], [14, 19], [-2, 1], night ? pyjama : "sweater");
+      return p;
+    },
+    fore(side, x0, night) {
+      const p = part();
+      box(p, [x0, x0 + 2], [10, 13], [-2, 1], (x, y, z) => (y > 10 ? (night ? pyjama(x, y, z) : "sweater") : night ? "pjTrim" : "rib"));
+      box(p, side > 0 ? [x0, x0 + 1] : [x0 + 1, x0 + 2], [8, 9], [-1, 0], "skin");
+      return p;
+    },
   });
 
   // Head: big and round with chubby cheeks, framed by hair parted in the middle that sweeps away from the
@@ -261,7 +243,7 @@ export function buildGirl() {
   capHook.add(hat);
   head.inner.add(capHook);
 
-  const hand = arms[0].elbow.inner; // her right hand, which carries most things
+  const hand = body.arms[0].elbow.inner; // her right hand, which carries most things
   const cucumberMesh = cucumber(hand, palette);
   const bag = foodBag(hand, palette);
   const showRice = riceBowl(pose, hand, palette);
@@ -272,34 +254,12 @@ export function buildGirl() {
   const flowers = freshPicker(FLOWERS.length - 1); // the colours come round in turn
   let watering = false;
 
-  // Arm poses: [shoulder, elbow] turns about x (forward is negative). Nibbling, she nods a little and holds
-  // the cucumber up just under her lips; kneeling, her hands rest on her thighs; feeding, she holds the bag
-  // out towards the bowl, then claps.
-  const EAT = [-1.47, -0.68];
+  // Nibbling, she nods a little onto the cucumber, and onto the straw for each sip of tea (chibi.js has the
+  // arm poses).
   const EAT_NOD = 0.25;
-  const SIT = [-0.35, -0.45];
-  const OFFER = [-1.2, -0.2];
-  const CLAP = [-1.1, -0.5];
-  // Pork rice: the left hand holds the bowl; the right one dips the chopsticks into it and brings them up
-  // to the mouth (each solved as a two-link reach for the chopstick tips), swung in a little so both hands
-  // meet the bowl.
-  const HOLD_BOWL = [-0.45, -0.6];
-  const DIP = [-0.27, -1.58];
-  const BITE = [-1.43, -1.14];
-  const POUR_TIME = 1.6; // s shaking the food out
-  // Grape tea: both hands round the cup (solved like the chopsticks), and a little nod onto the straw for
-  // each sip.
-  const HOLD_CUP = [-0.62, -1.06, 0.26];
   const SIP_NOD = 0.08;
-  const HOLD_LEADS = [-0.45, -0.5]; // one hand held out in front, the leads in it
-  const HOLD_CAN = [-0.66, -0.9, 0.44]; // the left hand out to her side at the can's handle (solved like the cup)
-  // Petting: on the floor, one hand reaches out in front to stroke; on the sofa each hand reaches out to her
-  // side and up onto the back of the pet sitting there (turning about z, solved like the cup).
-  const STROKE = [-1.3, -0.15];
-  const PAT = [1.25, 1.9];
+  const POUR_TIME = 1.6; // s shaking the food out
   const SIT_LIFT = 2.5; // her seat on the cushion
-  // Cross: hands on hips (each arm out to the side, the forearm bent back in), stamping a foot.
-  const HIPS = [0.75, -1.9];
   const lieDrop = 4; // kneeling
   const amount = {}; // how far into each pose or prop, eased from 0 to 1
   const ease = (name, on, rate, dt) => (amount[name] = approach(amount[name] || 0, on ? 1 : 0, rate, dt));
@@ -330,12 +290,20 @@ export function buildGirl() {
     seats: sofa.seats,
     feeds: true,
     leads: true,
-    hands: arms.map(({ hand: h }) => h),
+    hands: body.arms.map(({ hand: h }) => h),
+    // For dressing her in other clothes (girl-outfits.js, the playground's): her joints, her head's shape,
+    // her colours, and her own day and night clothes.
+    limbs: body,
+    headPart,
+    palette,
+    outfits,
     nightwear(on) {
       outfits[0].forEach((m) => (m.visible = !on));
       outfits[1].forEach((m) => (m.visible = on));
     },
-    animate(dt, { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress, leash, stroke, company }) {
+    // `seated` sits her on a seat that is already there (the playground's), `hold` takes her arms over
+    // (chibi.js) and `talk` moves her mouth, for what she does there.
+    animate(dt, { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress, leash, stroke, company, seated, hold, talk }) {
       const doing = (name) => state === "trick" && trick === name;
       const snacking = state === "trick" && progress < 0.88;
       const pouring = state === "serve" && elapsed < POUR_TIME;
@@ -344,7 +312,7 @@ export function buildGirl() {
       const strokes = [0, 1].map((i) => ease(`stroke${i}`, stroke === i, 6, dt));
       // The sofa pops up, then she hops up onto it, and pets whoever sits beside her.
       const onSofa = ease("sofa", doing("sofa") && progress < 0.94, 4, dt);
-      const sit = smoothstep(0.4, 1, onSofa);
+      const sit = Math.max(smoothstep(0.4, 1, onSofa), smoothstep(0, 1, ease("seat", seated, 4, dt)));
       sofa.update(onSofa);
       const pats = [0, 1].map((i) => ease(`pat${i}`, sit > 0.9 && company?.[i], 4, dt));
       const eat = ease("eat", snacking && trick === "cucumber", 6, dt);
@@ -360,7 +328,7 @@ export function buildGirl() {
       const pour = ease("pour", water > 0.9 && progress < 0.6, 5, dt);
       const cross = ease("cross", state === "react" && trick === "angry", 6, dt);
       const dizzy = ease("dizzy", state === "react" && trick === "dizzy", 6, dt);
-      const busyHands = rice + cupHeld + water + onSofa + strokes[0] + strokes[1] + cross;
+      const busyHands = rice + cupHeld + water + onSofa + strokes[0] + strokes[1] + cross + (hold?.w || 0);
       const wave = ease("wave", happy && !sleeping && busyHands < 0.05, 8, dt); // she won't put things down to wave
       phase.wave += Math.PI * 2 * 2.2 * dt;
       phase.munch += Math.PI * 2 * 3 * dt;
@@ -384,62 +352,30 @@ export function buildGirl() {
       const shake = pouring ? Math.sin(elapsed * 16) : 0;
       const stamp = cross * Math.max(0, Math.sin(elapsed * 9)); // stamping her right foot
 
-      // Legs swing in opposite phase, the knee bending as each one swings back; to sit, she kneels, or on
-      // the sofa her legs dangle over the edge of the seat, swinging a little.
-      const upright = 1 - kneel - sit;
-      legs.forEach(({ hip, knee }, i) => {
-        const swing = Math.sin(gait + (i ? Math.PI : 0));
-        hip.outer.rotation.x = upright * 0.42 * stride * swing - (Math.PI / 2) * (kneel + sit) - (i ? 0 : 0.5 * stamp);
-        knee.outer.rotation.x =
-          upright * 0.5 * stride * Math.max(0, swing) +
-          Math.PI * kneel +
-          sit * (Math.PI / 2 + 0.15 * Math.sin(phase.pat * 0.5 + i * Math.PI)) +
-          (i ? 0 : 0.6 * stamp);
-      });
-
-      // Arms swing against the legs; both hold the cucumber, the cup or the bag, or clap; with the rice the
-      // left holds the bowl and the right eats; one holds the leads out on a walk; the left one holds the
-      // watering can out to her side; one strokes a pet in front of her, or on the sofa each strokes the pet
-      // beside her; cross, both go on her hips; otherwise the left one (nearer the camera) lets go to wave.
-      arms.forEach(({ shoulder, elbow }, i) => {
-        const keep = i ? 1 - wave : 1;
-        const [e, o, c, l, st] = [eat, offer, clap, holding[i], strokes[i]].map((v) => v * keep);
-        const [w, pat] = [i ? water : 0, pats[i]];
-        const side = i ? 1 : -1;
-        const posed = Math.min(1, e + o + c + l + w + st + pat + rice + cupHeld + cross + (i ? wave : 0));
-        const free = upright * (1 - posed);
-        const swing = 0.42 * stride * Math.sin(gait + (i ? 0 : Math.PI)) + dizzy * 0.3 * Math.sin(elapsed * 5 + i); // flopping about when dizzy
-        const [riceShoulder, riceElbow] = i ? HOLD_BOWL : [DIP[0] + bite * (BITE[0] - DIP[0]), DIP[1] + bite * (BITE[1] - DIP[1])];
-        shoulder.outer.rotation.x =
-          free * swing +
-          (kneel + sit) * (1 - posed) * SIT[0] +
-          st * (STROKE[0] + 0.12 * Math.sin(phase.pat)) +
-          e * EAT[0] +
-          o * OFFER[0] +
-          c * CLAP[0] +
-          rice * riceShoulder +
-          cupHeld * HOLD_CUP[0] +
-          l * (HOLD_LEADS[0] + 0.05 * Math.sin(gait)) +
-          w * HOLD_CAN[0];
-        elbow.outer.rotation.x =
-          -0.25 * stride * free +
-          (kneel + sit) * (1 - posed) * SIT[1] +
-          st * STROKE[1] +
-          e * EAT[1] +
-          o * (OFFER[1] + 0.15 * shake) +
-          c * CLAP[1] +
-          rice * riceElbow +
-          cupHeld * HOLD_CUP[1] +
-          l * HOLD_LEADS[1] +
-          w * HOLD_CAN[1];
-        shoulder.outer.rotation.z =
-          0.08 * munch * e + // nibbling along it
-          (i ? 1.2 * wave : 0) +
-          side * pat * (PAT[0] + 0.12 * Math.sin(phase.pat + i * Math.PI)) +
-          side * cross * HIPS[0];
-        shoulder.outer.rotation.y =
-          (i ? -1 : 1) * (c * (0.42 + 0.14 * Math.sin(phase.clap)) + cupHeld * HOLD_CUP[2]) + rice * (i ? -0.3 : 0.4) + w * HOLD_CAN[2]; // the hands meet
-        elbow.outer.rotation.z = (i ? wave * (1.1 + 0.45 * Math.sin(phase.wave)) : 0) + side * pat * PAT[1] + side * cross * HIPS[1];
+      poseLimbs(body, {
+        kneel,
+        sit,
+        stride,
+        gait,
+        stamp,
+        dizzy,
+        elapsed,
+        phase,
+        wave,
+        eat,
+        offer,
+        clap,
+        water,
+        rice,
+        cupHeld,
+        cross,
+        bite,
+        munch,
+        shake,
+        holding,
+        strokes,
+        pats,
+        hold,
       });
       cucumberMesh.visible = eat > 0.05;
       bag.visible = offer > 0.05;
@@ -455,7 +391,7 @@ export function buildGirl() {
       dizzyEyes.visible = dizzy > 0.5;
       angryEyes.visible = brows.visible = frown.visible = cross > 0.5;
       happyEyes.visible = !moody && ((happy && !sleeping) || eat > 0.9 || rice > 0.9 || sip > 0.5 || delighted || petting || cheering);
-      const laughing = !moody && ((happy && !sleeping) || chewing || cheering);
+      const laughing = !moody && ((happy && !sleeping) || chewing || cheering || (talk && Math.sin(elapsed * 30) > 0));
       open.visible = laughing || dizzy > 0.5;
       smile.visible = !laughing && !moody;
 

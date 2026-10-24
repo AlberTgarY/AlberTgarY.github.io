@@ -1,0 +1,283 @@
+/*******************************************************************************
+ * The playground's home (assets/js/playground.js): a canvas the width of the
+ * window, and over it what the girl, the boy and the pets say and feel. The
+ * hearts, food bubbles and moods are the profile page's (_pets.scss).
+ ******************************************************************************/
+
+.playground {
+  position: relative;
+  margin: 1.5rem 0 2rem;
+}
+
+.playground-stage {
+  position: absolute;
+  top: 0;
+  visibility: hidden;
+
+  &.ready {
+    visibility: visible;
+  }
+
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+}
+
+.playground-note {
+  display: none;
+}
+
+.playground-off + .playground-note {
+  display: block;
+}
+
+.playground-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+
+  > span {
+    position: absolute;
+  }
+}
+
+// The panel asking what the girl should wear, opened by clicking her dressing corner: a button for each look,
+// with a picture of her wearing it. It grows out of where it was clicked, the buttons coming in one after
+// another, and fades away when closed.
+.outfit-picker {
+  position: absolute;
+  z-index: 2;
+  padding: 0.65rem 0.75rem 0.7rem;
+  border: 1px solid var(--global-divider-color);
+  border-radius: 10px;
+  background: var(--global-card-bg-color);
+  color: var(--global-text-color);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.16),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+  font-size: 0.8rem;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(4px) scale(0.92);
+  transition:
+    opacity 0.15s ease-in,
+    transform 0.15s ease-in,
+    visibility 0s linear 0.15s;
+
+  &.open {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 0.2s ease-out,
+      transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.08),
+      visibility 0s;
+  }
+
+  [hidden] {
+    display: none;
+  }
+}
+
+.outfit-picker-title,
+.outfit-picker-note {
+  margin: 0 0 0.5rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.outfit-picker-note {
+  margin: 0.5rem 0 0;
+  font-weight: 400;
+  color: var(--global-text-color-light);
+}
+
+.outfit-picker-looks {
+  display: flex;
+  gap: 0.45rem;
+
+  button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    width: 5.4rem;
+    padding: 0.35rem 0.3rem 0.45rem;
+    border: 1px solid var(--global-divider-color);
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: 1.2;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(6px);
+    transition:
+      opacity 0.2s ease-out,
+      transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1),
+      border-color 0.15s,
+      background-color 0.15s;
+
+    &:hover,
+    &:focus-visible {
+      border-color: var(--global-theme-color);
+    }
+
+    &:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--global-theme-color) 35%, transparent);
+      outline-offset: 1px;
+    }
+
+    &[aria-pressed="true"] {
+      border-color: var(--global-theme-color);
+      background-color: color-mix(in srgb, var(--global-theme-color) 8%, transparent);
+      box-shadow: inset 0 0 0 1px var(--global-theme-color);
+    }
+  }
+
+  .open & button {
+    opacity: 1;
+    transform: none;
+    transition-delay: calc(0.05s + var(--k) * 0.04s), calc(0.05s + var(--k) * 0.04s), 0s, 0s;
+  }
+}
+
+// Her picture, on a soft round backdrop, lifting a little under the pointer.
+.outfit-picker-pic {
+  display: block;
+  width: 64px;
+  height: 84px;
+  border-radius: 6px;
+  background: radial-gradient(ellipse at 50% 70%, color-mix(in srgb, var(--global-theme-color) 12%, transparent), transparent 70%);
+
+  img {
+    display: block;
+    transition: transform 0.2s ease-out;
+  }
+
+  button:hover & img {
+    transform: translateY(-2px);
+  }
+}
+
+@media (max-width: 480px) {
+  .outfit-picker-looks button {
+    width: 4.4rem;
+  }
+
+  .outfit-picker-pic {
+    width: 52px;
+    height: 68px;
+
+    img {
+      width: 52px;
+      height: 68px;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outfit-picker,
+  .outfit-picker.open,
+  .outfit-picker-looks button,
+  .open .outfit-picker-looks button {
+    transform: none;
+    transition: none;
+  }
+}
+
+// What pops up for a moment over someone's head, or over the plant once it is watered, or the pot as it cooks.
+.room-pop {
+  width: 21px;
+  height: 21px;
+  background: center / contain no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+}
+
+.room-pop-note {
+  width: auto;
+  height: auto;
+  font: 700 16px/1 monospace;
+  color: #7b5fd6;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.8);
+
+  &::before {
+    content: "\266A"; // ♪
+  }
+}
+
+// A speech bubble while they chat, with what they are talking about.
+.room-say {
+  width: 26px;
+  height: 22px;
+  background: center / contain no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3));
+}
+
+// Asleep, a "z" floats up; purring, a note.
+.room-z::before {
+  content: "z";
+  font: 700 14px/1 monospace;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.room-note::before {
+  content: "\266A"; // ♪
+  color: #fff4c2;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .room-pop {
+    animation: pet-heart 1.2s steps(8) forwards;
+  }
+
+  .room-z::before {
+    display: inline-block;
+    animation: pet-z 2.4s steps(8) infinite;
+  }
+}
+
+.room-say-heart {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 11' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3330' d='M2 0h1v1H2zM3 0h1v1H3zM4 0h1v1H4zM5 0h1v1H5zM6 0h1v1H6zM7 0h1v1H7zM8 0h1v1H8zM9 0h1v1H9zM10 0h1v1H10zM1 1h1v1H1zM11 1h1v1H11zM0 2h1v1H0zM12 2h1v1H12zM0 3h1v1H0zM12 3h1v1H12zM0 4h1v1H0zM12 4h1v1H12zM0 5h1v1H0zM12 5h1v1H12zM0 6h1v1H0zM12 6h1v1H12zM1 7h1v1H1zM11 7h1v1H11zM2 8h1v1H2zM3 8h1v1H3zM4 8h1v1H4zM6 8h1v1H6zM7 8h1v1H7zM8 8h1v1H8zM9 8h1v1H9zM10 8h1v1H10zM4 9h1v1H4zM6 9h1v1H6zM5 10h1v1H5z'/%3E%3Cpath fill='%23ffffff' d='M2 1h1v1H2zM3 1h1v1H3zM4 1h1v1H4zM5 1h1v1H5zM6 1h1v1H6zM7 1h1v1H7zM8 1h1v1H8zM9 1h1v1H9zM10 1h1v1H10zM1 2h1v1H1zM2 2h1v1H2zM3 2h1v1H3zM4 2h1v1H4zM5 2h1v1H5zM6 2h1v1H6zM7 2h1v1H7zM8 2h1v1H8zM9 2h1v1H9zM10 2h1v1H10zM11 2h1v1H11zM1 3h1v1H1zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM9 3h1v1H9zM10 3h1v1H10zM11 3h1v1H11zM1 4h1v1H1zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM8 4h1v1H8zM9 4h1v1H9zM10 4h1v1H10zM11 4h1v1H11zM1 5h1v1H1zM2 5h1v1H2zM3 5h1v1H3zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM8 5h1v1H8zM9 5h1v1H9zM10 5h1v1H10zM11 5h1v1H11zM1 6h1v1H1zM2 6h1v1H2zM3 6h1v1H3zM4 6h1v1H4zM5 6h1v1H5zM6 6h1v1H6zM7 6h1v1H7zM8 6h1v1H8zM9 6h1v1H9zM10 6h1v1H10zM11 6h1v1H11zM2 7h1v1H2zM3 7h1v1H3zM4 7h1v1H4zM5 7h1v1H5zM6 7h1v1H6zM7 7h1v1H7zM8 7h1v1H8zM9 7h1v1H9zM10 7h1v1H10zM5 8h1v1H5zM5 9h1v1H5z'/%3E%3Cpath fill='%23ef7f93' d='M5 2h1v1H5zM7 2h1v1H7zM4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM4 4h1v1H4zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM8 4h1v1H8zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM6 6h1v1H6z'/%3E%3C/svg%3E");
+}
+
+.room-say-note {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 11' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3330' d='M2 0h1v1H2zM3 0h1v1H3zM4 0h1v1H4zM5 0h1v1H5zM6 0h1v1H6zM7 0h1v1H7zM8 0h1v1H8zM9 0h1v1H9zM10 0h1v1H10zM1 1h1v1H1zM11 1h1v1H11zM0 2h1v1H0zM12 2h1v1H12zM0 3h1v1H0zM12 3h1v1H12zM0 4h1v1H0zM12 4h1v1H12zM0 5h1v1H0zM12 5h1v1H12zM0 6h1v1H0zM12 6h1v1H12zM1 7h1v1H1zM11 7h1v1H11zM2 8h1v1H2zM3 8h1v1H3zM4 8h1v1H4zM6 8h1v1H6zM7 8h1v1H7zM8 8h1v1H8zM9 8h1v1H9zM10 8h1v1H10zM4 9h1v1H4zM6 9h1v1H6zM5 10h1v1H5z'/%3E%3Cpath fill='%23ffffff' d='M2 1h1v1H2zM3 1h1v1H3zM4 1h1v1H4zM5 1h1v1H5zM6 1h1v1H6zM7 1h1v1H7zM8 1h1v1H8zM9 1h1v1H9zM10 1h1v1H10zM1 2h1v1H1zM2 2h1v1H2zM3 2h1v1H3zM4 2h1v1H4zM5 2h1v1H5zM6 2h1v1H6zM7 2h1v1H7zM8 2h1v1H8zM9 2h1v1H9zM10 2h1v1H10zM11 2h1v1H11zM1 3h1v1H1zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM9 3h1v1H9zM10 3h1v1H10zM11 3h1v1H11zM1 4h1v1H1zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM8 4h1v1H8zM9 4h1v1H9zM10 4h1v1H10zM11 4h1v1H11zM1 5h1v1H1zM2 5h1v1H2zM3 5h1v1H3zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM8 5h1v1H8zM9 5h1v1H9zM10 5h1v1H10zM11 5h1v1H11zM1 6h1v1H1zM2 6h1v1H2zM3 6h1v1H3zM4 6h1v1H4zM5 6h1v1H5zM6 6h1v1H6zM7 6h1v1H7zM8 6h1v1H8zM9 6h1v1H9zM10 6h1v1H10zM11 6h1v1H11zM2 7h1v1H2zM3 7h1v1H3zM4 7h1v1H4zM5 7h1v1H5zM6 7h1v1H6zM7 7h1v1H7zM8 7h1v1H8zM9 7h1v1H9zM10 7h1v1H10zM5 8h1v1H5zM5 9h1v1H5z'/%3E%3Cpath fill='%237b5fd6' d='M6 2h1v1H6zM7 2h1v1H7zM8 2h1v1H8zM6 3h1v1H6zM8 3h1v1H8zM6 4h1v1H6zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM4 6h1v1H4zM5 6h1v1H5z'/%3E%3C/svg%3E");
+}
+
+.room-say-star {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 11' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3330' d='M2 0h1v1H2zM3 0h1v1H3zM4 0h1v1H4zM5 0h1v1H5zM6 0h1v1H6zM7 0h1v1H7zM8 0h1v1H8zM9 0h1v1H9zM10 0h1v1H10zM1 1h1v1H1zM11 1h1v1H11zM0 2h1v1H0zM12 2h1v1H12zM0 3h1v1H0zM12 3h1v1H12zM0 4h1v1H0zM12 4h1v1H12zM0 5h1v1H0zM12 5h1v1H12zM0 6h1v1H0zM12 6h1v1H12zM1 7h1v1H1zM11 7h1v1H11zM2 8h1v1H2zM3 8h1v1H3zM4 8h1v1H4zM6 8h1v1H6zM7 8h1v1H7zM8 8h1v1H8zM9 8h1v1H9zM10 8h1v1H10zM4 9h1v1H4zM6 9h1v1H6zM5 10h1v1H5z'/%3E%3Cpath fill='%23ffffff' d='M2 1h1v1H2zM3 1h1v1H3zM4 1h1v1H4zM5 1h1v1H5zM6 1h1v1H6zM7 1h1v1H7zM8 1h1v1H8zM9 1h1v1H9zM10 1h1v1H10zM1 2h1v1H1zM2 2h1v1H2zM3 2h1v1H3zM4 2h1v1H4zM5 2h1v1H5zM6 2h1v1H6zM7 2h1v1H7zM8 2h1v1H8zM9 2h1v1H9zM10 2h1v1H10zM11 2h1v1H11zM1 3h1v1H1zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM9 3h1v1H9zM10 3h1v1H10zM11 3h1v1H11zM1 4h1v1H1zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM8 4h1v1H8zM9 4h1v1H9zM10 4h1v1H10zM11 4h1v1H11zM1 5h1v1H1zM2 5h1v1H2zM3 5h1v1H3zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM8 5h1v1H8zM9 5h1v1H9zM10 5h1v1H10zM11 5h1v1H11zM1 6h1v1H1zM2 6h1v1H2zM3 6h1v1H3zM4 6h1v1H4zM5 6h1v1H5zM6 6h1v1H6zM7 6h1v1H7zM8 6h1v1H8zM9 6h1v1H9zM10 6h1v1H10zM11 6h1v1H11zM2 7h1v1H2zM3 7h1v1H3zM4 7h1v1H4zM5 7h1v1H5zM6 7h1v1H6zM7 7h1v1H7zM8 7h1v1H8zM9 7h1v1H9zM10 7h1v1H10zM5 8h1v1H5zM5 9h1v1H5z'/%3E%3Cpath fill='%23f2b233' d='M6 2h1v1H6zM4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM5 5h1v1H5zM7 5h1v1H7z'/%3E%3C/svg%3E");
+}
+
+.room-say-question {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 11' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3330' d='M2 0h1v1H2zM3 0h1v1H3zM4 0h1v1H4zM5 0h1v1H5zM6 0h1v1H6zM7 0h1v1H7zM8 0h1v1H8zM9 0h1v1H9zM10 0h1v1H10zM1 1h1v1H1zM11 1h1v1H11zM0 2h1v1H0zM12 2h1v1H12zM0 3h1v1H0zM12 3h1v1H12zM0 4h1v1H0zM12 4h1v1H12zM0 5h1v1H0zM12 5h1v1H12zM0 6h1v1H0zM12 6h1v1H12zM1 7h1v1H1zM11 7h1v1H11zM2 8h1v1H2zM3 8h1v1H3zM4 8h1v1H4zM6 8h1v1H6zM7 8h1v1H7zM8 8h1v1H8zM9 8h1v1H9zM10 8h1v1H10zM4 9h1v1H4zM6 9h1v1H6zM5 10h1v1H5z'/%3E%3Cpath fill='%23ffffff' d='M2 1h1v1H2zM3 1h1v1H3zM4 1h1v1H4zM5 1h1v1H5zM6 1h1v1H6zM7 1h1v1H7zM8 1h1v1H8zM9 1h1v1H9zM10 1h1v1H10zM1 2h1v1H1zM2 2h1v1H2zM3 2h1v1H3zM4 2h1v1H4zM5 2h1v1H5zM6 2h1v1H6zM7 2h1v1H7zM8 2h1v1H8zM9 2h1v1H9zM10 2h1v1H10zM11 2h1v1H11zM1 3h1v1H1zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM9 3h1v1H9zM10 3h1v1H10zM11 3h1v1H11zM1 4h1v1H1zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM8 4h1v1H8zM9 4h1v1H9zM10 4h1v1H10zM11 4h1v1H11zM1 5h1v1H1zM2 5h1v1H2zM3 5h1v1H3zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM8 5h1v1H8zM9 5h1v1H9zM10 5h1v1H10zM11 5h1v1H11zM1 6h1v1H1zM2 6h1v1H2zM3 6h1v1H3zM4 6h1v1H4zM5 6h1v1H5zM6 6h1v1H6zM7 6h1v1H7zM8 6h1v1H8zM9 6h1v1H9zM10 6h1v1H10zM11 6h1v1H11zM2 7h1v1H2zM3 7h1v1H3zM4 7h1v1H4zM5 7h1v1H5zM6 7h1v1H6zM7 7h1v1H7zM8 7h1v1H8zM9 7h1v1H9zM10 7h1v1H10zM5 8h1v1H5zM5 9h1v1H5z'/%3E%3Cpath fill='%234f86d6' d='M5 2h1v1H5zM6 2h1v1H6zM7 2h1v1H7zM4 3h1v1H4zM8 3h1v1H8zM7 4h1v1H7zM6 5h1v1H6zM6 6h1v1H6z'/%3E%3C/svg%3E");
+}
+
+.room-say-bowl {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 11' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3330' d='M2 0h1v1H2zM3 0h1v1H3zM4 0h1v1H4zM5 0h1v1H5zM6 0h1v1H6zM7 0h1v1H7zM8 0h1v1H8zM9 0h1v1H9zM10 0h1v1H10zM1 1h1v1H1zM11 1h1v1H11zM0 2h1v1H0zM12 2h1v1H12zM0 3h1v1H0zM12 3h1v1H12zM0 4h1v1H0zM12 4h1v1H12zM0 5h1v1H0zM12 5h1v1H12zM0 6h1v1H0zM12 6h1v1H12zM1 7h1v1H1zM11 7h1v1H11zM2 8h1v1H2zM3 8h1v1H3zM4 8h1v1H4zM6 8h1v1H6zM7 8h1v1H7zM8 8h1v1H8zM9 8h1v1H9zM10 8h1v1H10zM4 9h1v1H4zM6 9h1v1H6zM5 10h1v1H5z'/%3E%3Cpath fill='%23ffffff' d='M2 1h1v1H2zM3 1h1v1H3zM4 1h1v1H4zM5 1h1v1H5zM6 1h1v1H6zM7 1h1v1H7zM8 1h1v1H8zM9 1h1v1H9zM10 1h1v1H10zM1 2h1v1H1zM2 2h1v1H2zM3 2h1v1H3zM4 2h1v1H4zM5 2h1v1H5zM6 2h1v1H6zM7 2h1v1H7zM8 2h1v1H8zM9 2h1v1H9zM10 2h1v1H10zM11 2h1v1H11zM1 3h1v1H1zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM9 3h1v1H9zM10 3h1v1H10zM11 3h1v1H11zM1 4h1v1H1zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM8 4h1v1H8zM9 4h1v1H9zM10 4h1v1H10zM11 4h1v1H11zM1 5h1v1H1zM2 5h1v1H2zM3 5h1v1H3zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM8 5h1v1H8zM9 5h1v1H9zM10 5h1v1H10zM11 5h1v1H11zM1 6h1v1H1zM2 6h1v1H2zM3 6h1v1H3zM4 6h1v1H4zM5 6h1v1H5zM6 6h1v1H6zM7 6h1v1H7zM8 6h1v1H8zM9 6h1v1H9zM10 6h1v1H10zM11 6h1v1H11zM2 7h1v1H2zM3 7h1v1H3zM4 7h1v1H4zM5 7h1v1H5zM6 7h1v1H6zM7 7h1v1H7zM8 7h1v1H8zM9 7h1v1H9zM10 7h1v1H10zM5 8h1v1H5zM5 9h1v1H5z'/%3E%3Cpath fill='%23e0c48a' d='M5 2h1v1H5zM6 2h1v1H6zM7 2h1v1H7z'/%3E%3Cpath fill='%235a7fc4' d='M4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM6 5h1v1H6z'/%3E%3C/svg%3E");
+}
+
+.room-say-paw {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 11' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3330' d='M2 0h1v1H2zM3 0h1v1H3zM4 0h1v1H4zM5 0h1v1H5zM6 0h1v1H6zM7 0h1v1H7zM8 0h1v1H8zM9 0h1v1H9zM10 0h1v1H10zM1 1h1v1H1zM11 1h1v1H11zM0 2h1v1H0zM12 2h1v1H12zM0 3h1v1H0zM12 3h1v1H12zM0 4h1v1H0zM12 4h1v1H12zM0 5h1v1H0zM12 5h1v1H12zM0 6h1v1H0zM12 6h1v1H12zM1 7h1v1H1zM11 7h1v1H11zM2 8h1v1H2zM3 8h1v1H3zM4 8h1v1H4zM6 8h1v1H6zM7 8h1v1H7zM8 8h1v1H8zM9 8h1v1H9zM10 8h1v1H10zM4 9h1v1H4zM6 9h1v1H6zM5 10h1v1H5z'/%3E%3Cpath fill='%23ffffff' d='M2 1h1v1H2zM3 1h1v1H3zM4 1h1v1H4zM5 1h1v1H5zM6 1h1v1H6zM7 1h1v1H7zM8 1h1v1H8zM9 1h1v1H9zM10 1h1v1H10zM1 2h1v1H1zM2 2h1v1H2zM3 2h1v1H3zM4 2h1v1H4zM5 2h1v1H5zM6 2h1v1H6zM7 2h1v1H7zM8 2h1v1H8zM9 2h1v1H9zM10 2h1v1H10zM11 2h1v1H11zM1 3h1v1H1zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM9 3h1v1H9zM10 3h1v1H10zM11 3h1v1H11zM1 4h1v1H1zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM8 4h1v1H8zM9 4h1v1H9zM10 4h1v1H10zM11 4h1v1H11zM1 5h1v1H1zM2 5h1v1H2zM3 5h1v1H3zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM8 5h1v1H8zM9 5h1v1H9zM10 5h1v1H10zM11 5h1v1H11zM1 6h1v1H1zM2 6h1v1H2zM3 6h1v1H3zM4 6h1v1H4zM5 6h1v1H5zM6 6h1v1H6zM7 6h1v1H7zM8 6h1v1H8zM9 6h1v1H9zM10 6h1v1H10zM11 6h1v1H11zM2 7h1v1H2zM3 7h1v1H3zM4 7h1v1H4zM5 7h1v1H5zM6 7h1v1H6zM7 7h1v1H7zM8 7h1v1H8zM9 7h1v1H9zM10 7h1v1H10zM5 8h1v1H5zM5 9h1v1H5z'/%3E%3Cpath fill='%237a4a2a' d='M4 2h1v1H4zM6 2h1v1H6zM8 2h1v1H8zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM8 5h1v1H8zM5 6h1v1H5zM7 6h1v1H7z'/%3E%3C/svg%3E");
+}
+
+.room-pop-star {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath fill='%23f6cf4a' d='M3 0h1v1H3zM3 1h1v1H3zM0 2h1v1H0zM1 2h1v1H1zM2 2h1v1H2zM3 2h1v1H3zM4 2h1v1H4zM5 2h1v1H5zM6 2h1v1H6zM1 3h1v1H1zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM5 3h1v1H5zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4zM1 5h1v1H1zM2 5h1v1H2zM4 5h1v1H4zM5 5h1v1H5zM1 6h1v1H1zM5 6h1v1H5z'/%3E%3C/svg%3E");
+}
+
+.room-pop-question {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath fill='%234f86d6' d='M1 0h1v1H1zM2 0h1v1H2zM3 0h1v1H3zM4 0h1v1H4zM0 1h1v1H0zM1 1h1v1H1zM4 1h1v1H4zM5 1h1v1H5zM4 2h1v1H4zM5 2h1v1H5zM3 3h1v1H3zM4 3h1v1H4zM2 4h1v1H2zM3 4h1v1H3zM2 6h1v1H2zM3 6h1v1H3z'/%3E%3C/svg%3E");
+}
+
+.room-pop-sparkle {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath fill='%23ffe58a' d='M3 0h1v1H3zM3 1h1v1H3zM0 3h1v1H0zM1 3h1v1H1zM5 3h1v1H5zM6 3h1v1H6zM3 5h1v1H3zM3 6h1v1H3z'/%3E%3Cpath fill='%23ffffff' d='M2 2h1v1H2zM3 2h1v1H3zM4 2h1v1H4zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4z'/%3E%3C/svg%3E");
+}
+
+.room-pop-drop {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 7' shape-rendering='crispEdges'%3E%3Cpath fill='%235aa8e0' d='M3 0h1v1H3zM2 1h1v1H2zM3 1h1v1H3zM1 2h1v1H1zM3 2h1v1H3zM4 2h1v1H4zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM5 3h1v1H5zM0 4h1v1H0zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4zM5 4h1v1H5zM6 4h1v1H6zM0 5h1v1H0zM1 5h1v1H1zM2 5h1v1H2zM3 5h1v1H3zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM1 6h1v1H1zM2 6h1v1H2zM3 6h1v1H3zM4 6h1v1H4zM5 6h1v1H5z'/%3E%3Cpath fill='%23d6efff' d='M2 2h1v1H2zM1 3h1v1H1zM1 4h1v1H1z'/%3E%3C/svg%3E");
+}

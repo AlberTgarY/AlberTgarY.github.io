@@ -13,6 +13,7 @@ import {
   surfaceOf,
   paintEyes,
   walkLegs,
+  sitUp,
   hash,
   foodBowl,
   chowPose,
@@ -202,6 +203,7 @@ export function buildCat() {
   const serve = foodBowl(group, palette, 19, 4);
   const showMess = mess(group, palette);
   const CHOW = { drop: 8, reach: 4, nod: 0.8 };
+  const SIT = { tip: 0.45, reach: 0.25, fold: 0.4 };
 
   // Tail: a slow travelling sway; carried high with a curled tip when walking or happy; wrapped
   // round to the side and low when asleep.
@@ -216,6 +218,8 @@ export function buildCat() {
     group,
     pose,
     head,
+    legs, // front pair first
+    bowlZ: 19, // how far in front of her the bowl stands while she eats
     headPivotY,
     ears,
     eyelids,
@@ -240,6 +244,14 @@ export function buildCat() {
     animate(dt, s) {
       const { happy, walking, lying, sleeping } = s;
       walkLegs(legs, s, lieDrop / 8.5); // the hips are 8.5 voxels above the ground
+      sitUp(pose, head, legs, s.sit || 0, SIT);
+      // Grooming, she licks a raised front paw; swatting, she bats the other one out at the dog.
+      if (s.state === "trick" && s.trick === "groom") {
+        legs[0].outer.rotation.x = -1.5;
+        head.outer.rotation.x += 0.45 + 0.12 * Math.sin(s.elapsed * 11);
+        head.outer.rotation.y += 0.35;
+      }
+      if (s.state === "trick" && s.trick === "swat") legs[1].outer.rotation.x = -1.3 * Math.max(0, Math.sin(s.elapsed * 10));
       // Petted standing, she kneads with her front paws in turn and her raised tail quivers.
       const petted = s.state === "petted";
       knead += Math.PI * 2 * 1.6 * dt;

@@ -337,6 +337,7 @@ export function sofaCorner(group, palette) {
   sofa.outer.visible = false;
   return {
     seats,
+    lamp: { light: lampLight, shade }, // for the playground to switch on and off
     // `up`: 0 gone, 1 there; it pops up through the first half.
     update(up) {
       sofa.outer.visible = up > 0.01;

@@ -18,6 +18,7 @@ export function part() {
       voxels.set(key(x, y, z), [x, y, z, color]);
     },
     has: (x, y, z) => voxels.has(key(x, y, z)),
+    list: () => [...voxels.values()], // [x, y, z, color] of every voxel
     // Frontmost voxel (largest z) in the column (x, y); used to paint the face onto the head.
     front(x, y) {
       let best = null;
@@ -107,6 +108,24 @@ export function walkLegs(legs, { stride, gait, lying }, fold) {
     leg.outer.rotation.x = 0.42 * stride * Math.sin(gait + (i % 3 === 0 ? 0 : Math.PI));
     leg.outer.scale.y = 1 - fold * lying;
   });
+}
+
+// Sitting up on the haunches, by `sit` (0 to 1): the body tips back by `tip` about the paws, the front
+// legs turn back to upright and stretch by `reach` to keep their paws on the ground, the hind legs fold
+// forward under the body, shortened by `fold`, and the head tips forward again to look ahead.
+export function sitUp(pose, head, legs, sit, { tip, reach, fold }) {
+  pose.rotation.x = -tip * sit;
+  if (!sit) return;
+  legs.forEach((leg, i) => {
+    if (i < 2) {
+      leg.outer.rotation.x += tip * sit;
+      leg.outer.scale.y *= 1 + reach * sit;
+    } else {
+      leg.outer.rotation.x += (tip - Math.PI / 2 - leg.outer.rotation.x) * sit;
+      leg.outer.scale.y *= 1 - fold * sit;
+    }
+  });
+  head.outer.rotation.x += 0.6 * tip * sit;
 }
 
 // Exponential ease towards a target, independent of the frame rate.

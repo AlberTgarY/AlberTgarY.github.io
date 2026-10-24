@@ -3,7 +3,21 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { part, ellipsoid, box, pivotGroup, surfaceOf, paintEyes, walkLegs, foodBowl, chowPose, nightcap, CAP_COLORS, harness } from "./voxels.js";
+import {
+  part,
+  ellipsoid,
+  box,
+  pivotGroup,
+  surfaceOf,
+  paintEyes,
+  walkLegs,
+  sitUp,
+  foodBowl,
+  chowPose,
+  nightcap,
+  CAP_COLORS,
+  harness,
+} from "./voxels.js";
 
 export function buildCollie() {
   const palette = {
@@ -136,6 +150,11 @@ export function buildCollie() {
     return g;
   });
 
+  // Where she carries a ball, in the front of her mouth.
+  const mouth = new THREE.Object3D();
+  mouth.position.set(0, 24.5, 24);
+  head.inner.add(mouth);
+
   const hat = nightcap(headPart, { y0: 42, z0: 7, radius: 8.5, height: 13 }).mesh(palette);
   head.inner.add(hat);
 
@@ -145,6 +164,7 @@ export function buildCollie() {
   // A bowl of kibble at her front paws when she is fed, under her mouth once her head is down in it.
   const serve = foodBowl(group, palette, 24, 5);
   const CHOW = { drop: 9, reach: 5, nod: 0.7 };
+  const SIT = { tip: 0.5, reach: 0.26, fold: 0.45 };
 
   // Tail: slow idle wag, brisk when walking or happy, resting low when asleep.
   let wagPhase = 0;
@@ -157,12 +177,15 @@ export function buildCollie() {
     group,
     pose,
     head,
+    legs, // front pair first
+    bowlZ: 24, // how far in front of her the bowl stands while she eats
     headPivotY,
     ears,
     eyelids,
     hat,
     harness: harnessMesh,
     clip,
+    mouth,
     lieDrop,
     headDrop: 3,
     headAt: [32, 10],
@@ -179,6 +202,7 @@ export function buildCollie() {
     animate(dt, s) {
       const { happy, walking, lying, sleeping } = s;
       walkLegs(legs, s, lieDrop / 10.5); // the hips are 10.5 voxels above the ground
+      sitUp(pose, head, legs, s.sit || 0, SIT);
       pose.rotation.z = s.state === "petted" ? 0.05 * Math.sin(wagPhase * 0.5) : 0; // wiggling with joy
       tongue.visible = happy && !sleeping; // panting
       serve(s);
@@ -186,7 +210,7 @@ export function buildCollie() {
       wagAmp += ((sleeping ? 0.04 : happy ? 0.55 : walking ? 0.4 : 0.25) - wagAmp) * (1 - Math.exp(-4 * dt));
       wagPhase += Math.PI * 2 * (sleeping ? 0.4 : happy ? 3 : walking ? 2 : 1.1) * dt;
       tailPivot.outer.rotation.y = wagAmp * Math.sin(wagPhase);
-      tailPivot.outer.rotation.x = -0.7 * lying;
+      tailPivot.outer.rotation.x = -0.7 * lying + 0.9 * (s.sit || 0); // sitting, it lies along the ground
     },
   };
 }
