@@ -23,6 +23,13 @@ ninja.data = [{
           handler: () => {
             window.location.href = "/music/";
           },
+        },{id: "nav-playground",
+          title: "playground",
+          description: "",
+          section: "Navigation",
+          handler: () => {
+            window.location.href = "/playground/";
+          },
         },{id: "nav-cv",
           title: "cv",
           description: "Curriculum Vitae of Yicheng (Albert) Zhan",
