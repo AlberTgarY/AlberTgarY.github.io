@@ -2,8 +2,9 @@
  * The life of the playground's home: what each of them does next, and what
  * they do together. Each actor (actor.js) runs one activity at a time (acts.js),
  * a generator stepped once a frame; when it ends, they pick another by their
- * own tastes (MENUS) and their mood of the moment (LEANINGS), seldom the same
- * twice (choose.js).
+ * own tastes (MENUS), their mood of the moment (LEANINGS) and, for the two of
+ * them, how long it is since they last did each thing (BALANCE), seldom the
+ * same twice (choose.js).
  *
  * Keeping it sound:
  * - Places (a seat, a side of the bed, the fridge, the book) are claimed while
@@ -24,7 +25,7 @@
  * so often, by whoever is free when it is due.
  ******************************************************************************/
 
-import { rnd, pick } from "../stage.js";
+import { rnd, pick, clamp } from "../stage.js";
 import { freshPicker } from "../choose.js";
 import { X1, LOFT } from "./house.js";
 
@@ -44,13 +45,13 @@ const MENUS = {
     chat: 7,
     game: 5,
     watchPc: 6,
-    pcGirl: 10,
+    pcGirl: 14,
     nap: 6,
     stroll: 8,
     stretch: 4,
     laptop: 4,
     dress: 5,
-    garden: 9,
+    garden: 5,
     sprinkle: 5,
     fire: 5,
     sleep: 16,
@@ -99,7 +100,7 @@ const NIGHT = {
 const RAIN = { fire: 2.5, fireside: 1.6, read: 1.5, nap: 1.6, tv: 1.3, perch: 2.5, bed: 1.3 };
 // Moods: every few minutes each of them leans a little towards one kind of thing, or none in particular: a
 // spell when she is all for the garden, then one for the screens, or the kitchen. What they lean towards is
-// LEAN times as likely, and the day's rhythm (ROUTINE) goes to whoever feels like it.
+// LEAN times as likely, in what they pick and in who is given the day's rhythm (ROUTINE).
 const LEANINGS = {
   girl: {
     garden: ["garden", "water", "sprinkle"],
@@ -120,14 +121,20 @@ const LEANINGS = {
 };
 const LEAN = 2;
 const MOOD_LASTS = [240, 420]; // s
+// Balance (the two of them): what they have not done for a while grows on them, and what they have just done
+// has lost its pull for now, so that nothing is left undone for long and nothing is done over and over:
+// each thing's weight times the square of the time since they last did it over BALANCE s (hardly again
+// within a few minutes, as keen as ever after BALANCE), kept within NEED.
+const BALANCE = 600;
+const NEED = [0.05, 3];
 const LONGEST = 300; // s any one activity may run
 // What is never dropped for a hungry pet: changing clothes, feeding, running in from the rain, the cat's mess,
-// going to the table when called; nor is anyone with food in hand or at the table with what they made
-// (`a.serving`).
-const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff", "dine"];
-// Nor is anyone called to the table out of these (summon()): those, cooking or baking (food of their own on
-// the way), or going out with the dog.
-const NO_CALL = [...NO_DROP, "cook", "bake", "walk"];
+// going to the table when called, a walk (even still on the path outside the door); nor is anyone with food
+// in hand or at the table with what they made (`a.serving`).
+const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff", "dine", "walk"];
+// Nor is anyone called to the table out of these (summon()): those, or cooking or baking (food of their own
+// on the way).
+const NO_CALL = [...NO_DROP, "cook", "bake"];
 // The day's rhythm: what comes round every so often (s, at random between the two) whatever anyone's tastes,
 // each due that long after it was last done (by anyone, asked or not); and for `rest` s after it was done,
 // no one does it again of their own accord (the dog has just been out, they have just eaten, the garden has
@@ -135,7 +142,7 @@ const NO_CALL = [...NO_DROP, "cook", "bake", "walk"];
 const ROUTINE = [
   { names: ["walk"], every: [300, 480], rest: 240 },
   { names: ["cook", "bake"], every: [420, 660], rest: 360 },
-  { names: ["garden"], every: [150, 270], rest: 120 },
+  { names: ["garden"], every: [270, 450], rest: 180 },
 ];
 
 export function makeLife(home) {
@@ -212,6 +219,7 @@ export function makeLife(home) {
     a.woken = false;
     a.jobName = todo.name;
     a.jobStart = t();
+    a.last[todo.name] = t();
     if (todo.ev) a.event = todo.ev;
     a.job = todo.run(a);
   }
@@ -289,8 +297,11 @@ export function makeLife(home) {
     return LEANINGS[a.name]?.[a.mood.kind] || [];
   }
 
-  // The next thing to do, by its tastes and mood, from what can be done just now; but first, out of the way
-  // of anyone standing too close.
+  // How much `a` feels like `name` for not having done it for a while (BALANCE); the pets go by taste alone.
+  const need = (a, name) => (a.human ? clamp(((t() - (a.last[name] ?? -Infinity)) / BALANCE) ** 2, ...NEED) : 1);
+
+  // The next thing to do, by its tastes, mood and balance, from what can be done just now; but first, out of
+  // the way of anyone standing too close.
   function crowded(a) {
     return actors.some((o) => o !== a && !o.out && Math.abs(o.y - a.y) < 3 && Math.hypot(o.x - a.x, o.z - a.z) < 14);
   }
@@ -301,7 +312,8 @@ export function makeLife(home) {
     for (const [name, w] of Object.entries(MENUS[a.name])) {
       const todo = home.acts[name];
       if (todo && todo.can(a) && !resting(name))
-        weights[name] = w * (home.night ? NIGHT[name] || 1 : 1) * (home.weather.raining ? RAIN[name] || 1 : 1) * (leans.includes(name) ? LEAN : 1);
+        weights[name] =
+          w * (home.night ? NIGHT[name] || 1 : 1) * (home.weather.raining ? RAIN[name] || 1 : 1) * (leans.includes(name) ? LEAN : 1) * need(a, name);
     }
     const name = a.picker.choose(weights);
     if (!name) return (a.nextAt = t() + 2);
@@ -314,6 +326,7 @@ export function makeLife(home) {
       if (a.pending) start(a, a.pending);
       else if (a.queue.length) start(a, a.queue.shift());
       else if (t() >= a.nextAt) choose(a);
+      else if (crowded(a)) a.nextAt = Math.min(a.nextAt, t() + 0.5); // someone come to where they stand: soon off
     }
     if (!a.job) return;
     let broken = false;
@@ -435,17 +448,20 @@ export function makeLife(home) {
     }
     if (sprinkler.on && t() - sprinkler.since > 100) sprinkler.stop(t());
 
-    // The day's rhythm: whatever is due goes to whoever is free and can do it, first whoever is in the mood for
-    // it, else either (so it is not always the same one); if no one can just now, it is looked at again a
-    // little later.
+    // The day's rhythm: whatever is due goes to one of those free who can do it, by their tastes, mood and
+    // balance (so mostly whoever likes it more, or has not done it for longer, but not always); if no one can
+    // just now, it is looked at again a little later.
     for (const r of ROUTINE) {
       if (t() < due.get(r)) continue;
-      const keen = (h) => (r.names.some((name) => leaning(h).includes(name)) ? 1 : 0);
-      const free = [...awake]
-        .sort(() => Math.random() - 0.5)
+      const options = awake
         .filter(available)
-        .sort((p, q) => keen(q) - keen(p));
-      const pair = free.flatMap((h) => r.names.filter((name) => home.acts[name].can(h)).map((name) => [h, name]))[0];
+        .flatMap((h) =>
+          r.names
+            .filter((name) => home.acts[name].can(h))
+            .map((name) => [h, name, MENUS[h.name][name] * (leaning(h).includes(name) ? LEAN : 1) * need(h, name)])
+        );
+      let roll = Math.random() * options.reduce((sum, o) => sum + o[2], 0);
+      const pair = options.find((o) => (roll -= o[2]) < 0) || options.at(-1);
       const asked = pair && invite(pair[0], act(pair[1], home.acts[pair[1]].run));
       due.set(r, t() + (asked ? rnd(...r.every) : 10));
     }
@@ -488,6 +504,7 @@ export function makeLife(home) {
     a.cleanups = [];
     a.picker = freshPicker(2);
     a.mood = { kind: null, until: -1 };
+    a.last = {}; // when they last started each thing
   });
 
   return {

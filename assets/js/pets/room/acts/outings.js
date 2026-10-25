@@ -235,7 +235,11 @@ export function outingsActs(c) {
         onEnd(a, () => (a.raincoat = false));
       }
     }
-    yield* walk(a, [door.x, door.inside + m.behind]);
+    // Their place in the line, or a step to one side of it if someone not going is standing there.
+    const place = [door.x, door.inside + m.behind];
+    const clear = (p) =>
+      nav.free(...p) && home.actors.every((o) => o === a || o.out || ev.party.some((n) => n.who === o) || Math.hypot(o.x - p[0], o.z - p[1]) > 12);
+    yield* walk(a, [place, toward(place, 14, 0), toward(place, -14, 0)].find(clear) || place);
     a.face(Math.PI);
     if (!ev.over) ev.ready.add(a);
   }

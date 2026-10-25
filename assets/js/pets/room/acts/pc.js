@@ -148,7 +148,7 @@ export function pcActs(c) {
     const boy = byName.boy;
     const ev = boy && Math.random() < 0.3 && !holder("watchPc") && available(boy) ? event(a, "pc", { playing: true, round: 0, result: null }) : null;
     if (ev) invite(boy, act("watchPc", watchPc, ev));
-    const end = t() + rnd(35, 60);
+    const end = t() + rnd(50, 90);
     let momentAt = t() + rnd(4, 8);
     a.hold = farm ? MOVES.mouse : null;
     while (t() < end && !(a.interrupt && !ev)) {

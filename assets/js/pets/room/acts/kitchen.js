@@ -284,12 +284,13 @@ export function kitchenActs(c) {
     const ev = event(a, "meal", { ready: false, guest: null });
     const away = () => !b || b.out || b.jobName === "walk";
     const there = () => !!b && b.seated && !!b.seatKey?.startsWith("dine");
-    // Whether the other is (now) on their way: called, once, unless they are out or already at the table.
+    // Whether the other is (now) on their way: called, once, unless they are out or already at the table. They
+    // are waited for (a while, or for as long as they are on their way to the table).
     const calling = () => !ev.guest && !away() && !there() && (b.pending?.ev === ev || b.event === ev || summon(b, act("dine", dine, ev)));
     const waitFor = function* (secs) {
       const end = t() + secs;
       let shoutAt = t() + 0.8;
-      while (t() < end && !there() && !away()) {
+      while ((t() < end || b.event === ev) && !there() && !away()) {
         calling();
         a.look = b;
         if (t() > shoutAt) {

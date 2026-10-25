@@ -58,6 +58,7 @@ export function makeSteps(home) {
           continue;
         }
         const [dx, dz] = aside(a, ux, uz);
+        a.heading = [ux, uz]; // the way they are going just now (following())
         if (d > 0.5) a.faceTowards(a.x + dx, a.z + dz);
         a.x += dx * stride;
         a.z += dz * stride;
@@ -71,6 +72,7 @@ export function makeSteps(home) {
       }
     } finally {
       a.walking = false;
+      a.heading = null;
       a.pace = 1;
     }
   }
@@ -86,6 +88,7 @@ export function makeSteps(home) {
         const d = Math.hypot(x - a.x, z - a.z);
         const stride = a.speed * pace * clock.dt;
         if (d <= stride) break;
+        a.heading = [(x - a.x) / d, (z - a.z) / d];
         a.faceTowards(x, z);
         a.x += ((x - a.x) / d) * stride;
         a.z += ((z - a.z) / d) * stride;
@@ -94,6 +97,7 @@ export function makeSteps(home) {
       [a.x, a.z] = [x, z];
     } finally {
       a.walking = false;
+      a.heading = null;
       a.pace = 1;
     }
   }
@@ -106,9 +110,9 @@ export function makeSteps(home) {
       if (o === a || o.out || !o.walking || Math.abs(o.y - a.y) > 5) return false;
       const [ox, oz] = [o.x - a.x, o.z - a.z];
       const dist = Math.hypot(ox, oz);
-      if (dist > 10 || !o.goal) return false;
-      const [gx, gz] = [o.goal[0] - o.x, o.goal[1] - o.z];
-      const same = (gx * dx + gz * dz) / (Math.hypot(gx, gz) || 1) > 0.5; // going much the same way
+      if (dist > 10 || !o.heading) return false;
+      // Going much the same way just now (not where they are going in the end: down the stairs to the far side, say).
+      const same = o.heading[0] * dx + o.heading[1] * dz > 0.5;
       const ahead = dist > 0.01 ? (ox * dx + oz * dz) / dist : 0;
       return same && (ahead > 0.15 || (ahead > -0.15 && j < i));
     });
