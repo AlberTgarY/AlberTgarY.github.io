@@ -25,14 +25,15 @@ export function buildLiving(shared) {
   const corner = sofaCorner(sofaHolder, COLORS);
   corner.update(1);
   const lamp = corner.lamp;
-  const shadeColor = lamp.shade.material.color.clone();
+  const shadeGlow = lamp.shade.material; // unlit: it glows
+  const shadeDull = new THREE.MeshLambertMaterial(); // off, it is lit by the room like the rest
   lamp.light.distance = 130;
   // The lamps, each { set(on) }, clicked on and off.
   lamps.push(
     {
       set(on) {
         lamp.light.intensity = on ? 1.3 : 0; // dimmed, not hidden, so that the lights in the room stay the same
-        lamp.shade.material.color.copy(shadeColor).multiplyScalar(on ? 1 : 0.85);
+        lamp.shade.material = on ? shadeGlow : shadeDull;
         this.on = on;
       },
     },

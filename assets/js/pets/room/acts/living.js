@@ -516,7 +516,7 @@ export function livingActs(c) {
     yield* walk(a, toward(ev.spot, 13 * side, 0));
     faceSide(a, -side, 0.85); // turned to each other, but open to the room
     ev.here.add(a);
-    if (!(yield* until(() => ev.here.size === 2 || ev.over, 15))) return;
+    if (!(yield* until(() => ev.here.size === 2 || ev.over, 15)) || ev.over) return;
     const partner = [...ev.here].find((o) => o !== a);
     a.look = { facePoint: () => partner.facePoint().map((v, i) => (i === 0 ? v + 30 * F[0] : i === 2 ? v + 30 * F[1] : v)) }; // at them, still showing the face
     const speak = () => {
