@@ -1,9 +1,10 @@
 /*******************************************************************************
  * What the girl and the boy pick up in the playground, and how they hold it:
- * the red book, the laptop, the game controllers, an ice cream or a juice box
+ * a book off the shelf, the laptop, the game controllers, an ice cream or a juice box
  * from the fridge, a watering can, the bag of pet food, a treat for the dog,
  * the garden basket, what was just picked (in a hand, or in both arms), a
- * packet of seeds, a log for the fire, the cat's mess on
+ * packet of seeds, the garden's fruit washed and on its plate, a bite of it, a
+ * knife to cut a watermelon, the house keys, a log for the fire, the cat's mess on
  * its way to the bin, an umbrella (rolled up, or open over the head), a roast
  * chicken or a lasagna for the oven (the oven and
  * the table show the same dishes), and the dog's ball, which flies, rolls and
@@ -62,6 +63,9 @@ const COLORS = {
   umbrellaNavy: "#3f5a8a",
   umbrellaNavyDark: "#2f4670",
   shaft: "#8f6440",
+  steel: "#c3c9cf",
+  steelEdge: "#eef2f4",
+  keyFob: "#f4a3b8",
 };
 // Each one's umbrella: the two colours of its panels.
 const UMBRELLAS = { girl: ["umbrellaPink", "white"], boy: ["umbrellaNavy", "umbrellaNavyDark"] };
@@ -155,6 +159,8 @@ export const MOVES = {
     ];
   },
   lick: (t) => [[-1.25 - 0.3 * Math.max(0, Math.sin(t * 2.4)), -1.35, 0.5, 0, 0], null],
+  // Pressing a switch down low (the garden pump's rocker), the hand dipping once and again.
+  press: (t, e) => [[-1.15 + 0.22 * Math.max(0, Math.sin(e * 7)), -0.35, 0.15, 0, 0], null],
   // Turning a tap or a sprinkler's head: the hand out in front, the wrist working.
   twist: (t) => [[-1.2, -0.35, 0.2, 0, 0.35 * Math.sin(t * 6)], null],
   // Caught by the sprinkler: both hands up over the head, flapping.
@@ -179,6 +185,16 @@ export const MOVES = {
     [-0.95 + 0.15 * Math.abs(Math.sin(t * 9 + 1.5)), -0.15, -0.25, 0, 0],
   ],
   wipe: (t) => [[-2.5, -1.8, 0.55 + 0.25 * Math.sin(t * 9), 0, 0], null],
+  // Cutting on a board: the knife hand rising and coming down, the other hand holding it steady.
+  chop: (t) => [
+    [-1.0 + 0.3 * Math.max(0, Math.sin(t * 9)), -0.5, 0.2, 0, 0],
+    [-0.9, -0.45, -0.15, 0, 0],
+  ],
+  // Rinsing something under the tap, the hands turning it over.
+  rinse: (t) => [
+    [-1.0 + 0.1 * Math.sin(t * 7), -0.5, 0.25 + 0.1 * Math.cos(t * 7), 0, 0],
+    [-1.0 + 0.1 * Math.sin(t * 7 + 2), -0.5, -0.25 - 0.1 * Math.cos(t * 7 + 2), 0, 0],
+  ],
   // Shaking the water off the hands, or a rolled-up umbrella.
   shake: (t) => [
     [-0.85, -1.25 + 0.45 * Math.sin(t * 24), 0.25, 0, 0],
@@ -203,19 +219,35 @@ export function propsFor(rig, who) {
     return object;
   };
 
-  // The red book: shut in the hand, or open in both hands, its pages turning.
+  // The book off the shelf (one of BOOKS, `book(i)`): shut in the hand, or open in both hands, its pages
+  // turning.
+  const covers = BOOKS.map((c) => ({ ...COLORS, cover: c, coverDark: `#${new THREE.Color(c).multiplyScalar(0.8).getHexString()}` }));
   const shut = part();
   box(shut, [-2, 2], [0, 5], [0, 1], (x, y, z) => (x === 2 ? "page" : z === 0 ? "coverDark" : "cover"));
-  const bookShut = at(right, shut.mesh(COLORS), [0, -4, 1.5], [0, Math.PI / 2, 0]);
+  const bookShut = at(right, new THREE.Group(), [0, -4, 1.5], [0, Math.PI / 2, 0]);
+  const shutCovers = covers.map((palette) => bookShut.add(shut.mesh(palette)).children.at(-1));
   const open = new THREE.Group();
+  const openCovers = [];
   [-1, 1].forEach((side) => {
     const p = part();
     box(p, side < 0 ? [-5, -1] : [0, 4], [0, 6], [0, 0], (x, y) => (y % 2 === 0 && Math.abs(x) > 1 && Math.abs(x) < 4 ? "pageLine" : "page"));
-    box(p, side < 0 ? [-5, -1] : [0, 4], [0, 6], [-1, -1], "cover");
     const m = p.mesh(COLORS);
+    const back = part();
+    box(back, side < 0 ? [-5, -1] : [0, 4], [0, 6], [-1, -1], "cover");
+    covers.forEach((palette, i) => {
+      const c = back.mesh(palette);
+      m.add(c);
+      (openCovers[i] ??= []).push(c);
+    });
     m.rotation.y = side * 0.25; // open in a shallow V
     open.add(m);
   });
+  // Book `i` of BOOKS, shut or open; shown with only().
+  const book = (i) => {
+    shutCovers.forEach((m, k) => (m.visible = k === i));
+    openCovers.forEach((ms, k) => ms.forEach((m) => (m.visible = k === i)));
+  };
+  book(0);
   const leaf = pivotGroup(open, [0, 0, 0.5]); // a page turning
   const leafPart = part();
   box(leafPart, [0, 4], [0, 6], [1, 1], "page");
@@ -331,8 +363,39 @@ export function propsFor(rig, who) {
     ),
     [-0.5, -1, 1]
   );
-  // A dish from the fridge for the oven, and out of it for the table, carried in both hands.
-  const dishes = Object.fromEntries(DISHES.map((kind) => [kind, at(body, buildDish(kind), [0, 11, 8])]));
+  // A dish from the fridge for the oven, and out of it for the table, carried in both hands; or the fruit
+  // from the garden, washed, on its plate.
+  const dishes = Object.fromEntries([...DISHES, ...FRUIT_DISHES].map((kind) => [kind, at(body, buildDish(kind), [0, 11, 8])]));
+  // A bite of fruit off the plate in the right hand (`bite(kind)`), and the knife for the watermelon.
+  const bite = at(right, new THREE.Group(), [0, -1.5, 1.5]);
+  const bites = Object.fromEntries(
+    FRUIT_DISHES.map((kind) => {
+      const m = fruitPiece(kind).mesh(COLORS);
+      m.scale.setScalar(0.8);
+      bite.add(m);
+      return [kind, m];
+    })
+  );
+  const knifeP = part();
+  box(knifeP, [0, 0], [-1, 1], [0, 0], "shaft");
+  box(knifeP, [0, 0], [2, 7], [0, 1], (x, y, z) => (z === 1 && y > 2 ? "steelEdge" : "steel"));
+  const knife = at(right, knifeP.mesh(COLORS), [0, -1.5, 1.5], [Math.PI / 2, 0, 0]);
+  // The house keys, hanging from the fingers by their ring.
+  const keys = at(
+    right,
+    cells(
+      [
+        [0, 0, 0, "brass"],
+        [0, -1, 0, "steel"],
+        [0, -2, 0, "steel"],
+        [1, -1, 0, "steel"],
+        [-1, 0, 0, "keyFob"],
+        [-1, -1, 0, "keyFob"],
+      ],
+      COLORS
+    ),
+    [0, -1.5, 1.5]
+  );
 
   // Their umbrella: rolled up, hanging from the hand by its hooked handle; or open, held up beside the head
   // (HOLDS.umbrella), the shaft leaning in so the canopy is over it: eight panels, a scalloped edge and a tip.
@@ -384,6 +447,9 @@ export function propsFor(rig, who) {
     mess,
     umbrella,
     umbrellaOpen,
+    bite,
+    knife,
+    keys,
     ...dishes,
   };
   return {
@@ -410,13 +476,79 @@ export function propsFor(rig, who) {
     packet(kind) {
       Object.entries(packets).forEach(([k, m]) => (m.visible = k === kind));
     },
+    // The plate of fruit `kind` carried with `left` pieces on it; shown with only(kind).
+    plate(kind, left) {
+      dishes[kind].userData.pieces.forEach((m, k) => (m.visible = k < left));
+    },
+    // The bite of fruit for `kind` (FRUIT_DISHES); shown with only("bite").
+    bite(kind) {
+      Object.entries(bites).forEach(([k, m]) => (m.visible = k === kind));
+    },
+    book,
   };
+}
+
+// The books on the low shelf that they take down to read, each its own colour (house.js shelves them).
+export const BOOKS = ["#c94f4f", "#4f7fc9", "#e8b84a", "#5e9e6e", "#9c6fc2", "#e07a9a"];
+
+// The fruit from the garden, washed and plated for the two of them: a bowl of strawberries, or a watermelon
+// cut into six slices on a plate. Each piece is a mesh of its own (the group's `pieces`), so the plate
+// empties as they eat.
+export const FRUIT_DISHES = ["strawberry", "watermelon"];
+function fruitPiece(kind) {
+  const p = part();
+  if (kind === "strawberry") {
+    box(p, [0, 1], [0, 1], [0, 1], (x, y, z) => ((x + y + z) % 3 === 0 ? "strawSeed" : "strawberry"));
+    p.add(0, -1, 0, "strawberry");
+    p.add(0, 2, 0, "strawLeaf");
+  } else {
+    // A slice lying flat: the rind round its outer edge, the red flesh in a wedge to its point, and seeds.
+    for (let x = 0; x <= 5; x++)
+      for (let z = -Math.floor((5 - x) / 2); z <= Math.floor((5 - x) / 2); z++)
+        p.add(x, 0, z, x === 0 ? "melonDark" : x === 1 ? "melonRind" : (x + z) % 3 === 0 && x > 2 ? "melonSeed" : "melonRed");
+  }
+  return p;
+}
+function buildFruitDish(kind) {
+  const g = new THREE.Group();
+  const plate = part();
+  if (kind === "strawberry")
+    for (let y = 0; y <= 2; y++)
+      ellipsoid(plate, [0, y, 0], [3 + y * 0.6, 0.5, 3 + y * 0.6], y === 2 ? "platterRim" : "platter", [
+        { has: (x, yy, z) => y > 0 && x * x + z * z < (2.2 + y * 0.6) ** 2 },
+      ]);
+  else ellipsoid(plate, [0, 0, 0], [6, 0.5, 6], (x, y, z) => (x * x + z * z > 25 ? "platterRim" : "platter"));
+  g.add(plate.mesh(COLORS));
+  const pieces = [];
+  const add = (m, [x, y, z], yaw = 0) => {
+    m.position.set(x, y, z);
+    m.rotation.y = yaw;
+    g.add(m);
+    pieces.push(m);
+  };
+  if (kind === "strawberry")
+    [
+      [-2, 2, -1],
+      [1, 2, -2],
+      [0, 2, 1],
+      [-1.5, 3, 1.5],
+      [2, 3, 1],
+      [-0.5, 4, -0.5],
+      [1, 4, 0],
+      [-2.5, 3, -2],
+    ].forEach((at) => add(fruitPiece(kind).mesh(COLORS), at));
+  else
+    for (let k = 0; k < 6; k++)
+      add(fruitPiece(kind).mesh(COLORS), [Math.cos((k * Math.PI) / 3) * 5, 1, -Math.sin((k * Math.PI) / 3) * 5], (k * Math.PI) / 3 + Math.PI);
+  g.userData.pieces = pieces;
+  return g;
 }
 
 // What goes in the oven: a roast chicken on a platter with herbs round it, or a lasagna in its baking dish,
 // the cheese browned on top and the sauce bubbling at the edges. About 10 voxels across, standing on y = 0.
 export const DISHES = ["roast", "lasagna"];
 export function buildDish(kind) {
+  if (FRUIT_DISHES.includes(kind)) return buildFruitDish(kind);
   const p = part();
   if (kind === "roast") {
     ellipsoid(p, [0, 0, 0], [5, 0.5, 4], (x, y, z) => ((x / 5) ** 2 + (z / 4) ** 2 > 0.6 ? "platterRim" : "platter"));

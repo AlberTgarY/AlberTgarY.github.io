@@ -28,10 +28,10 @@
 import { rnd, pick, clamp, wrap } from "../stage.js";
 import { LOFT, X1 } from "./house.js";
 import { LOOKS } from "../models/girl-outfits.js";
-import { HOLDS, MOVES, DISHES } from "./props.js";
+import { HOLDS, MOVES, DISHES, FRUIT_DISHES } from "./props.js";
 import { VEG } from "./veg.js";
 import { part } from "../models/voxels.js";
-import { GAMES } from "./screens.js";
+import { GAMES, DRAMAS, GIRL_GAMES } from "./screens.js";
 import { makeSteps } from "./steps.js";
 import { VIEW_YAW } from "./view.js";
 
@@ -41,6 +41,7 @@ const R = [Math.cos(V), -Math.sin(V)]; // on the floor, to the right on screen
 const SNACKS = { cucumber: 5, grapeTea: 6, porkRice: 7 }; // the girl's, and how long each takes (girl.js)
 const SAY = ["heart", "note", "star", "question", "bowl", "paw"]; // what comes up in a chat
 const TEAM_SAY = ["star", "question", "note"]; // what he says to his team
+const PET_AGAIN = [300, 480]; // s before someone who has petted or fed a pet goes to pet one again
 const ROOM = [
   [-140, 200],
   [-100, 100],
@@ -424,12 +425,18 @@ export function makeActs(home, life) {
 
   // At the table with what was cooked: sit down (a dish from the oven goes in the middle), call the other
   // over to eat too (again, if they were busy) and wait a little for them, and eat; the dog hopes for a
-  // bite. A dish goes to the sink after.
-  function* meal(a, dish = null) {
+  // bite. A dish goes to the sink after. For fruit from the garden (`left` pieces on its plate), they eat
+  // from the plate together till it is empty.
+  function* meal(a, dish = null, left = 0) {
+    const fruit = FRUIT_DISHES.includes(dish) ? dish : null;
+    const eat = (who, friend) => (fruit ? eatFruit(who, friend, fruit) : eatRice(who, friend));
     const seat = takeSeat(a, ["dine0", "dine1"]);
-    if (!seat) return yield* eatRice(a);
+    if (!seat) {
+      a.props.only();
+      return yield* eatRice(a);
+    }
     const b = other(a);
-    const ev = event(a, "meal", { ready: false });
+    const ev = event(a, "meal", { ready: false, eat });
     const calling = !!b && Math.random() < 0.85;
     let coming = false;
     const call = () => (coming ||= calling && available(b) && invite(b, act("dine", dine, ev)));
@@ -441,7 +448,7 @@ export function makeActs(home, life) {
       a.hold = HOLDS.pick;
       yield* wait(a, 0.5);
       a.props.only();
-      house.dinner.dish = dish;
+      Object.assign(house.dinner, { dish, left });
       yield* wait(a, 0.3);
       a.hold = null;
       a.look = null;
@@ -453,7 +460,7 @@ export function makeActs(home, life) {
     }
     ev.ready = true;
     const begging = askToBeg(a, spots.dining.beg, 0.5);
-    yield* eatRice(a, b);
+    yield* eat(a, b);
     yield* treat(a, begging);
     ev.over = true; // too late to come now
     yield* getUp(a);
@@ -462,10 +469,17 @@ export function makeActs(home, life) {
     a.look = spots.dining.dish;
     a.hold = HOLDS.pick;
     yield* wait(a, 0.5);
+    if (fruit) a.props.plate(dish, house.dinner.left); // what is left of it
     house.dinner.dish = null;
     a.props.only(dish);
     a.hold = HOLDS.tray;
     a.look = null;
+    if (!claim(a, "sink")) {
+      // Someone is at the sink: wait beside it.
+      yield* walk(a, [spots.sink.at[0] + 4, spots.sink.at[1] + 16]);
+      yield* turn(a, spots.sink.yaw);
+      yield* until(() => claim(a, "sink"), 30);
+    }
     yield* walk(a, spots.sink.at);
     yield* turn(a, spots.sink.yaw);
     a.hold = HOLDS.pick;
@@ -476,6 +490,7 @@ export function makeActs(home, life) {
     home.popAt(spots.sink.basin, "room-pop room-pop-sparkle");
     a.hold = null;
     yield* wait(a, 0.4);
+    release(a, "sink");
   }
   // Called to the table: sit beside them, wait for them (looking over), eat together, and stay a moment
   // after they get up.
@@ -486,11 +501,39 @@ export function makeActs(home, life) {
     const host = ev.host;
     a.look = host;
     yield* until(() => ev.ready || ev.over, 30);
-    if (ev.ready) yield* eatRice(a, host);
+    if (ev.ready) yield* ev.eat(a, host);
     a.look = host;
     yield* wait(a, rnd(0.8, 2));
     a.look = null;
     yield* getUp(a);
+  }
+  // Fruit off the plate on the table, a piece at a time, a happy munch with each, till the plate is empty
+  // (shared with whoever eats with them, house.dinner.left counting down); a glance at them now and then.
+  function* eatFruit(a, friend, kind) {
+    const { dinner } = house;
+    while (dinner.dish === kind && dinner.left > 0) {
+      a.look = spots.dining.dish;
+      a.hold = HOLDS.pick;
+      yield* wait(a, rnd(0.4, 0.6));
+      if (dinner.dish !== kind || dinner.left <= 0) break;
+      dinner.left--;
+      a.props.bite(kind);
+      a.props.only("bite");
+      a.hold = HOLDS.taste;
+      a.look = friend?.seatKey?.startsWith("dine") && Math.random() < 0.4 ? friend : null;
+      yield* wait(a, 0.5);
+      a.props.only();
+      a.nod = 0.12;
+      a.happy = true;
+      if (Math.random() < 0.35) a.pop();
+      yield* wait(a, rnd(0.9, 1.4));
+      Object.assign(a, { nod: 0, happy: false, hold: null });
+      yield* wait(a, rnd(0.6, 1.8));
+    }
+    a.look = null;
+    a.hold = null;
+    a.beHappy(1.2);
+    yield* wait(a, 1.2);
   }
   // A bowl of pork rice, a glance at whoever eats with them now and then, and a happy sigh at the end.
   function* eatRice(a, friend = null) {
@@ -507,15 +550,18 @@ export function makeActs(home, life) {
     a.happy = false;
   }
 
-  // The red book from the low shelf, read sitting down (sometimes dozing off over it), and put back.
+  // A book from the low shelf, one not read lately (house.js), read sitting down (sometimes dozing off over
+  // it), and put back.
   function* read(a) {
     if (!claim(a, "book")) return;
-    onEnd(a, () => (house.book.visible = true));
+    const book = house.books.next();
+    onEnd(a, () => house.books.show(book, true));
     yield* walk(a, spots.shelf.at);
     yield* turn(a, spots.shelf.yaw);
     a.hold = HOLDS.pick;
     yield* wait(a, 0.7);
-    house.book.visible = false;
+    house.books.show(book, false);
+    a.props.book(book);
     a.props.only("bookShut");
     a.hold = HOLDS.carry;
     yield* wait(a, 0.3);
@@ -551,7 +597,7 @@ export function makeActs(home, life) {
     yield* turn(a, spots.shelf.yaw);
     a.hold = HOLDS.pick;
     yield* wait(a, 0.6);
-    house.book.visible = true;
+    house.books.show(book, true);
     a.props.only();
     a.hold = null;
   }
@@ -680,6 +726,65 @@ export function makeActs(home, life) {
     house.pc.phones.visible = true;
     a.hold = null;
     a.look = null;
+  }
+
+  // The girl at his computer (his headphones stay on their stand): a drama to stream, or her farm game to
+  // tend. Watching, she laughs, gasps, sighs over the couple or sheds a tear; farming, she is pleased with
+  // each harvest. He may come up and watch with her.
+  function* pcGirl(a) {
+    if (!claim(a, "pc")) return;
+    const seat = takeSeat(a, ["chair"]);
+    if (!seat) return;
+    onEnd(a, () => {
+      house.pc.set("off", t());
+      house.pc.sitter = null;
+    });
+    yield* sitOn(a, seat);
+    house.pc.sitter = a;
+    a.look = spots.monitor;
+    const farm = Math.random() < 0.35;
+    house.pc.set(farm ? "game" : "show", t(), farm ? pick(GIRL_GAMES) : pick(DRAMAS));
+    const boy = byName.boy;
+    const ev = boy && Math.random() < 0.3 && !holder("watchPc") && available(boy) ? event(a, "pc", { playing: true, round: 0, result: null }) : null;
+    if (ev) invite(boy, act("watchPc", watchPc, ev));
+    const end = t() + rnd(35, 60);
+    let momentAt = t() + rnd(4, 8);
+    a.hold = farm ? MOVES.mouse : null;
+    while (t() < end && !(a.interrupt && !ev)) {
+      if (t() > momentAt) {
+        momentAt = t() + rnd(6, 11);
+        const r = Math.random();
+        if (farm) {
+          a.pop(r < 0.5 ? "room-pop room-pop-sparkle" : "room-pop room-pop-star");
+          a.beHappy(1);
+        } else if (r < 0.35) {
+          a.hold = MOVES.clap; // a laugh
+          a.happy = true;
+          a.pop("room-pop room-pop-note");
+          yield* wait(a, 1.5);
+        } else if (r < 0.6) {
+          a.hold = HOLDS.chin; // a twist!
+          a.pop("room-pop room-pop-question");
+          yield* wait(a, 1.8);
+        } else if (r < 0.85) {
+          a.happy = true; // the couple at last
+          a.pop();
+          yield* wait(a, 1.4);
+        } else {
+          a.nod = -0.1; // a tear
+          a.pop("room-pop room-pop-drop");
+          yield* wait(a, 1.8);
+        }
+        Object.assign(a, { happy: false, hold: farm ? MOVES.mouse : null });
+      }
+      a.nod = 0.08 + 0.03 * Math.sin(t() * 0.8);
+      yield;
+    }
+    if (ev) ev.playing = false;
+    house.pc.set("off", t());
+    Object.assign(a, { look: null, nod: 0, hold: null });
+    yield* getUp(a);
+    house.pc.sitter = null;
   }
 
   // Up to the loft to watch him play: beside his chair, eyes on the screen, clapping when he wins.
@@ -1066,7 +1171,7 @@ export function makeActs(home, life) {
     a.lie = false;
   }
 
-  // The garden (by day): the basket first if it was left out, with whatever is in it; then whatever is ripe,
+  // The garden: the basket first if it was left out, with whatever is in it; then whatever is ripe,
   // picked into the basket and taken straight to the fridge; else a bed picked clean sown again; else the
   // dry beds watered.
   function* garden(a) {
@@ -1083,8 +1188,9 @@ export function makeActs(home, life) {
 
   // Harvest: the basket from by the garden door (or wherever it was left), set down at each plant of bed `i`
   // in turn while they pick it clean, the dog maybe sitting on the path to watch; then in through the door
-  // with it, straight to the fridge, the empty basket back out by the door, and the bed sown again. Cut
-  // short, the basket is left where it is, or put down where they stand, for whoever comes for it next.
+  // with it, straight to the fridge, the empty basket back out by the door, and the bed sown again. Fruit is
+  // washed and eaten together instead, the basket left by the sink. Cut short, the basket is left where it
+  // is, or put down where they stand, for whoever comes for it next.
   function* harvest(a, i) {
     const { basket } = house.garden;
     if (!claim(a, "basket")) return;
@@ -1092,7 +1198,13 @@ export function makeActs(home, life) {
     yield* takeBasket(a);
     if (i !== null) yield* pickBed(a, i);
     release(a, "garden");
-    if (basket.bunches.length) yield* toFridge(a);
+    // The fruit (of one kind) to wash and eat together; the rest, vegetables and all, into the fridge (the
+    // fruit too, if asked to wrap up).
+    const fruit = a.interrupt ? null : basket.bunches.find((b) => VEG[b.kind].fruit)?.kind ?? null;
+    if (basket.bunches.some((b) => b.kind !== fruit)) yield* toFridge(a, fruit);
+    if (fruit) return yield* fruitTime(a, fruit); // and that is enough for now: the basket waits by the sink
+    if (a.interrupt) return; // asked to wrap up: the empty basket waits where it is, for next time
+    if (basket.carrier !== a) yield* takeBasket(a);
     yield* walk(a, basket.homeStand);
     yield* bend(a, basket.homeAt, () => {
       basket.goHome();
@@ -1103,7 +1215,7 @@ export function makeActs(home, life) {
     // Back out in the garden with the basket: on to sow a bed picked clean (the one just picked, if it was).
     const g = house.garden;
     const next = i !== null && g.spent(i) ? i : [0, 1, 2, 3].find(g.spent);
-    if (next !== undefined && !home.night && !gardenWet() && claim(a, "garden")) yield* sow(a, next);
+    if (next !== undefined && !gardenWet() && !a.interrupt && claim(a, "garden")) yield* sow(a, next); // asked to wrap up: next time
   }
   // A point `d` to the right of `a` (the hand things are set down with), or at its feet if that is no place.
   const atHand = (a, d) => {
@@ -1329,8 +1441,9 @@ export function makeActs(home, life) {
     yield* wait(a, 0.15);
   }
   // The basket in to the fridge: set down at their feet, the door opened, and kneeling, each bunch from it
-  // into the crisper; then the door shut, and the basket taken up again.
-  function* toFridge(a) {
+  // into the crisper (but any of `keep`, fruit for the table); then the door shut, and the basket taken up
+  // again.
+  function* toFridge(a, keep = null) {
     const g = house.garden;
     const { basket } = g;
     const { fridge } = spots;
@@ -1347,11 +1460,11 @@ export function makeActs(home, life) {
     yield* wait(a, 0.5);
     a.lie = true;
     yield* wait(a, 0.3);
-    while (basket.bunches.length) {
+    for (let bunch; (bunch = basket.bunches.find((b) => b.kind !== keep)); ) {
       a.look = [basket.at[0], 2, basket.at[1]];
       a.hold = HOLDS.drop;
       yield* wait(a, 0.35);
-      const bunch = basket.bunches.shift();
+      basket.bunches.splice(basket.bunches.indexOf(bunch), 1);
       basket.refill();
       a.props.holdPiece(bunch.pieces[0]);
       a.props.only("piece");
@@ -1368,6 +1481,68 @@ export function makeActs(home, life) {
     release(a, "fridge");
     a.beHappy(1);
     yield* basketUp(a);
+  }
+
+  // Fruit from the garden (`kind`, its bunches in the basket), for the two of them: at the sink, the basket
+  // set down, the fruit out of it into the sink and rinsed under the tap, a watermelon cut into slices, all
+  // on a plate (strawberries in a bowl) and to the table, the other called over to eat it together. The
+  // basket waits by the sink till after.
+  const ON_PLATE = { strawberry: [3, 8], watermelon: [6, 6] }; // pieces on the plate, at least and at most
+  function* fruitTime(a, kind) {
+    const { basket } = house.garden;
+    const { sink } = spots;
+    if (!claim(a, "sink")) {
+      yield* walk(a, [sink.at[0] + 4, sink.at[1] + 16]);
+      yield* turn(a, sink.yaw);
+      if (!(yield* until(() => claim(a, "sink"), 30))) return;
+    }
+    onEnd(a, () => Object.assign(house.sink, { running: false, fruit: null }));
+    yield* walk(a, sink.at);
+    yield* turn(a, sink.yaw);
+    yield* basketDown(a, atHand(a, 6));
+    a.look = [basket.at[0], 2, basket.at[1]];
+    a.hold = HOLDS.drop;
+    yield* wait(a, 0.4);
+    const bunches = basket.bunches.filter((b) => b.kind === kind);
+    basket.bunches = basket.bunches.filter((b) => b.kind !== kind);
+    basket.refill();
+    const picked = bunches.reduce((n, b) => n + b.pieces.length, 0);
+    const big = VEG[kind].heavy;
+    a.props.holdPiece(bunches[0].pieces[0], big);
+    a.props.only(big ? "armful" : "piece");
+    a.hold = big ? HOLDS.tray : HOLDS.carry;
+    yield* wait(a, 0.4);
+    a.look = sink.basin;
+    a.hold = HOLDS.pick;
+    yield* wait(a, 0.4);
+    a.props.only();
+    house.sink.fruit = kind;
+    // Under the running tap, turned over in the hands, till it shines.
+    house.sink.running = true;
+    a.hold = MOVES.rinse;
+    yield* wait(a, rnd(2.6, 3.4));
+    home.popAt(sink.basin, "room-pop room-pop-sparkle");
+    house.sink.running = false;
+    a.hold = MOVES.shake;
+    yield* wait(a, 0.6);
+    if (kind === "watermelon") {
+      a.props.only("knife");
+      a.hold = MOVES.chop;
+      yield* wait(a, 2.4);
+      a.props.only();
+    }
+    a.hold = HOLDS.pick;
+    yield* wait(a, 0.5);
+    house.sink.fruit = null;
+    const [lo, hi] = ON_PLATE[kind];
+    const left = clamp(picked, lo, hi);
+    a.props.plate(kind, left);
+    a.props.only(kind);
+    a.hold = HOLDS.tray;
+    a.beHappy(1);
+    release(a, "sink");
+    yield* wait(a, 0.4);
+    yield* meal(a, kind, left);
   }
 
   // Sowing bed `i`, picked clean: a packet of seeds of something none of the beds has, its marker painted for
@@ -1440,7 +1615,7 @@ export function makeActs(home, life) {
     a.beHappy(1.5);
     home.popAt(sp.mid, "room-pop room-pop-sparkle");
     yield* wait(a, 0.5);
-    if (!gardenWet()) yield* waterBeds(a, [i]);
+    if (!gardenWet() && !a.interrupt) yield* waterBeds(a, [i]);
   }
   function* waterBeds(a, beds) {
     const { garden: g } = house;
@@ -1479,23 +1654,20 @@ export function makeActs(home, life) {
 
   /* ----- the sprinkler ----- */
 
-  // The sprinkler (by day, out of the rain): on at the tap by the garden door, and a happy look at the jet
-  // going round over the beds. Now and then its head was left facing the tap, and the jet comes straight at
-  // them: hands over the head, they run over through it to turn the head round, then stand shaking the water
-  // off their hands, dripping (and leave wet footprints indoors).
+  // The sprinkler (by day, out of the rain): kneeling at the pump by the garden wall, its switch pressed,
+  // and a happy look at the jet going round over the beds as the pump hums. Now and then its head was left
+  // facing the pump, and the jet comes straight at them: up, hands over the head, they run over through it
+  // to turn the head round, then stand shaking the water off their hands, dripping (and leave wet footprints
+  // indoors).
   function* sprinkle(a) {
     if (sprinkler.on || !claim(a, "sprinkler")) return;
     onEnd(a, () => sprinkler.wrong && sprinkler.fix()); // never left soaking the tap
     const { tap, fix, head, tap3 } = sprinkler.spots;
     yield* walk(a, tap.at);
-    yield* turn(a, tap.yaw);
-    a.look = tap3;
-    a.hold = MOVES.twist;
-    yield* wait(a, 0.9);
-    a.hold = null;
-    sprinkler.start(t(), Math.random() < 0.3);
+    yield* pressSwitch(a, tap, tap3, () => sprinkler.start(t(), Math.random() < 0.3));
     a.look = head;
     if (sprinkler.wrong) {
+      a.lie = false;
       yield* until(() => a.wet > 0.12, 2.5);
       a.pop("room-pop room-pop-drop");
       a.hold = MOVES.flail;
@@ -1520,6 +1692,7 @@ export function makeActs(home, life) {
       yield* wait(a, 1);
     } else {
       yield* wait(a, 1.6);
+      a.lie = false;
       a.pop();
       a.beHappy(1.5);
       yield* wait(a, 1.2);
@@ -1528,19 +1701,28 @@ export function makeActs(home, life) {
     release(a, "sprinkler");
     yield* walk(a, spots.gardenDoor.inside); // in, out of the way of the spray
   }
-  // Off again at the tap, once it has run a while (life.js sends someone).
+  // Kneeling to the pump's switch (`tap`, looking at it at `at`), pressed, and `then()` as it clicks over.
+  function* pressSwitch(a, tap, at, then) {
+    yield* turn(a, tap.yaw);
+    a.lie = true;
+    a.look = at;
+    yield* wait(a, 0.35);
+    a.hold = MOVES.press;
+    a.since = t();
+    yield* wait(a, 0.45);
+    then();
+    yield* wait(a, 0.35);
+    a.hold = null;
+  }
+  // Off again at the pump, once it has run a while (life.js sends someone).
   function* sprinklerOff(a) {
     if (!sprinkler.on || !claim(a, "sprinkler")) return;
     const { tap, tap3 } = sprinkler.spots;
     const rain = () => home.weather.raining;
     if (rain()) a.hold = MOVES.flail; // out into it, hands over the head
     yield* walk(a, tap.at, rain() ? 1.8 : 1);
-    yield* turn(a, tap.yaw);
-    a.look = tap3;
-    a.hold = MOVES.twist;
-    yield* wait(a, 0.9);
-    sprinkler.stop(t());
-    a.hold = null;
+    yield* pressSwitch(a, tap, tap3, () => sprinkler.stop(t()));
+    a.lie = false;
     a.look = null;
     release(a, "sprinkler");
     if (rain()) return yield* shelter(a);
@@ -1626,6 +1808,7 @@ export function makeActs(home, life) {
     }
     const ev = event(a, "walk", { party: [], ready: new Set() });
     for (const m of party) if (m.who === a || invite(m.who, act("walk", walkAlong, ev, m))) ev.party.push(m);
+    yield* takeKeys(a);
     yield* lineUp(
       a,
       ev,
@@ -1702,7 +1885,43 @@ export function makeActs(home, life) {
     shakers.forEach((w) => (w.hold = null));
     ev.over = true;
     if (a.umbrella) yield* stowUmbrella(a);
+    yield* putKeys(a);
     walked.forEach((p) => later(a, act("pet", petPet, p))); // well done
+  }
+  // The house keys off the counter and into a pocket, for whoever leads the walk; back on the counter after
+  // (and back there, however the walk ends).
+  function* takeKeys(a) {
+    if (!house.keys.home) return;
+    const { at, yaw, on } = spots.keys;
+    yield* walk(a, at);
+    yield* turn(a, yaw);
+    a.look = on;
+    a.hold = HOLDS.pick;
+    yield* wait(a, 0.5);
+    house.keys.home = false;
+    onEnd(a, () => (house.keys.home = true));
+    a.props.only("keys");
+    a.hold = HOLDS.carry;
+    a.look = null;
+    yield* wait(a, 0.5);
+    a.props.only(); // in the pocket
+    a.hold = null;
+  }
+  function* putKeys(a) {
+    if (house.keys.home) return;
+    const { at, yaw, on } = spots.keys;
+    yield* walk(a, at);
+    yield* turn(a, yaw);
+    a.props.only("keys");
+    a.hold = HOLDS.carry;
+    yield* wait(a, 0.4);
+    a.look = on;
+    a.hold = HOLDS.pick;
+    yield* wait(a, 0.4);
+    house.keys.home = true;
+    a.props.only();
+    a.hold = null;
+    a.look = null;
   }
   // Their umbrella off the rack by the door (if it is there); put back however the walk ends.
   function* takeUmbrella(a) {
@@ -2083,13 +2302,16 @@ export function makeActs(home, life) {
     }
   }
 
-  // Feed a hungry pet: the bag from the counter, then kneel by the bowl and pour; maybe a stroke after.
+  // Feed a hungry pet: the bag from the cupboard under the counter, then kneel by the bowl and pour; maybe a
+  // stroke after.
   function* feed(a, p) {
     if (p.feeder !== a) return;
+    a.petAgainAt = t() + rnd(...PET_AGAIN);
     onEnd(a, () => p.feeder === a && (p.feeder = null));
-    yield* walk(a, spots.tin.at);
-    yield* turn(a, spots.tin.yaw);
-    a.hold = HOLDS.reach;
+    if (a.seated) yield* getUp(a); // dropped what they were doing on a seat
+    yield* walk(a, spots.foodBag.at);
+    yield* turn(a, spots.foodBag.yaw);
+    a.hold = HOLDS.pick;
     yield* wait(a, 0.6);
     a.props.only("bag");
     a.hold = HOLDS.carry;
@@ -2529,13 +2751,14 @@ export function makeActs(home, life) {
     read: () => !holder("book"),
     water: () => !holder("plant"),
     pc: (a) => a.name === "boy" && !holder("pc") && !holder("chair"),
+    pcGirl: (a) => a.name === "girl" && !holder("pc") && !holder("chair"),
     watchPc: (a) => a.name === "girl" && playing() && !holder("watchPc"),
     laptop: () => !holder("laptop") && freeSeat(),
     game: (a) => available(other(a)) && !holder("sofa1") && (!holder("sofa0") || !holder("sofa2")),
     chat: (a) => available(other(a)),
     walk: () => available(byName.collie) && !home.actors.some((o) => o.out || o.event?.kind === "walk"),
     fetch: () => byName.collie && available(byName.collie) && home.ball.landed() && !holder("ball"),
-    pet: () => pets.some((p) => available(p) && p.above() < 0.5),
+    pet: (a) => t() > (a.petAgainAt ?? 0) && pets.some((p) => available(p) && p.above() < 0.5),
     stretch: () => true,
     stroll: () => true,
     rest: () => true,
@@ -2556,7 +2779,6 @@ export function makeActs(home, life) {
       const g = house.garden;
       const beds = [0, 1, 2, 3];
       return (
-        !home.night &&
         !gardenWet() &&
         !holder("garden") &&
         ((!holder("basket") && (g.basket.out() || beds.some(g.ripe))) || beds.some((i) => g.spent(i) || g.thirsty(i)))
@@ -2584,6 +2806,7 @@ export function makeActs(home, life) {
       !holder("splash"),
   };
   const petAPet = function* (a) {
+    a.petAgainAt = t() + rnd(...PET_AGAIN);
     yield* petPet(a, pick(pets.filter((p) => available(p) && p.above() < 0.5)));
   };
   const runs = {
@@ -2596,6 +2819,7 @@ export function makeActs(home, life) {
     read,
     water,
     pc,
+    pcGirl,
     watchPc: (a) => watchPc(a),
     laptop,
     game,

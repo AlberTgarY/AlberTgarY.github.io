@@ -4,7 +4,9 @@
  * own little lives in voxels with real depth (assets/js/pets/room/room.js).
  * Clicking someone says hi (or wakes them); they look round at the pointer.
  * Clicking the girl's dressing corner, up in the loft, asks what she should
- * wear, and she goes to change into it. Styles are in _sass/_playground.scss.
+ * wear, and she goes to change into it. Clicking the curtains draws them,
+ * clicking the fridge opens it, and clicking a lamp switches it on or off.
+ * Styles are in _sass/_playground.scss.
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -43,22 +45,26 @@ function start() {
     const r = view.canvas.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top];
   };
-  let overCloset = false;
+  let overThing = false; // the mouse over the dressing corner or something to switch
   window.addEventListener("pointermove", (e) => {
     [pointer.x, pointer.y] = toCanvas(e);
     pointer.seen = true;
     pointer.mouse = e.pointerType === "mouse";
     pointer.movedAt = room.home.clock.t;
-    overCloset = pointer.mouse && e.target === view.canvas && room.onCloset(pointer.x, pointer.y);
+    overThing = pointer.mouse && e.target === view.canvas && (room.onCloset(pointer.x, pointer.y) || !!room.thingAt(pointer.x, pointer.y));
   });
   // Clicking the dressing corner opens the picker, or closes it again if it is open; clicking someone in
   // front of it says hi instead.
   const closetAt = (x, y) => !room.hit(x, y) && room.onCloset(x, y);
   const picker = outfitPicker(stage, room, (e) => e.target === view.canvas && closetAt(...toCanvas(e)));
+  // Clicking someone says hi; the dressing corner asks what she should wear; the curtains, the fridge and
+  // the lamps open, shut or switch.
   view.canvas.addEventListener("click", (e) => {
     const [x, y] = toCanvas(e);
-    if (closetAt(x, y)) picker.toggle(x, y);
-    else room.hit(x, y)?.cheer();
+    const who = room.hit(x, y);
+    if (who) who.cheer();
+    else if (room.onCloset(x, y)) picker.toggle(x, y);
+    else room.thingAt(x, y)?.toggle();
   });
 
   let onScreen = true;
@@ -81,18 +87,21 @@ function start() {
     last = now;
     if (document.hidden || !onScreen) return;
     const hovered = room.step(dt);
-    document.documentElement.classList.toggle("pet-hover", !!hovered || overCloset);
+    document.documentElement.classList.toggle("pet-hover", !!hovered || overThing);
   }
   requestAnimationFrame(frame);
 }
 
 // The little panel that asks what she should wear: a button for each of her looks, with a picture of her
-// in it, the one she has on (or is about to put on) marked. It opens out from where it was clicked and
-// fades away again. At night she changes in the morning. `toggles(e)` says whether a press outside it is
-// on what toggles it, which then closes it with its click rather than the press closing it first.
+// in it, the one she has on (or is about to put on) marked. Three show at a time on a strip that the
+// arrows either side turn one look along, round and round. It opens out from where it was clicked, with
+// her current look in the middle, and fades away again. At night she changes in the morning.
+// `toggles(e)` says whether a press outside it is on what toggles it, which then closes it with its click
+// rather than the press closing it first.
 const PIC = [64, 84]; // CSS px of a look's picture
 
 function outfitPicker(stage, room, toggles) {
+  const SHOWN = 3; // looks in view at once (the picker runs before module constants down here are set)
   const panel = document.createElement("div");
   panel.className = "outfit-picker";
   panel.setAttribute("role", "dialog");
@@ -106,7 +115,6 @@ function outfitPicker(stage, room, toggles) {
   const buttons = LOOKS.map((look, k) => {
     const b = document.createElement("button");
     b.type = "button";
-    b.style.setProperty("--k", k); // for the buttons coming in one after another
     const pic = Object.assign(document.createElement("span"), { className: "outfit-picker-pic" });
     b.append(pic, Object.assign(document.createElement("span"), { textContent: look.name }));
     b.addEventListener("click", (e) => {
@@ -115,14 +123,46 @@ function outfitPicker(stage, room, toggles) {
       mark();
       closing = setTimeout(close, 140); // a moment to see it picked
     });
+    // Tabbing or arrowing onto a look out of view turns the strip to it.
+    b.addEventListener("focus", () => reveal(k));
+    b.addEventListener("keydown", (e) => {
+      const step = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+      if (!step) return;
+      const to = (k + step + LOOKS.length) % LOOKS.length;
+      buttons[to].focus({ preventScroll: true });
+      reveal(to);
+    });
     row.append(b);
     return b;
   });
+  const strip = Object.assign(document.createElement("div"), { className: "outfit-picker-strip" });
+  strip.append(row);
+  const arrow = (step, label, text) => {
+    const a = Object.assign(document.createElement("button"), { type: "button", className: "outfit-picker-arrow", textContent: text });
+    a.setAttribute("aria-label", label);
+    a.addEventListener("click", (e) => {
+      e.stopPropagation();
+      turn(start + step);
+    });
+    return a;
+  };
+  const wheel = Object.assign(document.createElement("div"), { className: "outfit-picker-wheel" });
+  wheel.append(arrow(-1, "Previous looks", "‹"), strip, arrow(1, "More looks", "›"));
+  wheel.classList.toggle("all-shown", LOOKS.length <= SHOWN);
   const note = document.createElement("p");
   note.className = "outfit-picker-note";
   note.textContent = "It's night: she'll change in the morning.";
-  panel.append(title, row, note);
+  panel.append(title, wheel, note);
   stage.append(panel);
+
+  // The first look in view; turning past either end comes round to the other.
+  let start = 0;
+  const stops = Math.max(1, LOOKS.length - SHOWN + 1);
+  function turn(to) {
+    start = (to + stops) % stops;
+    row.style.setProperty("--start", start);
+  }
+  const reveal = (k) => (k < start || k >= start + SHOWN) && turn(k < start ? k : k - SHOWN + 1);
 
   let pictured = false;
   let closing = 0;
@@ -154,14 +194,21 @@ function outfitPicker(stage, room, toggles) {
       picture();
       mark();
       note.hidden = !room.home.night;
+      // Her current look in the middle, already in place as it opens; the looks in view come in one after
+      // another.
+      const on = buttons.findIndex((b) => b.getAttribute("aria-pressed") === "true");
+      row.style.transition = "none";
+      turn(Math.max(0, Math.min(on - 1, stops - 1)));
+      buttons.forEach((b, k) => b.style.setProperty("--k", Math.max(0, k - start)));
       const w = panel.offsetWidth;
+      row.style.transition = "";
       const h = panel.offsetHeight;
       const left = Math.max(8, Math.min(x - w / 2, room.view.W - w - 8));
       const top = Math.max(8, Math.min(y + 16, room.view.H - h - 8));
       Object.assign(panel.style, { left: `${left}px`, top: `${top}px`, transformOrigin: `${x - left}px ${y - top}px` });
       panel.inert = false;
       panel.classList.add("open");
-      buttons.find((b) => b.getAttribute("aria-pressed") === "true").focus({ preventScroll: true });
+      buttons[on].focus({ preventScroll: true });
       setTimeout(() => {
         document.addEventListener("pointerdown", outside, true);
         document.addEventListener("keydown", onKey);

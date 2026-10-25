@@ -16,8 +16,10 @@
  * The director, run every frame, looks after what belongs to no one: the TV,
  * the fridge's doors and the quilt, who sits beside whom on the sofa, the pets
  * getting hungry and being fed, the cat's mischief while they are all out, the
- * girl going to change into what a visitor picked for her, and someone going
- * to turn the garden's sprinkler off once it has run a while.
+ * girl going to change into what a visitor picked for her, someone going to
+ * turn the garden's sprinkler off once it has run a while, and the day's
+ * rhythm (ROUTINE): the dog walked, a meal made and the garden seen to every
+ * so often, by whoever is free when it is due.
  ******************************************************************************/
 
 import { rnd, pick } from "../stage.js";
@@ -40,6 +42,7 @@ const MENUS = {
     chat: 7,
     game: 5,
     watchPc: 6,
+    pcGirl: 6,
     nap: 6,
     stroll: 8,
     stretch: 4,
@@ -48,7 +51,7 @@ const MENUS = {
     garden: 9,
     sprinkle: 5,
     fire: 5,
-    sleep: 40,
+    sleep: 16,
   },
   boy: {
     pc: 18,
@@ -69,7 +72,7 @@ const MENUS = {
     garden: 7,
     sprinkle: 5,
     fire: 6,
-    sleep: 30,
+    sleep: 12,
   },
   collie: { bed: 15, rug: 14, stroll: 14, zoomies: 7, visit: 14, sniff: 6, sunbathe: 8, splash: 20, fireside: 14, rest: 30 },
   cat: { nap: 22, perch: 10, climb: 12, groom: 12, stroll: 10, visit: 10, cuddle: 6, tower: 8, chase: 8, fireside: 12, rest: 18 },
@@ -93,11 +96,22 @@ const NIGHT = {
 // The dog still needs her walk, rain or not.
 const RAIN = { fire: 2.5, fireside: 1.6, read: 1.5, nap: 1.6, tv: 1.3, perch: 2.5, bed: 1.3 };
 const LONGEST = 300; // s any one activity may run
+// What is never dropped for a hungry pet: changing clothes, feeding, running in from the rain, the cat's mess.
+const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff"];
+// The day's rhythm: what comes round every so often (s, at random between the two) whatever anyone's tastes,
+// each due that long after it was last done (by anyone, asked or not). A meal is either of them cooking, or
+// one of them baking.
+const ROUTINE = [
+  { names: ["walk"], every: [300, 480] },
+  { names: ["cook", "bake"], every: [420, 660] },
+  { names: ["garden"], every: [150, 270] },
+];
 
 export function makeLife(home) {
   const { clock, actors, humans, pets, house } = home;
   const claims = new Map(); // place -> the actor using it
   const t = () => clock.t;
+  const due = new Map(ROUTINE.map((r) => [r, t() + rnd(...r.every) / 2])); // when each part of the rhythm comes round
 
   /* ---------- places ---------- */
 
@@ -123,6 +137,8 @@ export function makeLife(home) {
     return ev;
   }
 
+  // Doing something with the other person (or they are about to join in); a pet watching does not count.
+  const together = (a) => !!a.event && humans.some((h) => h !== a && (h.event === a.event || h.pending?.ev === a.event));
   // Free to be asked: home, awake, not hungry or busy with someone, and idle or doing something calm.
   const available = (a) => !!a && !a.out && !a.asleep && !a.hungry && !a.event && !a.pending && !a.queue.length && (!a.job || a.calm);
 
@@ -140,6 +156,7 @@ export function makeLife(home) {
   const onEnd = (a, fn) => a.cleanups.push(fn);
 
   function start(a, todo) {
+    for (const r of ROUTINE) if (r.names.includes(todo.name)) due.set(r, t() + rnd(...r.every));
     a.pending = null;
     a.interrupt = false;
     a.woken = false;
@@ -149,8 +166,9 @@ export function makeLife(home) {
     a.job = todo.run(a);
   }
 
-  // The activity is over: put things away, give places back, end what it hosted, and stand normally.
-  function finish(a, broken) {
+  // The activity is over: put things away, give places back, end what it hosted, and stand normally. With
+  // `rise`, someone seated stays on the seat, to get up from it themselves (drop()).
+  function finish(a, broken, rise = false) {
     a.job = null;
     a.cleanups.splice(0).forEach((fn) => fn());
     for (const [key, holder] of claims) if (holder === a) claims.delete(key);
@@ -191,7 +209,8 @@ export function makeLife(home) {
     ["want", "mood", "say"].forEach((c) => a.show(c, null));
     // Only a broken activity can leave someone up on the furniture, in bed or out of the house: put them
     // back on the floor, inside.
-    if (broken || a.above() > 0.01 || a.seated || a.abed || a.out) {
+    const stay = rise && a.seated && !a.abed && !a.out;
+    if (!stay && (broken || a.above() > 0.01 || a.seated || a.abed || a.out)) {
       a.seated = false;
       a.abed = false;
       if (a.ground) [a.x, a.z] = a.ground;
@@ -199,7 +218,7 @@ export function makeLife(home) {
       a.y = house.floorY(a.x, a.z);
       a.out = false;
     }
-    a.ground = null;
+    if (!stay) a.ground = null;
     a.seatKey = null;
     a.rig.group.visible = true;
     // Soon on to something else if it could not be done at all, or to get out of the way.
@@ -245,6 +264,23 @@ export function makeLife(home) {
     finish(a, broken);
   }
 
+  // Someone to drop what they are doing for `todo`, which cannot wait: of those home, awake and out of bed,
+  // one busy on their own rather than with the other, if there is one. What they were doing ends where it is
+  // (its things put back, as when anything is cut short); what they were next asked to do still waits.
+  function drop(todo) {
+    const busy = humans.filter((h) => !h.out && !h.asleep && !h.abed && !NO_DROP.includes(h.jobName) && h.pending?.name !== "feed");
+    const a = busy.find((h) => !together(h)) || busy[0];
+    if (!a) return null;
+    const { pending } = a;
+    if (a.job) {
+      a.job.return();
+      finish(a, false, true);
+    }
+    start(a, todo);
+    a.pending = pending;
+    return a;
+  }
+
   /* ---------- the director ---------- */
 
   let hungerAt = t() + rnd(60, 120);
@@ -255,7 +291,7 @@ export function makeLife(home) {
   function direct() {
     // The girl goes to change into what a visitor picked for her (by day) as the next thing she does,
     // before anything she was only asked to do: at once if she is free or doing something that can be cut
-    // short, else as soon as she is done. Never in the middle of something done with someone else.
+    // short, else as soon as she is done. Never in the middle of something done with him.
     const girl = home.byName.girl;
     if (home.outfit.want !== null && !home.night && girl.jobName !== "dress" && !girl.out) {
       if (girl.pending?.name !== "dress" && !girl.pending?.ev) {
@@ -263,7 +299,7 @@ export function makeLife(home) {
         if (!girl.job) start(girl, todo);
         else girl.pending = todo;
       }
-      if (girl.pending?.name === "dress" && girl.calm && !girl.event) girl.interrupt = true; // wrap up as soon as she can
+      if (girl.pending?.name === "dress") girl.interrupt = !together(girl); // wrap up as soon as she can, if on her own
     }
 
     // The TV is on while someone sits watching (or playing), the controllers in their hands; the fridge
@@ -288,21 +324,22 @@ export function makeLife(home) {
     }
 
     // Now and then a pet gets hungry, if someone is home and awake to feed it, and goes to wait by its
-    // bowl; the first person free goes and feeds it.
+    // bowl; the first person free goes and feeds it, or if neither is, one of them drops what they are doing.
     const awake = humans.filter((h) => !h.out && !h.asleep);
     if (t() > hungerAt) {
       const ready = pets.filter((p) => p.rig.eats && available(p));
       if (!awake.length || pets.some((p) => p.jobName === "hungry") || !ready.length) hungerAt = t() + 10;
       else {
         invite(pick(ready), act("hungry", home.acts.hungry.run));
-        hungerAt = t() + rnd(150, 260);
+        hungerAt = t() + rnd(330, 510);
       }
     }
     for (const p of pets) {
       if (p.feeder && p.feeder.jobName !== "feed" && p.feeder.pending?.name !== "feed") p.feeder = null;
       if (p.hungry && !p.feeder) {
+        const todo = act("feed", home.acts.feed.run, p);
         const h = awake.find(available);
-        if (h && invite(h, act("feed", home.acts.feed.run, p))) p.feeder = h;
+        p.feeder = h ? (invite(h, todo) ? h : null) : drop(todo);
       }
     }
 
@@ -311,9 +348,19 @@ export function makeLife(home) {
     const sprinkler = house.garden.sprinkler;
     if (sprinkler.on && t() > sprinkler.offAt && !holder("sprinkler")) {
       const h = awake.find(available);
-      if (h && invite(h, act("sprinklerOff", home.acts.sprinklerOff.run))) sprinkler.offAt = t() + 60;
+      if (h && invite(h, act("sprinklerOff", home.acts.sprinklerOff.run))) sprinkler.offAt = t() + 30;
     }
-    if (sprinkler.on && t() - sprinkler.since > 240) sprinkler.stop(t());
+    if (sprinkler.on && t() - sprinkler.since > 100) sprinkler.stop(t());
+
+    // The day's rhythm: whatever is due goes to whoever is free and can do it (the two of them in turn, so it
+    // is not always the same one); if no one can just now, it is looked at again a little later.
+    for (const r of ROUTINE) {
+      if (t() < due.get(r)) continue;
+      const free = [...awake].sort(() => Math.random() - 0.5).filter(available);
+      const pair = free.flatMap((h) => r.names.filter((name) => home.acts[name].can(h)).map((name) => [h, name]))[0];
+      const asked = pair && invite(pair[0], act(pair[1], home.acts[pair[1]].run));
+      due.set(r, t() + (asked ? rnd(...r.every) : 10));
+    }
 
     // Rain comes when it will: whoever it catches out in the garden drops what they are doing and runs in
     // (what they were next asked to do still waits for them).

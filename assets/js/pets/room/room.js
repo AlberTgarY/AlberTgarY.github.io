@@ -3,8 +3,8 @@
  * (view.js), the four of them (actor.js) and what they pick up (props.js), the
  * girl's other clothes (girl-outfits.js), the ball, the water (water.js: the
  * sprinkler, the rain, the watering can, drips off anyone soaked), the weather
- * (weather.js), wet footprints (prints.js), the dog's lead and her raincoat, and
- * their lives (life.js, acts.js). `step(dt)` moves it all on by dt seconds and
+ * (weather.js), wet footprints (prints.js), the dog's lead and her raincoat, the
+ * reflection in her mirror (mirror.js), and their lives (life.js, acts.js). `step(dt)` moves it all on by dt seconds and
  * draws it.
  ******************************************************************************/
 
@@ -16,6 +16,7 @@ import { makeWeather } from "./weather.js";
 import { makePrints } from "./prints.js";
 import { part, ellipsoid } from "../models/voxels.js";
 import { makeView } from "./view.js";
+import { makeMirror } from "./mirror.js";
 import { makeNav } from "./nav.js";
 import { makeActor } from "./actor.js";
 import { propsFor, buildBall, buildLaptop } from "./props.js";
@@ -59,6 +60,7 @@ export function makeRoom(stage) {
     return floorY(x, z) - 0.5;
   });
   house = buildHouse(scene, water);
+  const drawReflection = makeMirror(house.closet.glass, view, scene);
 
   const clock = { t: 0, dt: 0 };
   const pointer = { x: 0, y: 0, seen: false, mouse: false, movedAt: -Infinity };
@@ -248,6 +250,29 @@ export function makeRoom(stage) {
     raycaster.setFromCamera(ndc, view.camera);
     return raycaster.intersectObjects(house.closet.parts, true).length > 0;
   };
+  // What at canvas px (x, y) can be clicked to switch or open (house.js's clickables), if it is the first
+  // thing seen there: not behind the bed or the sofa, say (glass and the like do not hide it).
+  const owners = new Map(house.clickables.flatMap((c) => c.parts.map((p) => [p, c])));
+  const ownerOf = (object) => {
+    for (let o = object; o; o = o.parent) if (owners.has(o)) return owners.get(o);
+    return null;
+  };
+  const shown = (object) => {
+    for (let o = object; o; o = o.parent) if (!o.visible) return false;
+    return true;
+  };
+  const thingAt = (x, y) => {
+    ndc.set((x / view.W) * 2 - 1, 1 - (y / view.H) * 2);
+    raycaster.setFromCamera(ndc, view.camera);
+    const [first] = raycaster.intersectObjects([...owners.keys()], true);
+    if (!first) return null;
+    raycaster.far = first.distance - 0.5;
+    const hidden = raycaster
+      .intersectObject(scene, true)
+      .some(({ object }) => object.isMesh && !object.material.transparent && shown(object) && !ownerOf(object));
+    raycaster.far = Infinity;
+    return hidden ? null : ownerOf(first.object);
+  };
 
   return {
     home,
@@ -255,6 +280,7 @@ export function makeRoom(stage) {
     pointer,
     hit,
     onCloset,
+    thingAt,
     // A visitor's pick of what she should wear (girl-outfits.js's LOOKS): changing into it is the next thing
     // she does, by day (at night, in the morning); a new pick while she is on her way to change, she follows,
     // and one while she is changing is for next time. Picking what she has on (or is changing into) calls off
@@ -298,14 +324,16 @@ export function makeRoom(stage) {
       water.update(dt);
       prints.update();
       // Rain greys the light and the view out, and sends the butterfly and the fireflies to shelter.
-      house.rain(weather.k, clock.t);
+      house.rain(weather.k, clock.t, weather.cloud, weather.sky);
       sky.intensity = light.sky * (1 - 0.3 * weather.k);
-      sun.intensity = light.sun * (1 - 0.7 * weather.k);
+      sun.intensity = light.sun * (1 - Math.max(0.7 * weather.k, 0.35 * weather.cloud));
       if (weather.k > 0.3) [house.garden.butterfly, ...house.garden.fireflies].forEach((m) => (m.visible = false));
       const hovered = pointer.mouse ? hit(pointer.x, pointer.y) : null;
       home.actors.forEach((a) => a.update(dt, a === hovered));
+      house.charger.plugged = home.laptopHome.visible;
       if (draw) {
         drawLeads();
+        drawReflection();
         view.render(scene);
       }
       return hovered;

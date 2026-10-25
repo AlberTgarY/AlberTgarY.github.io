@@ -1,5 +1,5 @@
 /*******************************************************************************
- * The vegetables in the playground's garden (house.js), eight kinds, each at
+ * The vegetables in the playground's garden (house.js), nine kinds, each at
  * three stages: just planted, growing, and ready to pick. No two plants are
  * quite alike: a builder is given the plant's own random numbers (`seeded`),
  * so one tomato vine is a little taller than the next, its fruit bigger or
@@ -69,6 +69,13 @@ export const VEG_COLORS = {
   pumpkinCreamDark: "#ddd0ae",
   pumpkinStem: "#7a6a3a",
   vegFlower: "#fbfaf2",
+  melonLeaf: "#4e9a3a",
+  melonVine: "#3d7a2c",
+  melonLight: "#9acb68",
+  melonDark: "#2f6e2a",
+  melonRed: "#ef4f5a",
+  melonRind: "#d9efb8",
+  melonSeed: "#2a2522",
   wicker: "#c08d58",
   wickerDark: "#9e6f40",
   packet: "#fbf6ea",
@@ -91,6 +98,10 @@ export function seeded(seed) {
 
 const between = (r, lo, hi) => lo + (hi - lo) * r();
 const leafy = (light, dark) => (x, y, z) => (hash(x, y, z) < 0.3 ? dark : light);
+// A watermelon lying along x with its middle at height `cy`, depth `cz`: dark and light green stripes running
+// from end to end, a little wavy.
+export const melonStripes = (cy, cz) => (x, y, z) =>
+  Math.floor((Math.atan2(y - cy, z - cz) + 0.35 * Math.sin(x * 1.3) + 4 * Math.PI) / (Math.PI / 5)) % 2 ? "melonLight" : "melonDark";
 
 // Up to `n` points from `make()`, none closer than `gap` to another.
 function spread(n, gap, make) {
@@ -282,6 +293,7 @@ export const VEG = {
   strawberry: {
     how: "pick",
     low: true,
+    fruit: true, // washed and eaten together at the table, not put in the fridge
     taste: true, // one goes in the mouth, not the basket
     sign: ["strawberry", "strawLeaf"],
     draw(p, s, r, fruit) {
@@ -401,6 +413,42 @@ export const VEG = {
     stored: (p, x, y) => {
       ellipsoid(p, [x + 2, y + 1.3, 4.5], [2.2, 1.4, 1.6], (vx) => ((vx - x) % 2 ? "pumpkinDark" : "pumpkin"));
       p.add(x + 2, y + 3, 4, "pumpkinStem");
+    },
+  },
+  // Watermelons: a trailing vine of deep-cut leaves with a curly tendril and a yellow flower, then one long
+  // round melon lying at the front, striped dark and light green, big or small. Lifted in both arms, and a
+  // fruit: washed, cut into slices and eaten together.
+  watermelon: {
+    how: "lift",
+    low: true,
+    heavy: true,
+    fruit: true,
+    sign: ["melonRed", "melonDark"],
+    draw(p, s, r, fruit) {
+      if (!s) return sprout(p, "melonLeaf", r);
+      const reach = s === 1 ? 2.8 : 3.8;
+      const leaves = s === 1 ? 3 : 5;
+      for (let k = 0; k < leaves; k++) {
+        const ang = Math.PI + (k / (leaves - 1)) * Math.PI + between(r, -0.3, 0.3);
+        const [lx, lz] = [Math.cos(ang) * reach, Math.sin(ang) * reach * 0.8];
+        box(p, [Math.round(lx / 2), Math.round(lx / 2)], [0, 1], [Math.round(lz / 2), Math.round(lz / 2)], "melonVine");
+        ellipsoid(p, [lx, between(r, 1.6, 2.6), lz], [1.9, 0.5, 1.7], (x, y, z) => (hash(x, y, z) < 0.25 ? "melonVine" : "melonLeaf"));
+      }
+      for (let k = 0; k < 4; k++) p.add(-Math.round(reach) - (k % 2), 1 + (k >> 1), 1 + (k % 2), "melonVine"); // the tendril
+      if (s === 1) {
+        flower(p, Math.round(between(r, -1, 1)), 3, 2);
+        p.add(0, 3, 2, "yellow");
+        ellipsoid(p, [between(r, -1.5, 1.5), 1, 3], [1.2, 0.9, 0.9], "melonLight");
+        return;
+      }
+      const q = fruit();
+      const [w, h] = [between(r, 3.1, 3.8), between(r, 2.1, 2.5)];
+      const cx = between(r, -1, 1);
+      ellipsoid(q, [cx, h, 3.2], [w, h, w * 0.75], melonStripes(h, 3.2));
+      q.add(Math.round(cx - w), Math.round(h), 3, "melonVine"); // the stalk
+    },
+    stored: (p, x, y) => {
+      ellipsoid(p, [x + 2, y + 1.4, 4.5], [2.4, 1.4, 1.5], melonStripes(y + 1.4, 4.5));
     },
   },
 };

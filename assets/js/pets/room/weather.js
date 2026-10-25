@@ -1,6 +1,7 @@
 /*******************************************************************************
- * The weather in the playground: now and then, by day or by night, it rains
- * for a minute or two. The windows and the open door show it (house.js), the
+ * The weather in the playground: now and then it clouds over for a while,
+ * and now and then, by day or by night, it rains for a minute or two (the TV
+ * forecast says which, screens.js). The windows and the open door show it (house.js), the
  * light goes grey (room.js), and over the garden the rain comes down in
  * streaks (water.js), splashing on the grass and the beds, watering them, and
  * filling little puddles on the stepping stones, rings spreading on them, that
@@ -31,6 +32,14 @@ export function makeWeather(scene, water) {
     raining: false,
     k: 0, // how hard it is raining, easing in and out
     wet: 0, // how wet the ground is
+    cloud: 0, // how cloudy it is, easing in and out: a cloudy spell now and then, and always when it rains
+    cloudy: false,
+    cloudUntil: 0,
+    cloudAt: rnd(60, 200),
+    // What the forecast should say: "sunny", "cloudy" or "rain".
+    get sky() {
+      return w.raining || w.k > 0.3 ? "rain" : w.cloud > 0.5 ? "cloudy" : "sunny";
+    },
     until: 0,
     nextAt: rnd(150, 300),
     // Rain now for `secs` (or stop with 0); for trying it out.
@@ -70,6 +79,15 @@ export function makeWeather(scene, water) {
     }
     if (w.raining && t > w.until) w.rain(t, 0);
     w.k += ((w.raining ? 1 : 0) - w.k) * (1 - Math.exp(-0.35 * dt));
+    if (!w.cloudy && t > w.cloudAt) {
+      w.cloudy = true;
+      w.cloudUntil = t + rnd(60, 150);
+    }
+    if (w.cloudy && t > w.cloudUntil) {
+      w.cloudy = false;
+      w.cloudAt = t + rnd(120, 300);
+    }
+    w.cloud += ((w.raining || w.cloudy ? 1 : 0) - w.cloud) * (1 - Math.exp(-0.25 * dt));
     w.wet = Math.min(1, Math.max(0, w.wet + (w.k > 0.3 ? dt / 25 : -dt / 140)));
 
     // The rain over the garden: streaks falling fast, a little slanted by the wind, already at full speed

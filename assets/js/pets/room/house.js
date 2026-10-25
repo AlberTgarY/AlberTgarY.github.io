@@ -29,11 +29,12 @@ import { part, ellipsoid, box, pivotGroup, hash, foodBowl, cells, smoothstep } f
 import { PROP_COLORS, sofaCorner } from "../models/girl-props.js";
 import { LOOKS, OUTFIT_PALETTE } from "../models/girl-outfits.js";
 import { pick } from "../stage.js";
-import { CHANNELS, GAMES, drawChannel, drawTvGame, drawPcGame } from "./screens.js";
-import { DISHES, buildDish } from "./props.js";
+import { CHANNELS, GAMES, drawChannel, drawTvGame, drawPcGame, drawPcDrama, drawSideShow } from "./screens.js";
+import { DISHES, FRUIT_DISHES, BOOKS, buildDish } from "./props.js";
 import { FOOD_COLORS, stockFridge, stockCrisper, shopCrisper, stockFreezer } from "./fridge-food.js";
-import { VEG, KINDS, VEG_COLORS, seeded, extent, basketPart, fillBasket } from "./veg.js";
+import { VEG, KINDS, VEG_COLORS, seeded, extent, basketPart, fillBasket, melonStripes } from "./veg.js";
 import { buildSprinkler } from "./sprinkler.js";
+import { makeViews } from "./views.js";
 
 export const X0 = -150; // the left wall
 export const X1 = 150; // the open right side downstairs, where the garden begins
@@ -93,6 +94,47 @@ const COLORS = {
   melon: "#7fc463",
   magnetRed: "#e5504f",
   magnetYellow: "#f6cf4a",
+  magnetOrange: "#f2a541",
+  magnetGreen: "#6cbf5a",
+  magnetPink: "#f4a3b8",
+  magnetBlue: "#5aa0e0",
+  magnetDark: "#2a2522",
+  note: "#fbf8ef",
+  noteLine: "#8fb3dd",
+  photoHerHair: "#4a2c1d",
+  photoHisHair: "#1b1b20",
+  photoSkin: "#f6d2b8",
+  photoGrass: "#86c46a",
+  crisper: "#dcefe9",
+  crisperRim: "#c4ded6",
+  crisperHandle: "#a9cbc0",
+  egg: "#f6ead6",
+  soyBottle: "#3a1c10",
+  lkkRed: "#c8242b",
+  lkkGold: "#e8b84a",
+  lkkTeal: "#2f8c84",
+  chiliOil: "#b5301a",
+  chiliFlake: "#6e170b",
+  chiliLabel: "#f2c230",
+  chiliLid: "#d6332a",
+  pouchRed: "#d42a2a",
+  pouchLabel: "#f4efe0",
+  pouchGreen: "#4f9a4a",
+  cupboardInside: "#e6dac2",
+  pepperCorn: "#3a2a20",
+  pepperCornLight: "#6b5240",
+  pinkSalt: "#f2a593",
+  pinkSaltLight: "#fbd6cb",
+  pinkSaltDeep: "#e07a6a",
+  glassware: "#dcecf2",
+  glasswareRim: "#f7fbfd",
+  jarLid: "#c9a25e",
+  rice: "#f4f0e4",
+  pasta: "#efc75e",
+  beans: "#8a4f32",
+  lentils: "#d9733f",
+  oliveOil: "#c9b23a",
+  bowlRim: "#5f8fd6",
   photo: "#fbfaf6",
   photoSky: "#9fd0f2",
   cabinet: "#efe4cf",
@@ -121,6 +163,8 @@ const COLORS = {
   remote: "#3a3d45",
   magazine: "#e88f6f",
   magazine2: "#7fb3d5",
+  ...Object.fromEntries(BOOKS.map((c, i) => [`read${i}`, c])),
+  bookBand: "#f3e9cf",
   bookA: "#c94f4f",
   bookB: "#4f7fc9",
   bookC: "#e8b84a",
@@ -317,6 +361,9 @@ export function buildHouse(scene, water) {
   const mesh = (p) => solid(p);
   const obstacles = []; // [x0, x1, z0, z1] footprints on the floor, for finding the way round
   const updates = []; // (t, dt) each frame
+  // What a visitor can click to switch or open (playground.js): the curtains, the fridge and freezer doors,
+  // the two lamps. Each is { parts, toggle() }; the people take no notice of any of it.
+  const clickables = [];
   let night = false;
 
   // A soft shadow on the floor (or the loft) under a piece of furniture.
@@ -473,7 +520,30 @@ export function buildHouse(scene, water) {
 
   // The loft: boards on top, its front and both sides panelled, a railing along the front and the open
   // right side, and the stairs up to it along the back wall with a banister.
-  boards(LOFT.x0, SIDE, BACK, LOFT.z1, LOFT.y - 0.5);
+  // Up in the loft, a soft oatmeal carpet from wall to wall, its pile flecked a little lighter and darker.
+  const pile = pixelTexture(64, 64, (g, w, h) => {
+    g.fillStyle = "#e7d5c4";
+    g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x++)
+      for (let y = 0; y < h; y++) {
+        const r = hash(x, y, 77);
+        if (r < 0.16) {
+          g.fillStyle = r < 0.08 ? "#dcc8b5" : "#efe1d2";
+          g.fillRect(x, y, 1, 1);
+        }
+      }
+  });
+  pile.tex.wrapS = pile.tex.wrapT = THREE.RepeatWrapping;
+  {
+    const [x0, x1, z0, z1] = [LOFT.x0, SIDE, BACK, LOFT.z1];
+    const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0);
+    const { position, uv } = g.attributes;
+    for (let i = 0; i < position.count; i++) uv.setXY(i, position.getX(i) / 64, position.getY(i) / 64);
+    const carpet = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: pile.tex }));
+    carpet.rotation.x = -Math.PI / 2;
+    carpet.position.set((x0 + x1) / 2, LOFT.y - 0.5, (z0 + z1) / 2);
+    house.add(carpet);
+  }
   const loft = part();
   const panel = (u, y) => (y === LOFT.y - 1 ? "woodMid" : y <= 1 ? "woodDeep" : u % 8 === 0 ? "panelLine" : "panel");
   for (let x = LOFT.x0; x < SIDE; x++) for (let y = 0; y < LOFT.y; y++) loft.add(x, y, LOFT.z1 - 1, panel(x, y));
@@ -515,10 +585,12 @@ export function buildHouse(scene, water) {
   /* ---------- the windows and the front door ---------- */
 
   // The sky outside: blue with drifting clouds and the odd bird by day, deep blue with stars and the moon
-  // by night. Each window shows its own patch of it, the sun or the moon only in the one over the bed.
+  // by night. Each window shows its own patch of it, the sun or the moon only in the one over the bed, and
+  // its own view in front of the clouds (views.js): rolling hills with a cottage beyond the bed, the street
+  // past the kitchen. On a cloudy day more clouds come over, greyer, hiding the sun.
   const SKY = [44, 46];
   const skies = [0, 1].map(() => pixelTexture(...SKY, () => {})); // the back window's, the left one's
-  let overcast = false; // raining: no sun, moon or stars
+  let overcast = false; // cloudy or raining: no sun, moon or stars
   const clouds = pixelTexture(SKY[0] * 2, SKY[1], () => {});
   clouds.tex.wrapS = THREE.RepeatWrapping;
   clouds.tex.repeat.set(0.5, 1);
@@ -537,11 +609,25 @@ export function buildHouse(scene, water) {
   const rainVeil = pixelTexture(...SKY, drawRain);
   rainVeil.tex.wrapS = rainVeil.tex.wrapT = THREE.RepeatWrapping;
   const rainMat = new THREE.MeshBasicMaterial({ map: rainVeil.tex, transparent: true, opacity: 0, depthWrite: false });
-  // A pane of sky `w` x `h` voxels, showing that much of it.
-  function skyPane(sky, w, h, at, rotY) {
+  // What each window looks out on (views.js), and the light from the street coming in at the left one.
+  const streetGlow = new THREE.PointLight(0xffffff, 0, 80, 0);
+  streetGlow.position.set(X0 + 8, (WIN_LEFT.y[0] + WIN_LEFT.y[1]) / 2, (WIN_LEFT.z[0] + WIN_LEFT.z[1]) / 2);
+  house.add(streetGlow);
+  const views = makeViews(
+    [
+      [WIN_BACK.x[1] - WIN_BACK.x[0] + 1, WIN_BACK.y[1] - WIN_BACK.y[0] + 1],
+      [WIN_LEFT.z[1] - WIN_LEFT.z[0] + 1, WIN_LEFT.y[1] - WIN_LEFT.y[0] + 1],
+    ],
+    SKY,
+    streetGlow
+  );
+  updates.push((t, dt) => views.update(t, dt));
+  // A pane of sky `w` x `h` voxels, showing that much of it, and of `view` in front of it.
+  function skyPane(sky, view, w, h, at, rotY) {
     for (const [mat, lift] of [
       [new THREE.MeshBasicMaterial({ map: sky.tex }), 0],
       [cloudMat, 0.1],
+      [new THREE.MeshBasicMaterial({ map: view, transparent: true, depthWrite: false }), 0.15],
       [rainMat, 0.2],
     ]) {
       const g = new THREE.PlaneGeometry(w, h);
@@ -551,13 +637,14 @@ export function buildHouse(scene, water) {
       m.translateZ(lift);
     }
   }
-  skyPane(skies[0], WIN_BACK.x[1] - WIN_BACK.x[0] + 1, WIN_BACK.y[1] - WIN_BACK.y[0] + 1, [
+  skyPane(skies[0], views.textures[0], WIN_BACK.x[1] - WIN_BACK.x[0] + 1, WIN_BACK.y[1] - WIN_BACK.y[0] + 1, [
     (WIN_BACK.x[0] + WIN_BACK.x[1]) / 2,
     (WIN_BACK.y[0] + WIN_BACK.y[1]) / 2,
     BACK - 2,
   ]);
   skyPane(
     skies[1],
+    views.textures[1],
     WIN_LEFT.z[1] - WIN_LEFT.z[0] + 1,
     WIN_LEFT.y[1] - WIN_LEFT.y[0] + 1,
     [X0 - 2, (WIN_LEFT.y[0] + WIN_LEFT.y[1]) / 2, (WIN_LEFT.z[0] + WIN_LEFT.z[1]) / 2],
@@ -597,6 +684,15 @@ export function buildHouse(scene, water) {
       [40, 13, 6],
       [62, 28, 9],
       [78, 10, 5],
+      ...(overcast
+        ? [
+            [26, 8, 7],
+            [52, 20, 8],
+            [70, 34, 7],
+            [86, 24, 6],
+            [4, 36, 6],
+          ]
+        : []),
     ].forEach(([cx, cy, r]) => {
       for (let y = -r; y <= r; y++)
         for (let x = -2 * r; x <= 2 * r; x++) {
@@ -651,16 +747,39 @@ export function buildHouse(scene, water) {
   };
   frameAround(WIN_BACK.x, WIN_BACK.y, (u, y, d) => [u, y, BACK + d]);
   frameAround(WIN_LEFT.z, WIN_LEFT.y, (u, y, d) => [X0 + d, y, u]);
-  for (const side of [-1, 1])
-    for (let y = WIN_BACK.y[0] - 2; y <= WIN_BACK.y[1] + 4; y++) {
-      const tie = Math.abs(y - 70) <= 1;
-      const width = 6 - Math.round(2 * Math.exp(-(((y - 70) / 7) ** 2)));
-      for (let k = 0; k < width; k++) {
-        const x = side < 0 ? WIN_BACK.x[0] - 8 + k : WIN_BACK.x[1] + 8 - k;
-        win.add(x, y, BACK + 2, tie ? "curtainTie" : (x + 99) % 3 ? "curtain" : "curtainFold");
-      }
+  // Curtains on both windows, sage linen in soft pleats with a deeper hem, on a brass rod a little out from
+  // the wall (clear of the cat on the sill): gathered at the sides, or drawn across (clicked, `curtains`).
+  // Each panel is drawn across, and gathered in by squeezing its pleats towards the side it hangs from.
+  const curtains = [];
+  function curtainsOn(span, [lo, hi], margins, at, turnY) {
+    const half = Math.ceil((span[1] - span[0] + 1) / 2) + 1;
+    const panels = [-1, 1].map((side, i) => {
+      const width = half + margins[i];
+      const p = part();
+      for (let u = 0; u < width; u++)
+        for (let y = lo; y <= hi; y++) p.add(u, y, 0, y <= lo + 1 ? "curtainFold" : u % 3 === 1 ? "curtainFold" : "curtain");
+      const g = place(house, new THREE.Group(), at(side < 0 ? span[0] - margins[0] : span[1] + margins[1]), turnY + (side < 0 ? 0 : Math.PI));
+      const m = mesh(p);
+      m.position.x = 0.5;
+      g.add(m);
+      return { g, m, width };
+    });
+    const rod = part();
+    for (let u = span[0] - margins[0] - 2; u <= span[1] + margins[1] + 2; u++) rod.add(...at(u).map((v, k) => (k === 1 ? hi + 2 : v)), "brass");
+    house.add(mesh(rod));
+    const c = { closed: false, k: 0, panels };
+    clickables.push({ parts: panels.map((p) => p.m), toggle: () => (c.closed = !c.closed) });
+    curtains.push(c);
+  }
+  curtainsOn(WIN_BACK.x, [WIN_BACK.y[0] - 2, WIN_BACK.y[1] + 4], [8, 8], (u) => [u - 0.5, 0, BACK + 8.5], 0);
+  curtainsOn(WIN_LEFT.z, [WIN_LEFT.y[0] + 2, WIN_LEFT.y[1] + 4], [3, 8], (u) => [X0 + 6, 0, u - 0.5], -Math.PI / 2);
+  const GATHERED = 6; // how wide a panel is, drawn back
+  updates.push((t, dt) => {
+    for (const c of curtains) {
+      c.k += ((c.closed ? 1 : 0) - c.k) * (1 - Math.exp(-4 * dt));
+      for (const { g, width } of c.panels) g.scale.x = (GATHERED + (width - GATHERED) * c.k) / width;
     }
-  box(win, [WIN_BACK.x[0] - 10, WIN_BACK.x[1] + 10], [WIN_BACK.y[1] + 6, WIN_BACK.y[1] + 6], [BACK + 1, BACK + 2], "brass"); // the rod
+  });
   ellipsoid(win, [WIN_BACK.x[1] - 3, WIN_BACK.y[0] - 1.5, BACK + 2], [1.8, 1.4, 1.4], "pot");
   ellipsoid(win, [WIN_BACK.x[1] - 3, WIN_BACK.y[0] + 0.5, BACK + 2], [1.6, 1.4, 1.3], "succulent");
   house.add(mesh(win));
@@ -743,7 +862,12 @@ export function buildHouse(scene, water) {
     (p) => {
       box(p, [-13, 12], [3, SPLIT - 2], [1, 1], "inside");
       for (const y of [15, 27]) box(p, [-13, 12], [y, y], [2, 7], "insideShelf");
-      for (const y of [3, 8]) box(p, [-13, 12], [y, y], [2, 7], "insideShelf"); // the crisper drawer's rails
+      // The crisper drawer: frosted sides and front, low enough for what is in it to show over the top, a
+      // finger hold in the middle, and the glass shelf over it.
+      box(p, [-13, 12], [3, 3], [2, 7], "crisperRim");
+      for (const x of [-13, 12]) box(p, [x, x], [4, 6], [2, 7], "crisper");
+      box(p, [-13, 12], [4, 6], [7, 7], (x, y) => (y === 6 ? "crisperRim" : Math.abs(x + 0.5) <= 1.5 && y === 5 ? "crisperHandle" : "crisper"));
+      box(p, [-13, 12], [9, 9], [2, 7], "insideShelf");
       stockFridge(p);
     },
     (p) => {
@@ -782,6 +906,31 @@ export function buildHouse(scene, water) {
   }
   insides.forEach((_, i) => restock(i));
 
+  // The magnets on the doors, little pictures in voxels, each row of `rows` a row down from (x, y) at depth z:
+  // a photo of the two of them and a heart, and the cat on the freezer.
+  const MAGNET = {
+    r: "magnetRed",
+    y: "magnetYellow",
+    o: "magnetOrange",
+    g: "magnetGreen",
+    p: "magnetPink",
+    b: "magnetBlue",
+    k: "magnetDark",
+    w: "note",
+    l: "noteLine",
+    f: "photo",
+    s: "photoSky",
+    h: "photoHerHair",
+    H: "photoHisHair",
+    e: "photoSkin",
+    G: "photoGrass",
+  };
+  const stick = (p, x, y, rows, z) =>
+    rows.forEach((row, j) => [...row].forEach((c, i) => c !== "." && p.add(x + i, y - j, z, c === "W" ? "white" : MAGNET[c])));
+  const MAG_PHOTO = ["ffffffff", "fssssssf", "fshhsHHf", "fseeseef", "fsppsbbf", "fGppGbbf", "fGGGGGGf", "ffffffff"];
+  const MAG_HEART = ["rW.rr", "rrrrr", ".rrr.", "..r.."];
+  const MAG_CAT = ["o...o", "ooooo", "okoko", "oopoo", ".ooo."];
+
   // The doors, both hinged on the left. Sauces stand in the fridge door's racks.
   const doors = [
     [2, SPLIT - 1],
@@ -792,41 +941,39 @@ export function buildHouse(scene, water) {
     box(p, [-15, 14], [y0, y1], [10, 11], (x, y) => (y === y0 || y === y1 || Math.abs(x + 0.5) === 14.5 ? "fridgeShade" : "fridge"));
     box(p, [11, 12], i ? [y0 + 2, y0 + 9] : [y1 - 13, y1 - 3], [12, 12], "chrome"); // the handle
     if (!i) {
-      for (const y of [12, 24]) box(p, [-12, 10], [y, y], [8, 9], "insideShelf"); // the racks
+      for (const y of [12, 24, 31]) {
+        box(p, [-12, 10], [y, y], [8, 9], "insideShelf"); // the racks, each with a lip
+        if (y < 31) box(p, [-12, 10], [y + 1, y + 2], [7, 7], "insideShelf");
+      }
+      for (const x of [-11, -9, -7, -5, -3]) p.add(x, 32, 8, "egg"); // eggs along the top one
       box(p, [-10, -9], [13, 17], [8, 8], "berry");
       p.add(-10, 18, 8, "frame");
       box(p, [-6, -5], [13, 16], [8, 8], "soy");
       box(p, [5, 6], [25, 28], [8, 8], "yolk");
-      // Magnets: a heart and a star, and a photo held up by one.
-      [
-        [-9, 34],
-        [-10, 33],
-        [-8, 33],
-        [-9, 32],
-      ].forEach(([x, y]) => p.add(x, y, 12, "magnetRed"));
-      [
-        [3, 35],
-        [2, 34],
-        [3, 34],
-        [4, 34],
-        [3, 33],
-      ].forEach(([x, y]) => p.add(x, y, 12, "magnetYellow"));
-      box(p, [-9, -1], [17, 26], [12, 12], (x, y) => (y >= 20 && y <= 25 && x >= -8 && x <= -2 ? (y <= 21 ? "melon" : "photoSky") : "photo"));
-      p.add(-5, 26, 13, "magnetRed");
-    }
-    pivot.inner.add(mesh(p));
-    return pivot.outer;
+      stick(p, -9, 33, MAG_PHOTO, 12);
+      stick(p, -6, 34, ["rr"], 13); // holding the photo up
+      stick(p, 2, 30, MAG_HEART, 12);
+    } else stick(p, -3, 56, MAG_CAT, 12);
+    const m = mesh(p);
+    pivot.inner.add(m);
+    return Object.assign(pivot.outer, { part: m });
   });
   const fridgeLight = new THREE.PointLight(0xeaf6ff, 0, 50, 0);
   fridgeLight.position.set(0, 30, 14);
   fridgeGroup.add(fridgeLight);
   footprint(FRIDGE[0] - 16, FRIDGE[0] + 15, BACK, FRIDGE[1] + 12);
-  // `openers` stand at the fridge with its door open, `freezers` at the freezer.
-  const fridge = { openers: 0, freezers: 0, k: [0, 0] };
+  // `openers` stand at the fridge with its door open, `freezers` at the freezer; `clicked` opens a door
+  // too (a click on the fridge opens or shuts its door, on the freezer the freezer's), and whoever is at it
+  // keeps it open till they are done.
+  const fridge = { openers: 0, freezers: 0, k: [0, 0], clicked: [false, false] };
+  // Its body, doors and what shows inside them when open (so a click on the open fridge shuts it).
+  clickables.push({ parts: [fridgeGroup.children[0], doors[0].part, insides[0], crisper], toggle: () => (fridge.clicked[0] = !fridge.clicked[0]) });
+  clickables.push({ parts: [doors[1].part, insides[1]], toggle: () => (fridge.clicked[1] = !fridge.clicked[1]) });
   updates.push((t, dt) => {
     [fridge.openers, fridge.freezers].forEach((n, i) => {
-      if (n > 0 && fridge.k[i] < 0.02) restock(i); // opening from shut
-      fridge.k[i] += ((n > 0 ? 1 : 0) - fridge.k[i]) * (1 - Math.exp(-5 * dt));
+      const open = n > 0 || fridge.clicked[i];
+      if (open && fridge.k[i] < 0.02) restock(i); // opening from shut
+      fridge.k[i] += ((open ? 1 : 0) - fridge.k[i]) * (1 - Math.exp(-5 * dt));
       doors[i].rotation.y = -1.6 * fridge.k[i];
       insides[i].visible = fridge.k[i] > 0.02;
     });
@@ -834,8 +981,10 @@ export function buildHouse(scene, water) {
     fridgeLight.intensity = 0.8 * Math.max(...fridge.k);
   });
 
-  // The counter: cupboards under a walnut top with the kettle, a bowl of fruit and the pets' food tin, and
-  // a shelf of mugs on the wall above.
+  // The counter: cupboards under a walnut top (the pets' food in one of them), and on it, along the back,
+  // what they cook with: Lee Kum Kee's light soy sauce and oyster sauce, a black pepper and a pink salt
+  // grinder, a pouch of garlic chilli sauce and a jar of chilli oil; the house keys in front (`keys`). A
+  // shelf of mugs on the wall above.
   const COUNTER = [-95, -100];
   const counter = part();
   box(counter, [-21, 20], [0, 33], [-10, 8], (x, y, z) => {
@@ -845,25 +994,133 @@ export function buildHouse(scene, water) {
   });
   for (const x of [-11, -4, 10]) counter.add(x, 24, 9, "brass");
   box(counter, [-22, 21], [34, 35], [-11, 10], "counterTop");
-  for (let y = 36; y <= 42; y++)
-    ellipsoid(counter, [-13, y, -2], [4 - Math.abs(y - 39) * 0.45, 0.5, 4 - Math.abs(y - 39) * 0.45], y === 36 ? "kettleDark" : "kettle");
-  box(counter, [-17, -16], [40, 41], [-2, -2], "kettleDark");
-  box(counter, [-10, -8], [39, 40], [-2, -2], "kettle"); // the spout
-  counter.add(-13, 43, -2, "kettleDark");
-  ellipsoid(counter, [1, 37, 0], [5, 1.4, 4], (x, y) => (y >= 38 ? "mugBlue" : "mug"));
+  // Something round standing on the counter at (cx, cz): radius `r(y)` from y0 to y1, coloured `c(x, y, z)`,
+  // where z - cz > r - 1 is its front, towards the room.
+  const upright = (cx, cz, y0, y1, r, c, power = 2) => {
+    for (let y = y0; y <= y1; y++) ellipsoid(counter, [cx, y, cz], [r(y), 0.5, r(y)], (x, vy, z) => c(x - cx, vy, z - cz, r(y)), [], power);
+  };
+  const front = (z, r) => z > r - 1.2;
+  const back = -5;
+  // The soy sauce: a tall dark bottle, its red label banded in gold with a white panel, a red cap.
+  upright(
+    -17,
+    back,
+    36,
+    52,
+    (y) => (y <= 47 ? 1.7 : y === 48 ? 1.2 : 0.6),
+    (x, y, z, r) =>
+      y >= 51
+        ? "lkkRed"
+        : y >= 39 && y <= 45
+          ? y === 42
+            ? "lkkGold"
+            : front(z, r) && y === 44 && Math.abs(x) <= 0.5
+              ? "pouchLabel"
+              : "lkkRed"
+          : "soyBottle"
+  );
+  // The oyster sauce: a squat bottle, its label red with a teal band and gold edges and a little gold sign.
+  upright(
+    -11,
+    back,
+    36,
+    48,
+    (y) => (y <= 44 ? 2.2 : y === 45 ? 1.6 : y === 46 ? 0.8 : 1.3),
+    (x, y, z, r) =>
+      y >= 47
+        ? "lkkRed"
+        : y >= 37 && y <= 43
+          ? y === 37 || y === 43
+            ? "lkkGold"
+            : y === 40
+              ? "lkkTeal"
+              : front(z, r) && y === 42 && x === 0
+                ? "lkkGold"
+                : "lkkRed"
+          : "soyBottle"
+  );
+  // The grinders: glass bodies narrowing a little at the waist, full of peppercorns or pink salt, under
+  // brushed steel tops.
   [
-    [-1, 39, 0, "apple"],
-    [2, 39, -1, "orange"],
-    [1, 40, 1, "pear"],
-    [3, 39, 2, "apple"],
-  ].forEach(([x, y, z, c]) => ellipsoid(counter, [x, y, z], [1.4, 1.4, 1.4], c));
-  for (let y = 36; y <= 45; y++) ellipsoid(counter, [14, y, -2], [3.4, 0.5, 3.4], y >= 44 ? "woodMid" : y >= 39 && y <= 42 ? "bone" : "tin");
-  [
-    [13, 41],
-    [15, 41],
-    [14, 40],
-  ].forEach(([x, y]) => counter.add(x, y, 2, "paw"));
+    [-5, ["pepperCorn", "pepperCornLight", "pepperCorn"]],
+    [-1, ["pinkSalt", "pinkSaltLight", "pinkSaltDeep"]],
+  ].forEach(([cx, [c0, c1, c2]]) =>
+    upright(
+      cx,
+      back - 1,
+      36,
+      52,
+      (y) => (y <= 45 ? 1.8 - 0.45 * Math.sin((Math.PI * (y - 36)) / 9) : y <= 50 ? 1.8 : 1.3),
+      (x, y, z, r) => {
+        if (y >= 46) return y === 46 || y === 51 ? "chrome" : y === 48 ? "steelDark" : x < 0 && front(z, r) ? "chrome" : "steel";
+        if (front(z, r) && x === -1 && y > 37 && y < 44) return "glasswareRim"; // the gleam on the glass
+        const h = hash(x, y, z + cx);
+        return h < 0.25 ? c1 : h < 0.4 ? c2 : c0;
+      }
+    )
+  );
+  // The garlic chilli sauce: a red stand-up pouch, its label a cream panel with the green of the garlic and
+  // the red of the chillies, its spout up at the corner with a red cap.
+  box(
+    counter,
+    [3, 8],
+    [36, 47],
+    [back - 1, back],
+    (x, y, z) => {
+      if (z === back && x >= 4 && x <= 7 && y >= 39 && y <= 44)
+        return y === 44 ? "pouchRed" : y === 40 && x <= 5 ? "pouchGreen" : y === 41 && x >= 6 ? "chiliOil" : "pouchLabel";
+      return "pouchRed";
+    },
+    [{ has: (x, y) => y === 47 && (x === 3 || x === 8) }] // its rounded top corners
+  );
+  counter.add(7, 48, back, "white");
+  counter.add(7, 49, back, "chiliLid");
+  // The chilli oil: a squat glass jar of red oil thick with chilli flakes, a yellow label round it with a
+  // red band, and a red lid edged in yellow.
+  upright(
+    13,
+    back,
+    36,
+    45,
+    (y) => (y <= 43 ? 2.6 : 2.4),
+    (x, y, z, r) =>
+      y >= 44
+        ? y === 45 && Math.hypot(x, z) > 1.6
+          ? "chiliLabel"
+          : "chiliLid"
+        : y >= 38 && y <= 42
+          ? y === 40
+            ? "chiliLid"
+            : "chiliLabel"
+          : hash(x, y, z) < 0.35
+            ? "chiliFlake"
+            : "chiliOil",
+    3
+  );
   place(house, mesh(counter), [COUNTER[0], 0, COUNTER[1]]);
+  // The house keys lying in front: a pink heart fob, a brass ring and two keys. Whoever leads a walk takes
+  // them (acts.js), and they are back after.
+  const keysPart = part();
+  [
+    [13, 3, "magnetPink"],
+    [14, 3, "magnetPink"],
+    [13, 4, "magnetPink"],
+    [15, 4, "brass"],
+    [16, 4, "chrome"],
+    [17, 4, "chrome"],
+    [18, 4, "steelDark"],
+    [16, 5, "chrome"],
+    [17, 6, "chrome"],
+  ].forEach(([x, z, c]) => keysPart.add(x, 36, z, c));
+  const keysOnCounter = place(house, mesh(keysPart), [COUNTER[0], 0, COUNTER[1]]);
+  const keys = {
+    get home() {
+      return keysOnCounter.visible;
+    },
+    set home(on) {
+      keysOnCounter.visible = on;
+    },
+  };
   footprint(COUNTER[0] - 22, COUNTER[0] + 21, BACK, COUNTER[1] + 10);
   const shelfOnWall = part();
   box(shelfOnWall, [-20, 20], [60, 61], [BACK + 1, BACK + 6], "woodMid");
@@ -974,14 +1231,93 @@ export function buildHouse(scene, water) {
   // The tap, arching over the sink.
   box(stovePart, [10, 11], [36, 41], [-8, -8], "chrome");
   box(stovePart, [10, 11], [41, 41], [-7, -4], "chrome");
-  // Wall cupboards with green glass doors.
-  box(stovePart, [-22, 21], [56, 76], [-10, -4], (x, y, z) => {
-    if (z < -4 || y === 56 || y === 76) return "cabinet";
-    const u = (((x + 22) % 11) + 11) % 11;
-    if (u === 0) return "cabinetLine";
-    return y >= 59 && y <= 73 && u >= 2 && u <= 9 ? (y === 66 ? "cabinetGreen" : "glass") : "cabinetGreen";
+  // Water running from the tap while something is rinsed, and the fruit in the sink being washed.
+  const stream = place(
+    stoveGroup,
+    new THREE.Mesh(new THREE.BoxGeometry(1.2, 10, 1.2), new THREE.MeshBasicMaterial({ color: "#bfe6f6", transparent: true, opacity: 0.7 })),
+    [10.5, 35.5, -4]
+  );
+  stream.visible = false;
+  const inSinkFruit = place(stoveGroup, new THREE.Group(), [10.5, 30.5, -0.5]);
+  const sinkFruit = Object.fromEntries(
+    FRUIT_DISHES.map((kind) => {
+      const p = part();
+      if (kind === "watermelon") ellipsoid(p, [0, 2, 0], [3.4, 2.3, 2.6], melonStripes(2, 0));
+      else
+        for (const [x, z] of [
+          [-2, -1],
+          [0, 1],
+          [2, -2],
+          [-1, 2],
+          [1, -1],
+          [3, 1],
+        ])
+          box(p, [x, x + 1], [1, 2], [z, z + 1], (vx, vy, vz) => ((vx + vy + vz) % 3 === 0 ? "strawSeed" : "strawberry"));
+      const m = mesh(p);
+      m.visible = false;
+      inSinkFruit.add(m);
+      return [kind, m];
+    })
+  );
+  const sink = { running: false, fruit: null };
+  updates.push((t) => {
+    stream.visible = sink.running;
+    stream.scale.x = stream.scale.z = 0.85 + 0.15 * Math.sin(t * 40);
+    Object.entries(sinkFruit).forEach(([kind, m]) => (m.visible = sink.fruit === kind));
   });
+  // Wall cupboards with green doors glazed in clear glass, four side by side, each with a shelf: through the
+  // glass, tumblers and wine glasses, jars of rice, pasta, beans and lentils, oil, and a stack of bowls.
+  const doorU = (x) => (((x + 22) % 11) + 11) % 11;
+  const pane = (x, y) => y >= 59 && y <= 73 && y !== 66 && doorU(x) >= 2 && doorU(x) <= 9;
+  const inCupboard = { has: (x, y, z) => doorU(x) !== 0 && y > 56 && y < 76 && z > -10 && z < -4 };
+  box(
+    stovePart,
+    [-22, 21],
+    [56, 76],
+    [-10, -4],
+    (x, y, z) => (z < -4 || y === 56 || y === 76 ? "cabinet" : doorU(x) === 0 ? "cabinetLine" : "cabinetGreen"),
+    [inCupboard, { has: (x, y, z) => z === -4 && pane(x, y) }]
+  );
+  box(stovePart, [-21, 20], [57, 75], [-9, -9], (x) => (doorU(x) === 0 ? "cabinetLine" : "cupboardInside")); // the back inside
+  box(stovePart, [-21, 20], [66, 66], [-9, -5], (x) => (doorU(x) === 0 ? "cabinetLine" : "cabinet")); // the shelves
+  const tumbler = (x, y, z) => box(stovePart, [x, x + 1], [y, y + 2], [z, z + 1], (vx, vy) => (vy === y + 2 ? "glasswareRim" : "glassware"));
+  const wine = (x, y, z) => {
+    stovePart.add(x, y, z, "glassware");
+    stovePart.add(x, y + 1, z, "glassware");
+    box(stovePart, [x, x + 1], [y + 2, y + 3], [z, z], (vx, vy) => (vy === y + 3 ? "glasswareRim" : "glassware"));
+  };
+  const jar = (x, y, z, food) => {
+    box(stovePart, [x, x + 2], [y, y + 3], [z, z + 1], food);
+    box(stovePart, [x, x + 2], [y + 4, y + 4], [z, z + 1], "jarLid");
+  };
+  // The bottom shelves, from the left: glasses; a stack of bowls; jars; oil and more glasses. Then the top.
+  for (const x of [-20, -17, -14]) tumbler(x, 57, -7);
+  for (let y = 57; y <= 61; y += 2) box(stovePart, [-9, -4], [y, y + 1], [-8, -6], (vx, vy) => (vy === y + 1 ? "bowlRim" : "white"));
+  jar(1, 57, -8, "rice");
+  jar(5, 57, -8, "pasta");
+  for (let y = 57; y <= 63; y++) stovePart.add(13, y, -7, y >= 62 ? (y === 63 ? "jarLid" : "glassware") : "oliveOil");
+  tumbler(16, 57, -7);
+  for (const x of [-20, -17, -14]) wine(x, 67, -7);
+  jar(-9, 67, -8, "beans");
+  jar(-5, 67, -8, "lentils");
+  for (const x of [2, 5, 8]) tumbler(x, 67, -7);
+  jar(13, 67, -8, "rice");
+  jar(17, 67, -8, "pasta");
   stoveGroup.add(mesh(stovePart));
+  // The glass: barely tinted, with a gleam across each pane.
+  const glassTex = pixelTexture(16, 16, (g, w, h) => {
+    g.fillStyle = "rgba(220, 240, 236, 0.16)";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "rgba(255, 255, 255, 0.45)";
+    for (let k = 0; k < w; k++) g.fillRect(k, h - 1 - k - 6, 2, 1);
+  });
+  const glassMat = new THREE.MeshBasicMaterial({ map: glassTex.tex, transparent: true, depthWrite: false });
+  for (let x0 = -22; x0 < 21; x0 += 11)
+    for (const [y0, y1] of [
+      [59, 65],
+      [67, 73],
+    ])
+      place(stoveGroup, new THREE.Mesh(new THREE.PlaneGeometry(8, y1 - y0 + 1), glassMat), [x0 + 5.5, (y0 + y1) / 2, -3.6]);
   turnedFootprint(STOVE, STOVE_YAW, [-23, 22, -11, 9]);
   // The oven's door, hinged along the bottom: a window in it, dark, or lit warm while it bakes, and the
   // handle along the top. Inside, the glow of the heating element and what is baking on the shelf.
@@ -1205,15 +1541,18 @@ export function buildHouse(scene, water) {
     g.fillStyle = c;
     g.fillRect(Math.round(x), Math.round(y), rw, rh);
   };
+  // `mode` "show" is a drama she streams (screens.js's DRAMAS), `pc.game` which.
   function drawMonitor(t) {
-    drawPcGame(monitor.g, ...MON, pc.mode, pc.game, t, t - pc.since);
+    if (pc.mode === "show") drawPcDrama(monitor.g, ...MON, pc.game, t, t - pc.since);
+    else drawPcGame(monitor.g, ...MON, pc.mode, pc.game, t, t - pc.since);
     monitor.tex.needsUpdate = true;
   }
   const TEAM = ["#f28aa8", "#8fd3ff", "#f6cf4a", "#9fe0a8"]; // his, then his three teammates'
   function drawSideMonitor(t) {
     const rect = rectOn(sideMonitor.g);
     const [w, h] = SIDE_MON;
-    if (pc.mode === "off") rect(0, 0, w, h, "#060608");
+    if (pc.mode !== "off" && pc.sitter?.name === "girl") drawSideShow(sideMonitor.g, w, h, pc.mode, pc.game, t, t - pc.since);
+    else if (pc.mode === "off") rect(0, 0, w, h, "#060608");
     else {
       rect(0, 0, w, h, "#262a3a");
       rect(0, 0, w, 2, "#5b6ee1");
@@ -1265,6 +1604,15 @@ export function buildHouse(scene, water) {
   box(shelf, [-12, 11], [2, 31], [-5, -5], "woodDeep");
   for (const y of [11, 22]) box(shelf, [-12, 11], [y, y], [-4, 5], "woodMid");
   const BOOK_COLORS = ["bookA", "bookB", "bookC", "bookD", "bookE", "bookF", "bookG"];
+  // The reading books' places: [shelf, x, height].
+  const READ_SLOTS = [
+    [12, -1, 7],
+    [2, -9, 6],
+    [12, 7, 6],
+    [23, -6, 7],
+    [23, 4, 6],
+    [2, 3, 7],
+  ];
   for (const [base, seed] of [
     [2, 1],
     [12, 2],
@@ -1277,8 +1625,9 @@ export function buildHouse(scene, water) {
       const height = 5 + Math.floor(hash(seed, x, 4) * 3);
       const color = BOOK_COLORS[Math.floor(hash(x, seed, 2) * BOOK_COLORS.length)];
       const gap = hash(seed, x, n) < 0.12;
-      if (seed === 2 && x + width > -2 && x < 2) {
-        x = 2; // the reading book's place
+      const slot = READ_SLOTS.find(([b, x0]) => b === base && x + width > x0 - 1 && x < x0 + 3);
+      if (slot) {
+        x = slot[1] + 3; // a reading book's place
         continue;
       }
       if (!gap)
@@ -1292,12 +1641,27 @@ export function buildHouse(scene, water) {
   box(shelf, [-10, -5], [34, 39], [-1, -1], (x, y) =>
     x === -10 || x === -5 || y === 34 || y === 39 ? "canvasFrame" : y < 37 ? "melon" : "photoSky"
   );
-  const readingBook = part();
-  box(readingBook, [-1, 1], [12, 19], [-3, 3], (x, y) => (y === 17 ? "frame" : "bookA"));
   const shelfGroup = place(house, new THREE.Group(), [SHELF[0], 0, SHELF[1]], SHELF_YAW);
   shelfGroup.add(mesh(shelf));
-  const bookOnShelf = mesh(readingBook);
-  shelfGroup.add(bookOnShelf);
+  // The books they take down to read (props.js's BOOKS), each in its place on a shelf; they take one they
+  // have not read lately each time, till all have been read, and put it back after.
+  const books = READ_SLOTS.map(([base, x0, height], i) => {
+    const p = part();
+    box(p, [x0, x0 + 2], [base, base + height], [-3, 3], (x, y) => (y === base + height - 2 ? "frame" : y === base + 1 ? "bookBand" : `read${i}`));
+    return shelfGroup.add(mesh(p)).children.at(-1);
+  });
+  let unread = [];
+  let lastBook = -1;
+  const shelfBooks = {
+    // Which to take: one not read since they were all read, never the one just put back.
+    next() {
+      if (!unread.length) unread = books.map((_, i) => i).filter((i) => i !== lastBook);
+      const i = unread.splice(Math.floor(Math.random() * unread.length), 1)[0];
+      lastBook = i;
+      return i;
+    },
+    show: (i, on) => (books[i].visible = on),
+  };
   turnedFootprint(SHELF, SHELF_YAW, [-15, 14, -6, 6]);
 
   // The bed under the window, for two: a honey-wood frame with a heart on the headboard, two pillows, and
@@ -1371,6 +1735,7 @@ export function buildHouse(scene, water) {
   const bedLamp = new THREE.PointLight(0xffd29a, 0, 95, 0);
   bedLamp.position.set(STAND[0] + 4, Y + 21, STAND[1] + 8);
   house.add(bedLamp);
+  const lamps = [];
   footprint(STAND[0] - 5, STAND[0] + 5, BACK, STAND[1] + 6);
 
   // The girl's dressing corner, past a low shoe cabinet: her outfits on a rail along the wall (the one she
@@ -1397,11 +1762,21 @@ export function buildHouse(scene, water) {
     x === 161 || y === 0 || y === 44 || z === -97 || z === -79 ? "woodDark" : (y + z) % 11 === 0 || (y + z) % 11 === 1 ? "mirrorGleam" : "mirror"
   );
   closetParts.push(place(house, mesh(mirror), [0, Y, 0]));
+  // Its glass, just in front of the frame, facing into the corner: room.js shows the room in it (mirror.js).
+  const glass = place(
+    house,
+    new THREE.Mesh(new THREE.PlaneGeometry(17, 43), new THREE.MeshBasicMaterial({ color: COLORS.mirror })),
+    [162.55, Y + 22, -88],
+    Math.PI / 2
+  );
+  closetParts.push(glass);
 
   const RAIL_Y = Y + 50;
   const rail = part();
   for (const x of [164, 204]) box(rail, [x, x], [0, 50], [-104, -104], "brass");
   box(rail, [164, 204], [50, 50], [-104, -104], "brass");
+  const LOW_RAIL = 28; // the second rail, for the long things
+  box(rail, [164, 204], [LOW_RAIL, LOW_RAIL], [-104, -104], "brass");
   box(rail, [162, 206], [56, 57], [BACK, -101], "woodMid"); // the shelf
   for (const x of [166, 202]) box(rail, [x, x], [52, 55], [BACK, -108], "woodDeep");
   box(rail, [182, 191], [58, 61], [BACK + 1, -103], (x, y) => (y === 61 ? "boxLid" : "boxPink"));
@@ -1415,10 +1790,21 @@ export function buildHouse(scene, water) {
   ]);
   const hatOnShelf = place(house, mesh(strawHat), [173, RAIL_Y + 8, -105]);
   closetParts.push(hatOnShelf);
-  // The outfits on their hangers, each the clothes of one of her looks (girl-outfits.js), seen from the front.
+  // The outfits on their hangers, each the clothes of one of her looks (girl-outfits.js), seen from the front:
+  // the short ones (tops and sets) on the top rail, the long dresses and the coat on a second rail below it,
+  // spread out along each, every other one a little in front.
+  const garments = LOOKS.map((look) => {
+    const garment = part();
+    look.hang(garment, 0);
+    return garment;
+  });
+  const long = garments.map((g) => Math.min(...g.list().map(([, y]) => y)) < -17);
+  const tiers = [false, true].map((low) => LOOKS.map((_, k) => k).filter((k) => long[k] === low));
   const hanging = LOOKS.map((look, k) => {
+    const tier = tiers[long[k] ? 1 : 0];
+    const i = tier.indexOf(k);
+    const x0 = Math.round(184 + Math.min(10, 32 / Math.max(1, tier.length - 1)) * (i - (tier.length - 1) / 2));
     const p = part();
-    const x0 = 170 + 9 * k;
     p.add(x0, -1, 0, "woodDark");
     box(p, [x0 - 3, x0 + 3], [-2, -2], [0, 0], "woodDark");
     const garment = part();
@@ -1427,7 +1813,7 @@ export function buildHouse(scene, water) {
     g.add(mesh(p));
     const clothes = mesh(garment);
     g.add(clothes);
-    g.position.set(0, RAIL_Y, -104);
+    g.position.set(0, long[k] ? Y + LOW_RAIL : RAIL_Y, -104 + (i % 2) * 1.2);
     house.add(g);
     closetParts.push(g);
     return clothes;
@@ -1451,6 +1837,7 @@ export function buildHouse(scene, water) {
   footprint(177, 205, -49, -45);
   const closet = {
     parts: closetParts,
+    glass,
     // The looks whose clothes are off their hangers (and the hat off the shelf): the one she has on, and
     // while she changes, the one she is changing into.
     hang(missing) {
@@ -1469,6 +1856,28 @@ export function buildHouse(scene, water) {
   corner.update(1);
   const lamp = corner.lamp;
   const shadeColor = lamp.shade.material.color.clone();
+  lamp.light.distance = 130;
+  // The lamps, each { set(on) }, clicked on and off.
+  lamps.push(
+    {
+      set(on) {
+        lamp.light.intensity = on ? 1.3 : 0; // dimmed, not hidden, so that the lights in the room stay the same
+        lamp.shade.material.color.copy(shadeColor).multiplyScalar(on ? 1 : 0.85);
+        this.on = on;
+      },
+    },
+    {
+      set(on) {
+        shadeLit.visible = on;
+        shadeDay.visible = !on;
+        bedLamp.intensity = on ? 1 : 0;
+        this.on = on;
+      },
+    }
+  );
+  lamps.forEach((l) => l.set(false));
+  clickables.push({ parts: [lamp.shade], toggle: () => lamps[0].set(!lamps[0].on) });
+  clickables.push({ parts: [shadeDay, shadeLit], toggle: () => lamps[1].set(!lamps[1].on) });
   footprint(SOFA[0] - 31, SOFA[0] + 31, SOFA[1] - 9, SOFA[1] + 10);
   footprint(SOFA[0] - 41, SOFA[0] - 35, SOFA[1] - 9, SOFA[1] - 3, false);
   footprint(SOFA[0] + 35, SOFA[0] + 43, SOFA[1] - 9, SOFA[1] - 1, false);
@@ -1529,6 +1938,41 @@ export function buildHouse(scene, water) {
   box(table, [-6, -2], [12, 12], [3, 4], "remote");
   place(house, mesh(table), [TABLE[0], 0, TABLE[1]]);
   footprint(TABLE[0] - 22, TABLE[0] + 22, TABLE[1] - 10, TABLE[1] + 10);
+  // The laptop's charger: a white power strip on the rug by the table, its light on, and the lead from it up
+  // over the table's edge to the laptop; or, while the laptop is away, to its plug lying on the table.
+  const strip = part();
+  box(strip, [28, 33], [0, 0], [-5, -4], (x, y, z) => (x === 33 && z === -4 ? "padRed" : x === 29 && z === -4 ? "remote" : "white"));
+  place(house, mesh(strip), [TABLE[0], 0, TABLE[1]]);
+  const lead = (from) => {
+    const cells = [];
+    const along = (a, b, n) => {
+      for (let k = 0; k <= n; k++) cells.push(a.map((v, i) => v + ((b[i] - v) * k) / n));
+    };
+    along([from, 11.8, -1], [21.8, 11.8, -1], Math.round((21.8 - from) * 2));
+    for (let k = 1; k <= 24; k++) {
+      const s = k / 24; // over the edge and down, curving out a little
+      cells.push([21.8 + 2.2 * Math.sin(s * Math.PI * 0.5), 11.8 * (1 - s) + 0.3 * s, -1 - s * 0.5]);
+    }
+    along([24, 0.3, -1.5], [29, 0.3, -4], 12);
+    const m = new THREE.InstancedMesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), new THREE.MeshLambertMaterial({ color: "#2d2f36" }), cells.length);
+    cells.forEach((c, i) => m.setMatrixAt(i, new THREE.Matrix4().makeTranslation(...c)));
+    return place(house, m, [TABLE[0], 0, TABLE[1]]);
+  };
+  const plugged = lead(13.5);
+  const loose = lead(16);
+  const plugHead = place(house, new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1), new THREE.MeshLambertMaterial({ color: "#2d2f36" })), [
+    TABLE[0] + 15.3,
+    11.9,
+    TABLE[1] - 1,
+  ]);
+  const charger = {
+    // Whether the laptop is home on the table, plugged in.
+    set plugged(on) {
+      plugged.visible = on;
+      loose.visible = plugHead.visible = !on;
+    },
+  };
+  charger.plugged = true;
 
   // The fireplace on the left wall, built facing +z and turned to face the room: a red brick surround round
   // a sooty firebox with logs on a grate, a wooden mantel with the games console, the two controllers, a
@@ -1715,7 +2159,7 @@ export function buildHouse(scene, water) {
 
   // What is on (screens.js): the channels, one after another as they flick through, or the game the two of
   // them play; or it is off, with a gleam on the glass.
-  const tv = { mode: "off", channel: "nature", since: 0 };
+  const tv = { mode: "off", channel: "nature", since: 0, sky: "sunny" };
   function drawScreen(t) {
     const { g } = screen;
     const [w, h] = SCREEN;
@@ -1726,7 +2170,7 @@ export function buildHouse(scene, water) {
       for (let k = 0; k < 7; k++) g.fillRect(26 + k, 3 + k, 1, 1);
       for (let k = 0; k < 4; k++) g.fillRect(31 + k, 3 + k, 1, 1);
     } else if (tv.mode === "game") drawTvGame(g, w, h, t);
-    else drawChannel(g, w, h, tv.channel, t, t - tv.since);
+    else drawChannel(g, w, h, tv.channel, t, t - tv.since, tv.sky);
     screen.tex.needsUpdate = true;
   }
   let screenAt = -1;
@@ -1769,9 +2213,15 @@ export function buildHouse(scene, water) {
   place(house, mesh(dining), [DINING[0], 0, DINING[1]]);
   footprint(DINING[0] - HALF, DINING[0] + HALF, DINING[1] + NEAR, DINING[1] + FAR);
   const tableDish = place(house, new THREE.Group(), [DINING[0], 14.5, DINING[1] + 1]);
-  const tableDishes = Object.fromEntries(DISHES.map((kind) => [kind, place(tableDish, buildDish(kind), [0, 0, 0])]));
-  const dinner = { dish: null }; // what is on the table (props.js's DISHES), or nothing
-  updates.push(() => Object.entries(tableDishes).forEach(([kind, m]) => (m.visible = dinner.dish === kind)));
+  const tableDishes = Object.fromEntries([...DISHES, ...FRUIT_DISHES].map((kind) => [kind, place(tableDish, buildDish(kind), [0, 0, 0])]));
+  // What is on the table (props.js's DISHES or FRUIT_DISHES), or nothing; of the fruit, `left` pieces.
+  const dinner = { dish: null, left: 0 };
+  updates.push(() =>
+    Object.entries(tableDishes).forEach(([kind, m]) => {
+      m.visible = dinner.dish === kind;
+      m.userData.pieces?.forEach((piece, k) => (piece.visible = k < dinner.left));
+    })
+  );
   const DINE_Z = DINING[1] - 17;
   const diningChair = part();
   box(diningChair, [-5, 5], [7, 8], [-4, 4], (x, y) => (y === 8 ? "woodLight" : "woodMid"));
@@ -2114,7 +2564,7 @@ export function buildHouse(scene, water) {
     [2, 5],
   ])
     gardenCan.add(0, y, z, "canDark");
-  garden.can = place(house, mesh(gardenCan), [156, 0, 60], -0.6);
+  garden.can = place(house, mesh(gardenCan), [156, 0, 58], -0.6);
 
   // The garden basket, by the door across from the can when nobody has it out: set down beside them at a
   // bed while they pick, carried in full to the fridge and back out empty. What is in it is in bunches, one
@@ -2325,7 +2775,9 @@ export function buildHouse(scene, water) {
     seats,
     // Beside the fridge, at its handle, so as not to stand between it and the viewer.
     fridge: { at: [-106, -79], yaw: facing([-106, -79], [FRIDGE[0] + 4, FRIDGE[1] + 12]), crisper: [FRIDGE[0], 6, FRIDGE[1] + 5] },
-    tin: { at: [COUNTER[0] + 14, -78], yaw: Math.PI },
+    // The pets' food in the cupboard under the counter, and the keys on it.
+    foodBag: { at: [COUNTER[0] + 14, -78], yaw: Math.PI },
+    keys: { at: [COUNTER[0] + 14, -78], yaw: Math.PI, on: [COUNTER[0] + 15, 36, COUNTER[1] + 4] },
     stove: { at: [-126, potTop[1]], yaw: -Math.PI / 2, pot: stove.pot },
     // The oven: beside its door (which comes down in front of it), and the middle of it.
     oven: { at: ovenSide, yaw: facing(ovenSide, ovenMid), door: [ovenMid[0], 14, ovenMid[1]] },
@@ -2403,13 +2855,8 @@ export function buildHouse(scene, water) {
     night = isNight;
     drawSky();
     drawClouds();
-    lamp.light.visible = night;
-    lamp.light.distance = 130;
-    lamp.light.intensity = 1.3;
-    lamp.shade.material.color.copy(shadeColor).multiplyScalar(night ? 1 : 0.85);
-    shadeLit.visible = night;
-    shadeDay.visible = !night;
-    bedLamp.intensity = night ? 1 : 0;
+    views.dress(night);
+    lamps.forEach((l) => l.set(night)); // whatever was switched, as it was, now it is day or night
     if (night) bird.visible = false;
   }
   drawScreen(0);
@@ -2419,15 +2866,19 @@ export function buildHouse(scene, water) {
   // How hard it is raining (0 to 1, weather.js): the veil over the windows and the open door, streaks
   // running down it, and the clouds gone grey.
   const grey = new THREE.Color("#8d97a3");
-  function rain(k, t) {
-    if (k > 0.3 !== overcast) {
-      overcast = k > 0.3;
+  // How cloudy it is (0 to 1) and what the forecast says (weather.js's sky), too.
+  function rain(k, t, cloud, sky) {
+    if (cloud > 0.6 !== overcast) {
+      overcast = cloud > 0.6;
       drawSky();
+      drawClouds();
     }
+    tv.sky = sky;
+    views.rain(k);
     rainMat.opacity = doorRainMat.opacity = k;
     rainVeil.tex.offset.set(0.02 * t, (t * 1.6) % 1);
     doorRain.tex.offset.set(0.02 * t, (t * 1.2) % 1);
-    cloudMat.color.setRGB(1, 1, 1).lerp(grey, k);
+    cloudMat.color.setRGB(1, 1, 1).lerp(grey, Math.max(k, 0.45 * cloud));
   }
 
   return {
@@ -2462,8 +2913,8 @@ export function buildHouse(scene, water) {
       pads: padsOnStand,
     },
     pc: {
-      // `mode`: "off", "game", "win" or "lose"; `game` (screens.js's GAMES) the one he starts playing.
-      // `sitter`: who the chair turns with.
+      // `mode`: "off", "game", "win", "lose" or "show" (a drama she streams); `game` the one played or shown
+      // (screens.js's GAMES, GIRL_GAMES or DRAMAS). `sitter`: who the chair turns with.
       set(mode, t, game = pc.game) {
         if (mode === pc.mode && game === pc.game) return;
         pc.mode = mode;
@@ -2492,9 +2943,13 @@ export function buildHouse(scene, water) {
     fire,
     beds,
     bird,
-    book: bookOnShelf,
+    books: shelfBooks,
     bowls,
     closet,
+    sink,
+    keys,
+    charger,
+    clickables,
     garden,
   };
 }
