@@ -10,14 +10,17 @@
  * fishing, tower defence, karts, pinball, a memory card game, snake, a monster
  * battle) with their win and loss screens, the launcher he picks them from and
  * what his side screen shows meanwhile; and, when the girl sits at his
- * computer, the TV dramas she streams (a palace drama, a romance in the rain, a
+ * computer, the dramas she streams (a palace drama, a romance in the rain, a
  * hospital drama, a detective mystery, a school romance, a sword fight in the
- * bamboo, a family sitcom, a café romance) or her cosy farm game, and what the
- * side screen shows meanwhile.
+ * bamboo, a family sitcom, a café romance, an office romance, an idol story,
+ * immortals in the clouds, a summer by the sea), each episode shot by shot, or
+ * a day of her cosy farm game, scene by scene, and what the side screen shows
+ * meanwhile; and what in them she reacts to.
  *
- * The drawing is in screens/: tv.js, pc.js and dramas.js, on pen.js.
+ * The drawing is in screens/: tv.js, pc.js, dramas.js and stardew.js, on pen.js.
  ******************************************************************************/
 
 export { CHANNELS, drawChannel, drawTvGame } from "./screens/tv.js";
 export { GAMES, SIDES, drawPcGame, drawGameSide } from "./screens/pc.js";
-export { DRAMAS, GIRL_GAMES, drawPcDrama, drawSideShow } from "./screens/dramas.js";
+export { DRAMAS, GIRL_GAMES, drawPcDrama, drawSideShow, dramaMoment } from "./screens/dramas.js";
+export { stardewMoment } from "./screens/stardew.js";

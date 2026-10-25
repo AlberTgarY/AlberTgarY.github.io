@@ -30,7 +30,7 @@ export function makeContext(home, life) {
   const { clock, house, nav, byName, humans } = home;
   const { spots, floorY } = house;
   const { walk, stepTo, turn, wait, until, hop, glide, sitOn, getUp, intoBed, outOfBed } = makeSteps(home);
-  const { claim, holder, release, act, event, available, invite, summon, later, onEnd } = life;
+  const { claim, holder, release, act, event, available, invite, summon, later, anew, onEnd } = life;
   const t = () => clock.t;
   const other = (a) => humans.find((h) => h !== a);
   const seatOf = (key) => spots.seats[key];
@@ -156,6 +156,7 @@ export function makeContext(home, life) {
     invite,
     summon,
     later,
+    anew,
     onEnd,
     t,
     other,

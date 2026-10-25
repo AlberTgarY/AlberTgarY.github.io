@@ -3,11 +3,12 @@
  * a race, falling blocks, a space shooter, a rhythm game, fishing, tower
  * defence, karts, pinball, a memory card game, snake, a monster battle) with
  * their win and loss screens and the launcher he picks them from, what his side
- * screen shows while he plays, and her cosy farm game.
+ * screen shows while he plays; her cosy farm game is drawn by stardew.js.
  ******************************************************************************/
 
 import { hash } from "../../models/voxels.js";
 import { pen, number } from "./pen.js";
+import { drawStardew } from "./stardew.js";
 
 export const GAMES = [
   "platformer",
@@ -66,17 +67,9 @@ const SNAKE = [];
   return [tx, ty];
 });
 
-// Her farm game's calendar: days of DAY seconds, starting on a different day each time she sits down (`t - e`
-// is when she did), and the three rows' crops when ripe: pumpkins, tomatoes and cauliflowers.
-const DAY = 16;
-
-export const farmDay = (t, e) => e / DAY + Math.floor(hash(Math.floor(t - e), 7, 23) * 12);
-
-const CROPS = ["#f39a33", "#e0402e", "#fff1c9"];
-
 // His computer: `mode` "off", "menu" (the launcher, `game` about to be played), "game", "win" or "lose",
 // `game` (GAMES, or hers from GIRL_GAMES) while one is on, `e` how long since the mode changed.
-export function drawPcGame(g, w, h, mode, game, t, e) {
+export function drawPcGame(g, w, h, mode, game, t, e, seed) {
   const { rect, px } = pen(g);
   if (mode === "off") return rect(0, 0, w, h, "#060608");
   if (mode === "menu") {
@@ -430,36 +423,7 @@ export function drawPcGame(g, w, h, mode, game, t, e) {
     rect(15, 14, 5, 1, "#fff8ef");
     if (t % 0.6 < 0.4) px(2, 12, "#f6cf4a");
   } else if (game === "stardew") {
-    // Her cosy farm: a fence along the top and three tilled rows, the crops coming up a stage each day from
-    // seeds to ripe, and her farmer (straw hat, pink shirt) watering a row a third of the day, the soil dark behind her.
-    const clock = farmDay(t, e);
-    const stage = Math.floor(clock) % 4; // seeds, sprouts, leaves, ripe
-    const row = Math.floor((clock % 1) * 3);
-    const along = 2 + (((clock % 1) * 3) % 1) * 22;
-    rect(0, 0, w, h, "#7ec85a");
-    rect(0, 1, w, 1, "#c48a4a");
-    for (let x = 1; x < w; x += 4) rect(x, 0, 1, 3, "#9a6a3a");
-    for (let r = 0; r < 3; r++) {
-      const y = 5 + r * 3;
-      rect(2, y, 22, 2, "#8a5a34");
-      rect(2, y, r < row ? 22 : r === row ? along - 2 : 0, 2, "#6b4429");
-      for (let x = 3; x < 24; x += 3) {
-        if (stage === 0) px(x, y + 1, "#d9b98a");
-        else if (stage === 1) px(x, y, "#9fe07a");
-        else {
-          px(x, y - 1, "#5bb046");
-          px(x, y, stage === 3 ? CROPS[r] : "#5bb046");
-        }
-      }
-    }
-    const fx = Math.round(along);
-    const fy = 6 + row * 3;
-    rect(fx - 1, fy - 3, 4, 1, "#f2d27a");
-    rect(fx, fy - 2, 2, 1, "#f9d6bd");
-    rect(fx, fy - 1, 2, 1, "#f28aa8");
-    rect(fx, fy, 2, 1, "#3e6fd6");
-    rect(fx + 2, fy - 1, 2, 1, "#9aa3b0");
-    px(fx + 4, fy - 1 + Math.floor((t * 6) % 2), "#8fd3ff");
+    drawStardew(g, w, h, t, e, seed);
   } else {
     // Running and jumping over the hills, by day and then at dusk, coins to catch, a slime coming the other way.
     const dusk = Math.floor(t / 20) % 2;

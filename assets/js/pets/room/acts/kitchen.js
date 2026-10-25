@@ -30,6 +30,7 @@ export function kitchenActs(c) {
     available,
     invite,
     summon,
+    anew,
     onEnd,
     t,
     other,
@@ -273,6 +274,7 @@ export function kitchenActs(c) {
   // called too. A dish goes to the sink after. For fruit from the garden (`left` pieces on its plate), they
   // eat from the plate together till it is empty, waiting for someone on their way while there is enough.
   function* meal(a, dish = null, left = 0) {
+    anew(a); // (after the cooking, or the harvest)
     const fruit = FRUIT_DISHES.includes(dish) ? dish : null;
     const seat = takeSeat(a, ["dine0", "dine1"]);
     if (!seat) {

@@ -146,20 +146,20 @@ export function buildLoft(shared) {
   const chair = place(house, new THREE.Group(), [CHAIR[0], Y, CHAIR[1]]);
   chair.add(mesh(chairTop));
   footprint(CHAIR[0] - 7, CHAIR[0] + 7, CHAIR[1] - 6, CHAIR[1] + 8);
-  const pc = { mode: "off", game: GAMES[0], side: "chat", since: 0, sitter: null, talking: false };
+  const pc = { mode: "off", game: GAMES[0], side: "chat", since: 0, seed: 0, sitter: null, talking: false };
   const rectOn = (g) => (x, y, rw, rh, c) => {
     g.fillStyle = c;
     g.fillRect(Math.round(x), Math.round(y), rw, rh);
   };
   // `mode` "show" is a drama she streams (screens.js's DRAMAS), `pc.game` which.
   function drawMonitor(t) {
-    if (pc.mode === "show") drawPcDrama(monitor.g, ...MON, pc.game, t, t - pc.since);
-    else drawPcGame(monitor.g, ...MON, pc.mode, pc.game, t, t - pc.since);
+    if (pc.mode === "show") drawPcDrama(monitor.g, ...MON, pc.game, t, t - pc.since, pc.seed);
+    else drawPcGame(monitor.g, ...MON, pc.mode, pc.game, t, t - pc.since, pc.seed);
     monitor.tex.needsUpdate = true;
   }
   function drawSideMonitor(t) {
     const [w, h] = SIDE_MON;
-    if (pc.mode !== "off" && pc.sitter?.name === "girl") drawSideShow(sideMonitor.g, w, h, pc.mode, pc.game, t, t - pc.since);
+    if (pc.mode !== "off" && pc.sitter?.name === "girl") drawSideShow(sideMonitor.g, w, h, pc.mode, pc.game, t - pc.since, pc.seed);
     else if (pc.mode === "off") rectOn(sideMonitor.g)(0, 0, w, h, "#060608");
     else drawGameSide(sideMonitor.g, w, h, pc.side, pc.mode, pc.game, t, pc.talking);
     sideMonitor.tex.needsUpdate = true;

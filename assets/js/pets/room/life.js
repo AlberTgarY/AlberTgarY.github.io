@@ -206,6 +206,8 @@ export function makeLife(home) {
     return true;
   }
   const later = (a, todo) => a.queue.push(todo);
+  // A new stage of a long activity (the meal after a harvest): LONGEST counts from here.
+  const anew = (a) => (a.jobStart = t());
   const onEnd = (a, fn) => a.cleanups.push(fn);
 
   function start(a, todo) {
@@ -225,7 +227,7 @@ export function makeLife(home) {
   }
 
   // The activity is over: put things away, give places back, end what it hosted, and stand normally. With
-  // `rise`, someone seated stays on the seat, to get up from it themselves (drop()).
+  // `rise`, someone seated (or half way up off the seat) stays, to get up from it themselves (drop()).
   function finish(a, broken, rise = false) {
     a.job = null;
     a.cleanups.splice(0).forEach((fn) => fn());
@@ -266,10 +268,11 @@ export function makeLife(home) {
     });
     a.setState("idle");
     ["want", "mood", "say"].forEach((c) => a.show(c, null));
-    // Only a broken activity can leave someone up on the furniture, in bed or out of the house: put them
-    // back on the floor, inside.
-    const stay = rise && a.seated && !a.abed && !a.out;
-    if (!stay && (broken || a.above() > 0.01 || a.seated || a.abed || a.out)) {
+    // Only a broken activity can leave someone up on the furniture, in bed or out of the house, or half way
+    // up off a seat (`ground` still set): put them back on the floor, inside.
+    const stay = rise && (a.seated || a.ground) && !a.abed && !a.out;
+    if (stay) a.seated = true; // half way up off it: they get up from where they are (feed() does)
+    if (!stay && (broken || a.above() > 0.01 || a.seated || a.abed || a.out || a.ground)) {
       a.seated = false;
       a.abed = false;
       if (a.ground) [a.x, a.z] = a.ground;
@@ -399,9 +402,11 @@ export function makeLife(home) {
     }
     if (tv.mode === "off" || !tv.meddled) tvOffAt = Infinity;
     if (t() > tvOffAt && !holder("remote")) {
-      const h = humans.find(available);
-      tvOffAt = t() + 10;
-      if (h) invite(h, act("tvOff", home.acts.tvOff.run));
+      const h = humans.find(available); // (looked for every frame: someone between two things is free only for one)
+      if (h) {
+        invite(h, act("tvOff", home.acts.tvOff.run));
+        tvOffAt = t() + 10;
+      }
     }
     house.fridge.openers = actors.filter((a) => a.atFridge).length;
     house.fridge.freezers = actors.filter((a) => a.atFreezer).length;
@@ -517,6 +522,7 @@ export function makeLife(home) {
     invite,
     summon,
     later,
+    anew,
     onEnd,
     // A frame: the director, then everyone's activity.
     step() {

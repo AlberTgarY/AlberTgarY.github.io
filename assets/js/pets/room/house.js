@@ -319,12 +319,14 @@ export function buildHouse(scene, water) {
     pc: {
       // `mode`: "off", "menu" (his launcher), "game", "win", "lose" or "show" (a drama she streams); `game` the
       // one played or shown (screens.js's GAMES, GIRL_GAMES or DRAMAS); `side` what his side screen shows
-      // (screens.js's SIDES). `sitter`: who the chair turns with.
-      set(mode, t, game = pc.game) {
+      // (screens.js's SIDES). `sitter`: who the chair turns with. Her shows and her farm game: `seed` picks
+      // where in it she is, `from` how many seconds into it (watching on after being called away).
+      set(mode, t, game = pc.game, seed = Math.floor(t), from = 0) {
         if (mode === pc.mode && game === pc.game) return;
         pc.mode = mode;
         pc.game = game;
-        pc.since = t;
+        pc.since = t - from;
+        pc.seed = seed;
         drawMonitor(t);
         drawSideMonitor(t);
       },

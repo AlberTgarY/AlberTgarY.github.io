@@ -5,12 +5,32 @@
 
 import { rnd, pick } from "../../stage.js";
 import { HOLDS, MOVES } from "../props.js";
-import { GAMES, SIDES, DRAMAS, GIRL_GAMES } from "../screens.js";
+import { GAMES, SIDES, DRAMAS, GIRL_GAMES, dramaMoment, stardewMoment } from "../screens.js";
 import { V, TEAM_SAY } from "./common.js";
 
 // `c` is everything they share (common.js), and the activities of the other files.
 export function pcActs(c) {
-  const { house, byName, spots, walk, turn, wait, sitOn, getUp, claim, holder, act, event, available, invite, onEnd, t, takeSeat, halfTowards } = c;
+  const {
+    house,
+    byName,
+    spots,
+    walk,
+    turn,
+    wait,
+    sitOn,
+    getUp,
+    claim,
+    holder,
+    act,
+    event,
+    available,
+    invite,
+    later,
+    onEnd,
+    t,
+    takeSeat,
+    halfTowards,
+  } = c;
 
   // The boy at his computer in the loft: his headphones off their stand and on, a few rounds, mostly of a
   // different game each time (picked in his launcher; the side screen changes now and then too), talking to
@@ -129,63 +149,98 @@ export function pcActs(c) {
     a.look = null;
   }
 
-  // The girl at his computer (his headphones stay on their stand): a drama to stream, or her farm game to
-  // tend. Watching, she laughs, gasps, sighs over the couple or sheds a tear; farming, she is pleased with
-  // each harvest. He may come up and watch with her.
+  // The girl at his computer (his headphones stay on their stand), for a good while: an episode of one of her
+  // dramas, or a day of her farm game. She goes with what happens on the screen (screens.js): a laugh at the
+  // funny bits, a gasp at a twist, a sigh over the couple, a tear at the sad parts, leaning in when it gets
+  // tense; on the farm, pleased with each harvest, catch, find and gift. He may come up and watch with her.
+  // Called away with a good part still to go (to eat, to feed a pet), she comes back to it after, if it is not
+  // long after and the computer is free, and watches on from where she was.
+  const RESUME = 300; // s she would still come back to it
+  const backTo = (a) => a.resume && t() < a.resume.by;
+  // Back to it after what called her away, unless that took too long (a night's sleep).
+  function* watchOn(a) {
+    if (backTo(a)) yield* pcGirl(a);
+  }
   function* pcGirl(a) {
     if (!claim(a, "pc")) return;
     const seat = takeSeat(a, ["chair"]);
     if (!seat) return;
+    let left = 0; // s of it for her
+    let on = null; // what she is watching or playing, from when
     onEnd(a, () => {
       house.pc.set("off", t());
       house.pc.sitter = null;
+      const rest = on && left - (t() - on.at);
+      if (rest > 10) a.resume = { ...on.what, from: on.from + t() - on.at, left: rest, by: t() + RESUME };
+      if (rest > 10 || (!on && backTo(a))) later(a, act("pcGirl", watchOn)); // (or called away on her way back to it)
     });
     yield* sitOn(a, seat);
+    const back = backTo(a) ? a.resume : null; // where she was, if called away from it
+    a.resume = null;
+    left = back ? back.left : rnd(90, 150);
     house.pc.sitter = a;
     a.look = spots.monitor;
-    const farm = Math.random() < 0.35;
-    house.pc.set(farm ? "game" : "show", t(), farm ? pick(GIRL_GAMES) : pick(DRAMAS));
+    const farm = back ? back.farm : Math.random() < 0.35;
+    const show = back ? back.show : farm ? pick(GIRL_GAMES) : pick(DRAMAS);
+    const seed = back ? back.seed : Math.floor(t());
+    const from = back ? back.from : 0;
+    house.pc.set(farm ? "game" : "show", t(), show, seed, from);
+    on = { at: t(), from, what: { farm, show, seed } };
+    const into = () => from + t() - on.at;
+    const moment = () => (farm ? stardewMoment(into(), seed) : dramaMoment(show, into(), seed));
     const boy = byName.boy;
-    const ev = boy && Math.random() < 0.3 && !holder("watchPc") && available(boy) ? event(a, "pc", { playing: true, round: 0, result: null }) : null;
+    const ev =
+      !back && boy && Math.random() < 0.3 && !holder("watchPc") && available(boy) ? event(a, "pc", { playing: true, round: 0, result: null }) : null;
     if (ev) invite(boy, act("watchPc", watchPc, ev));
-    const end = t() + rnd(50, 90);
-    let momentAt = t() + rnd(4, 8);
+    const end = t() + left;
+    let seen = moment().beat; // whatever was already on when she sat down
     a.hold = farm ? MOVES.mouse : null;
-    while (t() < end && !(a.interrupt && !ev)) {
-      if (t() > momentAt) {
-        momentAt = t() + rnd(6, 11);
-        const r = Math.random();
-        if (farm) {
-          a.pop(r < 0.5 ? "room-pop room-pop-sparkle" : "room-pop room-pop-star");
-          a.beHappy(1);
-        } else if (r < 0.35) {
-          a.hold = MOVES.clap; // a laugh
-          a.happy = true;
-          a.pop("room-pop room-pop-note");
-          yield* wait(a, 1.5);
-        } else if (r < 0.6) {
-          a.hold = HOLDS.chin; // a twist!
-          a.pop("room-pop room-pop-question");
-          yield* wait(a, 1.8);
-        } else if (r < 0.85) {
-          a.happy = true; // the couple at last
-          a.pop();
-          yield* wait(a, 1.4);
-        } else {
-          a.nod = -0.1; // a tear
-          a.pop("room-pop room-pop-drop");
-          yield* wait(a, 1.8);
-        }
-        Object.assign(a, { happy: false, hold: farm ? MOVES.mouse : null });
+    const watched = () => ev && (boy.event === ev || boy.pending?.ev === ev); // he is with her (or on his way)
+    while (t() < end && !(a.interrupt && !watched())) {
+      const { beat, mood } = moment();
+      if (mood && beat !== seen) {
+        seen = beat;
+        yield* react(a, mood);
+        Object.assign(a, { happy: false, nod: 0, hold: farm ? MOVES.mouse : null });
       }
       a.nod = 0.08 + 0.03 * Math.sin(t() * 0.8);
       yield;
     }
+    if (t() >= end) on = null; // all watched: nothing to come back to
     if (ev) ev.playing = false;
     house.pc.set("off", t());
     Object.assign(a, { look: null, nod: 0, hold: null });
     yield* getUp(a);
     house.pc.sitter = null;
+  }
+
+  // How she takes a moment on the screen (`mood`, from screens.js).
+  function* react(a, mood) {
+    if (mood === "laugh") {
+      a.hold = MOVES.clap;
+      a.happy = true;
+      a.pop("room-pop room-pop-note");
+      yield* wait(a, 1.5);
+    } else if (mood === "twist") {
+      a.hold = HOLDS.chin;
+      a.pop("room-pop room-pop-question");
+      yield* wait(a, 1.8);
+    } else if (mood === "love" || mood === "heart") {
+      a.happy = true;
+      a.pop();
+      yield* wait(a, 1.4);
+    } else if (mood === "sad") {
+      a.nod = -0.1; // a tear
+      a.pop("room-pop room-pop-drop");
+      yield* wait(a, 1.8);
+    } else if (mood === "tense") {
+      a.nod = 0.18; // leaning in
+      yield* wait(a, 1.6);
+    } else {
+      a.pop(`room-pop room-pop-${mood}`); // the farm's sparkle, star or note
+      a.beHappy(1);
+      yield* wait(a, 0.8);
+    }
   }
 
   // Up to the loft to watch him play: beside his chair, eyes on the screen, clapping when he wins.
