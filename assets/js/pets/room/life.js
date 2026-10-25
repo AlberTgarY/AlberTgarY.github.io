@@ -129,12 +129,13 @@ const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff", "dine"];
 // the way), or going out with the dog.
 const NO_CALL = [...NO_DROP, "cook", "bake", "walk"];
 // The day's rhythm: what comes round every so often (s, at random between the two) whatever anyone's tastes,
-// each due that long after it was last done (by anyone, asked or not). A meal is either of them cooking, or
-// one of them baking.
+// each due that long after it was last done (by anyone, asked or not); and for `rest` s after it was done,
+// no one does it again of their own accord (the dog has just been out, they have just eaten, the garden has
+// just been seen to). A meal is either of them cooking, or one of them baking.
 const ROUTINE = [
-  { names: ["walk"], every: [300, 480] },
-  { names: ["cook", "bake"], every: [420, 660] },
-  { names: ["garden"], every: [150, 270] },
+  { names: ["walk"], every: [300, 480], rest: 240 },
+  { names: ["cook", "bake"], every: [420, 660], rest: 360 },
+  { names: ["garden"], every: [150, 270], rest: 120 },
 ];
 
 export function makeLife(home) {
@@ -142,6 +143,8 @@ export function makeLife(home) {
   const claims = new Map(); // place -> the actor using it
   const t = () => clock.t;
   const due = new Map(ROUTINE.map((r) => [r, t() + rnd(...r.every) / 2])); // when each part of the rhythm comes round
+  const done = new Map(ROUTINE.map((r) => [r, -Infinity])); // and when it was last started
+  const resting = (name) => ROUTINE.some((r) => r.names.includes(name) && t() - done.get(r) < r.rest);
 
   /* ---------- places ---------- */
 
@@ -199,7 +202,11 @@ export function makeLife(home) {
   const onEnd = (a, fn) => a.cleanups.push(fn);
 
   function start(a, todo) {
-    for (const r of ROUTINE) if (r.names.includes(todo.name)) due.set(r, t() + rnd(...r.every));
+    for (const r of ROUTINE)
+      if (r.names.includes(todo.name)) {
+        due.set(r, t() + rnd(...r.every));
+        done.set(r, t());
+      }
     a.pending = null;
     a.interrupt = false;
     a.woken = false;
@@ -293,7 +300,7 @@ export function makeLife(home) {
     const leans = leaning(a);
     for (const [name, w] of Object.entries(MENUS[a.name])) {
       const todo = home.acts[name];
-      if (todo && todo.can(a))
+      if (todo && todo.can(a) && !resting(name))
         weights[name] = w * (home.night ? NIGHT[name] || 1 : 1) * (home.weather.raining ? RAIN[name] || 1 : 1) * (leans.includes(name) ? LEAN : 1);
     }
     const name = a.picker.choose(weights);
