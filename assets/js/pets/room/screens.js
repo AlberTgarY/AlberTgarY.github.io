@@ -1,1 +1,1 @@
-export{CHANNELS,drawChannel,drawTvGame}from"./screens/tv.js";export{GAMES,SIDES,drawPcGame,drawGameSide}from"./screens/pc.js";export{DRAMAS,GIRL_GAMES,drawPcDrama,drawSideShow}from"./screens/dramas.js";
+export{CHANNELS,drawChannel,drawTvGame}from"./screens/tv.js";export{GAMES,SIDES,drawPcGame,drawGameSide}from"./screens/pc.js";export{DRAMAS,GIRL_GAMES,drawPcDrama,drawSideShow,dramaMoment}from"./screens/dramas.js";export{stardewMoment}from"./screens/stardew.js";
