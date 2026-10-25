@@ -99,6 +99,10 @@ export function makeRoom(stage) {
     },
     wear: (k) => wardrobe.wear(k),
   };
+  // What she has on at his computer ({ show, ep }: screens.js's DRAMAS and an episode, or "stardew" and the
+  // day), and what a visitor picked for her to put on next (life.js sends her to it; ep null for the farm:
+  // its next day).
+  home.watch = { want: null, on: null };
 
   // The things they share: the ball, and the laptop on the coffee table.
   home.ball = buildBall(scene, house.spots.ballHome);
@@ -250,6 +254,12 @@ export function makeRoom(stage) {
     raycaster.setFromCamera(ndc, view.camera);
     return raycaster.intersectObjects(house.closet.parts, true).length > 0;
   };
+  // Whether canvas px (x, y) is on his computer: the desk and what is on it, or the screens.
+  const onPc = (x, y) => {
+    ndc.set((x / view.W) * 2 - 1, 1 - (y / view.H) * 2);
+    raycaster.setFromCamera(ndc, view.camera);
+    return raycaster.intersectObjects(house.pc.parts, true).length > 0;
+  };
   // What at canvas px (x, y) can be clicked to switch or open (house.js's clickables), if it is the first
   // thing seen there: not behind the bed or the sofa, say (glass and the like do not hide it).
   const owners = new Map(house.clickables.flatMap((c) => c.parts.map((p) => [p, c])));
@@ -274,21 +284,34 @@ export function makeRoom(stage) {
     return hidden ? null : ownerOf(first.object);
   };
 
+  // A visitor's pick of the other kind given up (`kind` "outfit" or "watch", acted on by `act`): no longer
+  // wanted, and no longer next for her.
+  function dropPick(kind, act) {
+    const girl = home.byName.girl;
+    home[kind].want = null;
+    if (girl.pending?.name === act) {
+      girl.pending = null;
+      girl.interrupt = false;
+    }
+  }
+
   return {
     home,
     view,
     pointer,
     hit,
     onCloset,
+    onPc,
     thingAt,
-    // A visitor's pick of what she should wear (girl-outfits.js's LOOKS): changing into it is the next thing
-    // she does, by day (at night, in the morning); a new pick while she is on her way to change, she follows,
+    // A visitor's pick of what she should wear (girl-outfits.js's LOOKS): she drops what she is doing and goes
+    // to change into it (life.js), by day (at night, in the morning); a new pick while she is on her way to change, she follows,
     // and one while she is changing is for next time. Picking what she has on (or is changing into) calls off
     // a change she is on her way to, or one still to come; otherwise it just makes her happy. She is pleased
     // to be asked (unless asleep).
     chooseOutfit(k) {
       const { outfit } = home;
       const girl = home.byName.girl;
+      dropPick("watch", "pcGirl"); // the last pick counts
       if (k !== (outfit.into ?? outfit.current) || outfit.choosing) outfit.want = k;
       else {
         outfit.want = null;
@@ -298,6 +321,29 @@ export function makeRoom(stage) {
         }
       }
       if (!girl.asleep) girl.cheer();
+    },
+    // A visitor's pick of what she should watch on his computer ({ show, ep }, as home.watch.want): she drops
+    // what she is doing and puts it on (life.js), once he has finished his round if he is on it; at it already,
+    // she switches over. Picking what she has on calls off a pick still to come. She is pleased to be asked.
+    chooseShow(want) {
+      const { watch } = home;
+      const girl = home.byName.girl;
+      dropPick("outfit", "dress"); // the last pick counts
+      const { on } = watch;
+      if (!on || on.show !== want.show || (want.show !== "stardew" && on.ep !== want.ep)) watch.want = want;
+      else {
+        watch.want = null;
+        if (girl.pending?.name === "pcGirl") {
+          girl.pending = null;
+          girl.interrupt = false;
+        }
+      }
+      if (!girl.asleep) girl.cheer();
+    },
+    // Why she will not put on a pick at once, if so: he is on his computer.
+    watchNote() {
+      const at = house.pc.sitter;
+      return at && at !== home.byName.girl ? "He'll finish his round and let her on." : null;
     },
     layout: (width, maxHeight) => view.layout(width, maxHeight),
     dress(night) {

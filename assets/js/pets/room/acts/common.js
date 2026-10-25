@@ -103,12 +103,14 @@ export function makeContext(home, life) {
   }
   const dozeChance = (day, night) => (Math.random() < (home.night ? night : day) ? t() + rnd(8, 15) : Infinity);
   // A free spot `gap` to one side of [x, z] on screen (the clearer side) and `dz` towards the viewer, on the
-  // same floor; or failing that one nearby. With the side it is on (1 right, -1 left).
+  // same floor and not on top of anyone else; or failing that one nearby. With the side it is on (1 right, -1
+  // left).
   function beside(a, [x, z], gap, dz = 4) {
     const same = level(floorY(x, z));
     const mine = Math.sign((a.x - x) * R[0] + (a.z - z) * R[1]) || 1;
     const at = (s) => toward([x, z], s * gap, dz);
-    const side = [mine, -mine].find((s) => nav.free(...at(s)) && same(...at(s)));
+    const clear = ([sx, sz]) => home.actors.every((o) => o === a || o.out || Math.hypot(o.x - sx, o.z - sz) > 10);
+    const side = [mine, -mine].find((s) => nav.free(...at(s)) && same(...at(s)) && clear(at(s)));
     if (side) return [at(side), side];
     const spot = freeSpot(
       a,

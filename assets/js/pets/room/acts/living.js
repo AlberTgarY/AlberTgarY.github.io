@@ -390,15 +390,18 @@ export function livingActs(c) {
     ].find((keys) => keys.every((k) => !holder(k)));
     if (!b || !pair || !available(b)) return;
     const [mine, theirs] = a.name === "girl" ? pair : [pair[1], pair[0]];
-    const ev = event(a, "game", { ready: new Set(), result: null });
+    const ev = event(a, "game", { pair: true, ready: new Set(), result: null });
     if (!invite(b, act("game", gamePartner, ev, theirs))) return;
+    onEnd(a, () => ev.ready.forEach((h) => h !== a && h.props.only())); // cut short: not a controller in hand and both on the stand
     const seat = takeSeat(a, [mine]);
     if (!seat) return;
-    yield* pads(a, false);
-    yield* sitOn(a, seat);
-    yield* play(a, ev);
-    yield* getUp(a);
-    yield* pads(a, true);
+    if (!ev.over) yield* pads(a, false);
+    if (!ev.over) {
+      yield* sitOn(a, seat);
+      yield* play(a, ev);
+      yield* getUp(a);
+    }
+    yield* pads(a, true); // (straight back, should the other have gone before it started)
   }
 
   // The controllers taken off their stand (`back` false: theirs till put back, or what they are doing ends,
@@ -503,7 +506,7 @@ export function livingActs(c) {
         home.actors.every((o) => o === a || o === b || Math.hypot(o.x - x, o.z - z) > 40)
     );
     if (!spot) return;
-    const ev = event(a, "chat", { spot, here: new Set(), speaker: null, say: null, done: false });
+    const ev = event(a, "chat", { pair: true, spot, here: new Set(), speaker: null, say: null, done: false });
     if (!invite(b, act("chat", chatPartner, ev))) return;
     yield* converse(a, ev, -1);
   }

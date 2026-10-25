@@ -17,10 +17,12 @@
  * a day of her cosy farm game, scene by scene, and what the side screen shows
  * meanwhile; and what in them she reacts to.
  *
- * The drawing is in screens/: tv.js, pc.js, dramas.js and stardew.js, on pen.js.
+ * The drawing is in screens/: tv.js, pc.js, dramas.js and stardew.js, on pen.js;
+ * and posters.js, the posters of her shows for the visitor to choose from.
  ******************************************************************************/
 
 export { CHANNELS, drawChannel, drawTvGame } from "./screens/tv.js";
 export { GAMES, SIDES, drawPcGame, drawGameSide } from "./screens/pc.js";
-export { DRAMAS, GIRL_GAMES, drawPcDrama, drawSideShow, dramaMoment } from "./screens/dramas.js";
-export { stardewMoment } from "./screens/stardew.js";
+export { DRAMAS, GIRL_GAMES, drawPcDrama, drawSideShow, dramaMoment, seriesOf } from "./screens/dramas.js";
+export { stardewMoment, FARM_DAY } from "./screens/stardew.js";
+export { POSTER, drawPoster } from "./screens/posters.js";

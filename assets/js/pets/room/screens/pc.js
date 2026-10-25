@@ -69,7 +69,7 @@ const SNAKE = [];
 
 // His computer: `mode` "off", "menu" (the launcher, `game` about to be played), "game", "win" or "lose",
 // `game` (GAMES, or hers from GIRL_GAMES) while one is on, `e` how long since the mode changed.
-export function drawPcGame(g, w, h, mode, game, t, e, seed) {
+export function drawPcGame(g, w, h, mode, game, t, e, day) {
   const { rect, px } = pen(g);
   if (mode === "off") return rect(0, 0, w, h, "#060608");
   if (mode === "menu") {
@@ -423,7 +423,7 @@ export function drawPcGame(g, w, h, mode, game, t, e, seed) {
     rect(15, 14, 5, 1, "#fff8ef");
     if (t % 0.6 < 0.4) px(2, 12, "#f6cf4a");
   } else if (game === "stardew") {
-    drawStardew(g, w, h, t, e, seed);
+    drawStardew(g, w, h, t, e, day);
   } else {
     // Running and jumping over the hills, by day and then at dusk, coins to catch, a slime coming the other way.
     const dusk = Math.floor(t / 20) % 2;

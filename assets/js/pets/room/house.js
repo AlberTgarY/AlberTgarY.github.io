@@ -55,13 +55,14 @@ export function buildHouse(scene, water) {
   // the TV.
   const clickables = [];
 
-  // A soft shadow on the floor (or the loft) under a piece of furniture.
+  // A soft shadow on the floor (or the loft) under a piece of furniture (the mesh, to move with it).
   const shadowMat = new THREE.MeshBasicMaterial({ color: 0x3a2412, transparent: true, opacity: 0.16, depthWrite: false });
   function floorShadow(x0, x1, z0, z1) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 + 4, z1 - z0 + 4), shadowMat);
     m.rotation.x = -Math.PI / 2;
     m.position.set((x0 + x1) / 2, floorY((x0 + x1) / 2, (z0 + z1) / 2) - 0.44, (z0 + z1) / 2);
     house.add(m);
+    return m;
   }
   function footprint(x0, x1, z0, z1, shade = true) {
     obstacles.push([x0, x1, z0, z1]);
@@ -82,7 +83,7 @@ export function buildHouse(scene, water) {
 
   // What the parts share as they are built (each adds what the later ones need); `night` and `overcast`
   // change with the time of day and the weather (dress() and rain() below).
-  const shared = { water, house, mesh, updates, clickables, footprint, turnedFootprint, night: false, overcast: false };
+  const shared = { water, house, mesh, updates, clickables, footprint, turnedFootprint, floorShadow, night: false, overcast: false };
   for (const build of [buildShell, buildWindows, buildKitchen, buildLoft, buildLiving, buildGarden, buildDecor]) Object.assign(shared, build(shared));
   const {
     WIN_BACK,
@@ -117,7 +118,9 @@ export function buildHouse(scene, water) {
     DESK,
     phonesOnStand,
     CHAIR,
+    LOUNGE,
     pc,
+    pcParts,
     drawMonitor,
     drawSideMonitor,
     SHELF,
@@ -166,6 +169,7 @@ export function buildHouse(scene, water) {
     ),
     armchair: seat("armchair", ARMCHAIR, 0, 19, [ARMCHAIR[0], 9.5, ARMCHAIR[1] + 2]),
     chair: seat("chair", CHAIR, Math.PI, -16, null), // sat down into from behind, rolled in to the desk
+    lounge: seat("chair", LOUNGE, Math.atan2(DESK[0] + 1.5 - LOUNGE[0], DESK[1] - 4.4 - LOUNGE[1]), -16, null), // the same, rolled back to watch a show, turned to the screen
     dine0: seat("dine0", [DINING[0] - PLACE, DINE_Z], 0, -16, null), // the same, at the table
     dine1: seat("dine1", [DINING[0] + PLACE, DINE_Z], 0, -16, null),
     // In bed, lying back with the head on the pillow (turned about the hips, actor.js); where to sit on the
@@ -319,22 +323,30 @@ export function buildHouse(scene, water) {
     pc: {
       // `mode`: "off", "menu" (his launcher), "game", "win", "lose" or "show" (a drama she streams); `game` the
       // one played or shown (screens.js's GAMES, GIRL_GAMES or DRAMAS); `side` what his side screen shows
-      // (screens.js's SIDES). `sitter`: who the chair turns with. Her shows and her farm game: `seed` picks
-      // where in it she is, `from` how many seconds into it (watching on after being called away).
-      set(mode, t, game = pc.game, seed = Math.floor(t), from = 0) {
-        if (mode === pc.mode && game === pc.game) return;
+      // (screens.js's SIDES). `sitter`: who the chair turns with. Her shows: `ep` the episode (her farm game:
+      // the day), `from` how many seconds into it (watching on after being called away). `parts`: what a click
+      // on his computer can land on.
+      set(mode, t, game = pc.game, ep = 0, from = 0) {
+        if (mode === pc.mode && game === pc.game && ep === pc.ep) return;
         pc.mode = mode;
         pc.game = game;
         pc.since = t - from;
-        pc.seed = seed;
+        pc.ep = ep;
         drawMonitor(t);
         drawSideMonitor(t);
       },
       get mode() {
         return pc.mode;
       },
+      get sitter() {
+        return pc.sitter;
+      },
       set sitter(a) {
         pc.sitter = a;
+      },
+      // Where the chair is rolled to ([x, z], or null for the desk).
+      set rolled(at) {
+        pc.rolled = at;
       },
       set side(s) {
         pc.side = s;
@@ -343,6 +355,7 @@ export function buildHouse(scene, water) {
         pc.talking = on;
       },
       phones: phonesOnStand, // shown while he is not wearing them
+      parts: pcParts,
     },
     fridge,
     oven,

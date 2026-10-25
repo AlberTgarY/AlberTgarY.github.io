@@ -43,10 +43,12 @@
   }
 }
 
-// The panel asking what the girl should wear, opened by clicking her dressing corner: a button for each look,
-// with a picture of her wearing it. It grows out of where it was clicked, the buttons coming in one after
-// another, and fades away when closed.
-.outfit-picker {
+// The panel asking what the girl should wear (opened by clicking her dressing corner) or watch (his
+// computer): a button for each choice, with a picture (her wearing the look, a still from the show; the
+// size from --pic-w and --pic-h, set in playground.js). It grows out of where it was clicked, the buttons
+// coming in one after another (and again on going on to another page of choices), and fades away when closed.
+.room-picker {
+  --pic-scale: 1;
   position: absolute;
   z-index: 2;
   padding: 0.65rem 0.75rem 0.7rem;
@@ -81,14 +83,50 @@
   }
 }
 
-.outfit-picker-title,
-.outfit-picker-note {
+.room-picker-title,
+.room-picker-note {
   margin: 0 0 0.5rem;
   font-weight: 500;
   text-align: center;
 }
 
-.outfit-picker-note {
+// The title, with a way back to the page before (from a drama's episodes) at its left.
+.room-picker-head {
+  position: relative;
+
+  .room-picker-title {
+    padding: 0 1.6rem;
+  }
+}
+
+.room-picker-back {
+  position: absolute;
+  top: -0.2rem;
+  left: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--global-text-color-light);
+  font: inherit;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--global-theme-color);
+    background-color: color-mix(in srgb, var(--global-theme-color) 8%, transparent);
+  }
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.room-picker-note {
   margin: 0.5rem 0 0;
   font-weight: 400;
   color: var(--global-text-color-light);
@@ -96,17 +134,17 @@
 
 // The arrows either side of the strip of looks; the strip shows three looks (--shown) at a time, turned
 // along by --start, set in playground.js.
-.outfit-picker-wheel {
+.room-picker-wheel {
   display: flex;
   align-items: center;
   gap: 0.2rem;
 
-  &.all-shown .outfit-picker-arrow {
+  &.all-shown .room-picker-arrow {
     display: none;
   }
 }
 
-.outfit-picker-arrow {
+.room-picker-arrow {
   flex: none;
   width: 1.6rem;
   height: 2.6rem;
@@ -136,8 +174,8 @@
 
 // Room round the looks in view for their focus rings; clip (not hidden), so focusing a look out of view
 // cannot scroll the strip behind the turning.
-.outfit-picker-strip {
-  --look-w: 5.4rem;
+.room-picker-strip {
+  --look-w: max(5.4rem, calc(var(--pic-w) * var(--pic-scale) + 0.8rem));
   --gap: 0.45rem;
   --shown: 3;
   width: calc(var(--shown) * var(--look-w) + (var(--shown) - 1) * var(--gap) + 6px);
@@ -146,7 +184,7 @@
   overflow: clip;
 }
 
-.outfit-picker-looks {
+.room-picker-choices {
   display: flex;
   gap: var(--gap);
   transform: translateX(calc(var(--start, 0) * -1 * (var(--look-w) + var(--gap))));
@@ -197,52 +235,67 @@
     transform: none;
     transition-delay: calc(0.05s + var(--k) * 0.04s), calc(0.05s + var(--k) * 0.04s), 0s, 0s;
   }
+
+  .refill & button {
+    opacity: 0;
+    transform: translateY(6px);
+    transition: none;
+  }
 }
 
-// Her picture, on a soft round backdrop, lifting a little under the pointer.
-.outfit-picker-pic {
+// An episode's title, under its number.
+.room-picker-sub {
+  color: var(--global-text-color-light);
+  font-size: 0.7rem;
+}
+
+// The picture, on a soft round backdrop, lifting a little under the pointer; a still crisp, pixel by pixel.
+.room-picker-pic {
   display: block;
-  width: 64px;
-  height: 84px;
+  width: calc(var(--pic-w) * var(--pic-scale));
+  height: calc(var(--pic-h) * var(--pic-scale));
   border-radius: 6px;
   background: radial-gradient(ellipse at 50% 70%, color-mix(in srgb, var(--global-theme-color) 12%, transparent), transparent 70%);
 
-  img {
+  img,
+  canvas {
     display: block;
+    width: 100%;
+    height: 100%;
     transition: transform 0.2s ease-out;
   }
 
-  button:hover & img {
+  canvas {
+    border-radius: 3px;
+    image-rendering: pixelated;
+  }
+
+  button:hover & img,
+  button:hover & canvas {
     transform: translateY(-2px);
   }
 }
 
 @media (max-width: 480px) {
-  .outfit-picker-strip {
-    --look-w: 4.4rem;
+  .room-picker {
+    --pic-scale: 0.75; // three across a 360 px phone
   }
 
-  .outfit-picker-pic {
-    width: 52px;
-    height: 68px;
-
-    img {
-      width: 52px;
-      height: 68px;
-    }
+  .room-picker-strip {
+    --look-w: max(4.4rem, calc(var(--pic-w) * var(--pic-scale) + 0.8rem));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .outfit-picker,
-  .outfit-picker.open,
-  .outfit-picker-looks button,
-  .open .outfit-picker-looks button {
+  .room-picker,
+  .room-picker.open,
+  .room-picker-choices button,
+  .open .room-picker-choices button {
     transform: none;
     transition: none;
   }
 
-  .outfit-picker-looks {
+  .room-picker-choices {
     transition: none;
   }
 }

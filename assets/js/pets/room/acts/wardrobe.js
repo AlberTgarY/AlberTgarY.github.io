@@ -10,7 +10,7 @@ import { V } from "./common.js";
 
 // `c` is everything they share (common.js), and the activities of the other files.
 export function wardrobeActs(c) {
-  const { home, house, spots, walk, turn, wait, claim, onEnd, t } = c;
+  const { home, house, spots, walk, turn, wait, getUp, claim, onEnd, t } = c;
   const walkUnless = (...args) => c.walkUnless(...args); // living.js
 
   // She changes her clothes (by day): a look along the rail at the dressing corner, the one she wants off
@@ -20,6 +20,7 @@ export function wardrobeActs(c) {
   // if she has to); picking what she has on calls it off. A pick once she is changing is for next time.
   function* dressUp(a) {
     const wardrobe = home.outfit;
+    if (a.seated) yield* getUp(a); // (asked to come straight away)
     if (!claim(a, "closet")) return;
     wardrobe.choosing = true; // until she is behind the screen, a pick changes her mind
     onEnd(a, () => {

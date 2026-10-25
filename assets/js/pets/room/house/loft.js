@@ -12,7 +12,7 @@ import { COLORS, pixelTexture, solid, glowing, place } from "./kit.js";
 
 // `shared`: what the house so far has to share (house.js), with `night` and `overcast` as they are now.
 export function buildLoft(shared) {
-  const { house, mesh, updates, footprint, turnedFootprint } = shared;
+  const { house, mesh, updates, footprint, turnedFootprint, floorShadow } = shared;
 
   const Y = LOFT.y;
   // The boy's desk: a white top on a drawer unit and legs; his monitor on its stand with a second one on
@@ -45,7 +45,7 @@ export function buildLoft(shared) {
     [-8, 4],
   ];
   box(desk, ...tower, (x, y, z) => (z === 4 && (x === 29 || x === 37 || y === 0 || y === 23) ? "pcEdge" : "pcCase"));
-  place(house, mesh(desk), [DESK[0], Y, DESK[1]]);
+  const pcParts = [place(house, mesh(desk), [DESK[0], Y, DESK[1]])]; // what a click on his computer can land on, with the screens
   const rgbPart = part();
   for (const fy of [6, 13, 20])
     for (let a = 0; a < 12; a++)
@@ -109,14 +109,14 @@ export function buildLoft(shared) {
   // the computer's stats or a guide to the game while he plays (`pc.side`).
   const MON = [26, 15];
   const monitor = pixelTexture(...MON, () => {});
-  place(house, new THREE.Mesh(new THREE.PlaneGeometry(...MON), new THREE.MeshBasicMaterial({ map: monitor.tex })), [
+  pcParts[1] = place(house, new THREE.Mesh(new THREE.PlaneGeometry(...MON), new THREE.MeshBasicMaterial({ map: monitor.tex })), [
     DESK[0] + 1.5,
     Y + 30,
     DESK[1] - 4.4,
   ]);
   const SIDE_MON = [11, 25];
   const sideMonitor = pixelTexture(...SIDE_MON, () => {});
-  place(house, new THREE.Mesh(new THREE.PlaneGeometry(...SIDE_MON), new THREE.MeshBasicMaterial({ map: sideMonitor.tex })), [
+  pcParts[2] = place(house, new THREE.Mesh(new THREE.PlaneGeometry(...SIDE_MON), new THREE.MeshBasicMaterial({ map: sideMonitor.tex })), [
     DESK[0] - 21,
     Y + 33,
     DESK[1] - 4.4,
@@ -126,8 +126,10 @@ export function buildLoft(shared) {
   house.add(monLight);
 
   // The gaming chair: black with white panels, on a five-star base. Its seat and back turn with whoever
-  // sits in it.
+  // sits in it. To watch her shows she rolls it back from the desk and to the left (LOUNGE), so as not to sit
+  // between the screen and the room; it is rolled back in after.
   const CHAIR = [DESK[0], -84];
+  const LOUNGE = [CHAIR[0] - 9, CHAIR[1] + 8];
   const chairBase = part();
   box(chairBase, [-1, 0], [1, 5], [-1, 0], "steelDark");
   for (let a = 0; a < 5; a++) {
@@ -135,7 +137,7 @@ export function buildLoft(shared) {
     for (let r = 1; r <= 6; r++) chairBase.add(Math.round(dx * r - 0.5), 1, Math.round(dz * r - 0.5), "chairBlack");
     chairBase.add(Math.round(dx * 6 - 0.5), 0, Math.round(dz * 6 - 0.5), "steelDark");
   }
-  place(house, mesh(chairBase), [CHAIR[0], Y, CHAIR[1]]);
+  const base = place(house, mesh(chairBase), [CHAIR[0], Y, CHAIR[1]]);
   const chairTop = part();
   box(chairTop, [-6, 6], [6, 8], [-5, 5], (x, y) => (y === 8 && Math.abs(x) <= 2 ? "chairWhite" : "chairBlack"));
   box(chairTop, [-6, 6], [9, 21], [6, 7], (x, y) => (Math.abs(x) === 4 && y < 20 ? "chairWhite" : "chairBlack"));
@@ -145,21 +147,23 @@ export function buildLoft(shared) {
   }
   const chair = place(house, new THREE.Group(), [CHAIR[0], Y, CHAIR[1]]);
   chair.add(mesh(chairTop));
-  footprint(CHAIR[0] - 7, CHAIR[0] + 7, CHAIR[1] - 6, CHAIR[1] + 8);
-  const pc = { mode: "off", game: GAMES[0], side: "chat", since: 0, seed: 0, sitter: null, talking: false };
+  footprint(CHAIR[0] - 7, CHAIR[0] + 7, CHAIR[1] - 6, CHAIR[1] + 8, false);
+  footprint(LOUNGE[0] - 5, LOUNGE[0] + 7, LOUNGE[1] - 6, LOUNGE[1] + 8, false); // (clear of where he reaches his headphones from)
+  const chairShadow = floorShadow(CHAIR[0] - 7, CHAIR[0] + 7, CHAIR[1] - 6, CHAIR[1] + 8); // rolls with it
+  const pc = { mode: "off", game: GAMES[0], side: "chat", since: 0, ep: 0, sitter: null, talking: false, rolled: null };
   const rectOn = (g) => (x, y, rw, rh, c) => {
     g.fillStyle = c;
     g.fillRect(Math.round(x), Math.round(y), rw, rh);
   };
   // `mode` "show" is a drama she streams (screens.js's DRAMAS), `pc.game` which.
   function drawMonitor(t) {
-    if (pc.mode === "show") drawPcDrama(monitor.g, ...MON, pc.game, t, t - pc.since, pc.seed);
-    else drawPcGame(monitor.g, ...MON, pc.mode, pc.game, t, t - pc.since, pc.seed);
+    if (pc.mode === "show") drawPcDrama(monitor.g, ...MON, pc.game, t, t - pc.since, pc.ep);
+    else drawPcGame(monitor.g, ...MON, pc.mode, pc.game, t, t - pc.since, pc.ep);
     monitor.tex.needsUpdate = true;
   }
   function drawSideMonitor(t) {
     const [w, h] = SIDE_MON;
-    if (pc.mode !== "off" && pc.sitter?.name === "girl") drawSideShow(sideMonitor.g, w, h, pc.mode, pc.game, t - pc.since, pc.seed);
+    if (pc.mode !== "off" && pc.sitter?.name === "girl") drawSideShow(sideMonitor.g, w, h, pc.mode, pc.game, t - pc.since, pc.ep);
     else if (pc.mode === "off") rectOn(sideMonitor.g)(0, 0, w, h, "#060608");
     else drawGameSide(sideMonitor.g, w, h, pc.side, pc.mode, pc.game, t, pc.talking);
     sideMonitor.tex.needsUpdate = true;
@@ -176,9 +180,18 @@ export function buildLoft(shared) {
     monLight.intensity = pc.mode === "off" ? 0 : shared.night ? 0.6 : 0.25;
     rgb.material.color.copy(hue.setHSL((t * 0.08) % 1, 0.8, 0.6));
     power.material.color.set(pc.mode === "off" ? "#3b3d47" : "#ffffff");
-    // The chair turns with whoever sits in it, and back to the desk after.
+    // The chair turns with whoever sits in it, and back to the desk after; it rolls to where it is wanted
+    // (`pc.rolled`, or the desk), and back in once whoever sat in it is up (called away while sitting).
+    if (pc.sitter && !pc.sitter.seated) pc.sitter = pc.rolled = null;
     const target = pc.sitter && pc.sitter.seated ? pc.sitter.yaw - Math.PI : 0;
     chair.rotation.y += Math.atan2(Math.sin(target - chair.rotation.y), Math.cos(target - chair.rotation.y)) * (1 - Math.exp(-8 * dt));
+    const [cx, cz] = pc.rolled || CHAIR;
+    for (const o of [chair, base]) {
+      o.position.x += (cx - o.position.x) * (1 - Math.exp(-5 * dt));
+      o.position.z += (cz - o.position.z) * (1 - Math.exp(-5 * dt));
+    }
+    chairShadow.position.x = base.position.x;
+    chairShadow.position.z = base.position.z + 1;
     // The Kirby rocks in the sunlight, and comes to rest in the dark.
     kirbySway += ((shared.night ? 0 : 1) - kirbySway) * (1 - Math.exp(-2 * dt));
     rocker.outer.rotation.z = 0.28 * kirbySway * Math.sin(t * 2.6);
@@ -441,6 +454,7 @@ export function buildLoft(shared) {
     DESK,
     phonesOnStand,
     CHAIR,
+    LOUNGE,
     pc,
     drawMonitor,
     drawSideMonitor,
@@ -456,5 +470,6 @@ export function buildLoft(shared) {
     lamps,
     RAIL_Y,
     closet,
+    pcParts,
   };
 }

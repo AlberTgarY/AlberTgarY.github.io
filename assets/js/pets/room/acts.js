@@ -121,7 +121,7 @@ export function makeActs(home, life) {
     bake: (a) => a.human && !holder("stove") && !holder("fridge") && !holder("dine0") && !holder("dine1") && !other(a)?.abed,
     read: () => !holder("book"),
     water: () => !holder("plant"),
-    pc: (a) => a.name === "boy" && !holder("pc") && !holder("chair"),
+    pc: (a) => a.name === "boy" && !holder("pc") && !holder("chair") && !home.watch.want, // (she is about to use it)
     pcGirl: (a) => a.name === "girl" && !holder("pc") && !holder("chair"),
     watchPc: (a) => a.name === "girl" && playing() && !holder("watchPc"),
     laptop: () => !holder("laptop") && freeSeat(),

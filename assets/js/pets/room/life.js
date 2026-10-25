@@ -232,7 +232,7 @@ export function makeLife(home) {
     a.job = null;
     a.cleanups.splice(0).forEach((fn) => fn());
     for (const [key, holder] of claims) if (holder === a) claims.delete(key);
-    if (a.event && a.event.host === a) a.event.over = true;
+    if (a.event && (a.event.host === a || a.event.pair)) a.event.over = true; // (a chat or a game: either leaving ends it)
     a.event = null;
     a.props?.only();
     Object.assign(a, {
@@ -285,9 +285,12 @@ export function makeLife(home) {
     if (!stay) a.ground = null;
     a.seatKey = null;
     a.rig.group.visible = true;
-    // Soon on to something else if it could not be done at all, or to get out of the way.
+    // Soon on to something else if it could not be done at all, or stopped half way up or down the stairs, or
+    // to get out of the way.
     const failed = t() === a.jobStart;
-    a.nextAt = t() + (failed ? 0.3 : crowded(a) ? 0.5 : a.human ? rnd(1.5, 5) : rnd(2.5, 7));
+    const fy = house.floorY(a.x, a.z);
+    const stairs = !a.seated && fy > 0.01 && fy < LOFT.y - 0.01 && Math.abs(a.y - fy) < 0.5;
+    a.nextAt = t() + (failed || stairs ? 0.3 : crowded(a) ? 0.5 : a.human ? rnd(1.5, 5) : rnd(2.5, 7));
   }
 
   // What `a` leans towards just now (LEANINGS): a new mood once the last has run its course, never the same
@@ -371,18 +374,43 @@ export function makeLife(home) {
   let tvOffAt = Infinity; // when someone goes to switch off a TV a visitor left on
   const seatIndex = (key) => (key && key.startsWith("sofa") ? +key.slice(4) : -1);
 
-  function direct() {
-    // The girl goes to change into what a visitor picked for her (by day) as the next thing she does,
-    // before anything she was only asked to do: at once if she is free or doing something that can be cut
-    // short, else as soon as she is done. Never in the middle of something done with him.
+  // What a visitor asks of the girl comes before anything else: whatever she is doing is cut short there and
+  // then (as for a hungry pet, drop(); seated, she gets up as it starts), and not gone back to; asleep in bed
+  // or on the sofa, she wakes and gets up (dozing over something else, it is cut short like the rest). Only what
+  // cannot stop just now (out, at a meal, feeding a pet) goes on, or what she has been asked or called to
+  // already (to wrap up for: a meal, a pet, something with him), and this is the next thing she does
+  // (direct() asks again each frame). The visitor's last word counts: a show picked while she changes
+  // (room.js has given up the change) cuts the change short.
+  function ask(name) {
     const girl = home.byName.girl;
-    if (home.outfit.want !== null && !home.night && girl.jobName !== "dress" && !girl.out) {
-      if (girl.pending?.name !== "dress" && !girl.pending?.ev) {
-        const todo = act("dress", home.acts.dress.run);
-        if (!girl.job) start(girl, todo);
-        else girl.pending = todo;
-      }
-      if (girl.pending?.name === "dress") girl.interrupt = !together(girl); // wrap up as soon as she can, if on her own
+    if (girl.jobName === name || girl.pending) return;
+    const todo = act(name, home.acts[name].run);
+    const changing = girl.jobName === "dress" && name !== "dress";
+    if (girl.out || girl.serving || (NO_DROP.includes(girl.jobName) && !changing)) girl.pending = todo;
+    else if (!girl.job) start(girl, todo);
+    else if (girl.abed || (girl.asleep && girl.jobName === "nap")) {
+      girl.pending = todo;
+      girl.interrupt = true;
+    } else {
+      girl.job.return();
+      finish(girl, false, true);
+      // Not back to the show she was watching (acts/pc.js), nor its way back queued as it ended.
+      girl.resume = null;
+      girl.queue = girl.queue.filter((q) => q.name !== "pcGirl");
+      start(girl, todo);
+    }
+  }
+
+  function direct() {
+    // A change of clothes a visitor picked for her (by day: at night, in pyjamas, in the morning), or what they
+    // picked for her to watch on his computer (one or the other: the last pick, room.js), which he leaves to
+    // her once he has finished his round (at it already, she switches over herself, acts/pc.js).
+    const girl = home.byName.girl;
+    if (home.outfit.want !== null && !home.night && girl.jobName !== "dress") ask("dress");
+    const pc = holder("pc");
+    if (home.watch.want && girl.jobName !== "pcGirl") {
+      if (pc && pc !== girl) pc.interrupt = true;
+      else ask("pcGirl");
     }
 
     // The TV is on while someone watches (once they have switched it on) or plays; the fridge is open while
