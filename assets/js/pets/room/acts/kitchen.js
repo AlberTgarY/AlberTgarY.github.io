@@ -192,6 +192,7 @@ export function kitchenActs(c) {
     a.atFridge = false;
     yield* wait(a, 0.4);
     release(a, "fridge");
+    yield* claimSink(a, 40); // the sink is right beside the oven door: no one at it while they bake
     yield* atOven(a, () => {
       a.props.only();
       oven.dish = dish;
@@ -227,12 +228,23 @@ export function kitchenActs(c) {
     yield* atOven(a, () => {
       oven.dish = null;
       a.props[dish].userData.bake(1);
+      a.serving = true; // not to be called away now (life.js)
       a.props.only(dish);
     });
     a.hold = HOLDS.tray;
     a.look = null;
     release(a, "stove");
+    release(a, "sink");
     yield* meal(a, dish);
+  }
+
+  // The sink for `a`: theirs, or once whoever is at it is done (waiting a little way off), for at most `secs`;
+  // whether they got it.
+  function* claimSink(a, secs) {
+    if (claim(a, "sink")) return true;
+    yield* walk(a, [spots.sink.at[0] + 4, spots.sink.at[1] + 16]);
+    yield* turn(a, spots.sink.yaw);
+    return yield* until(() => claim(a, "sink"), secs);
   }
 
   // Kneel by the oven, let the door down and reach in (`swap()` puts the dish in or takes it out), then
@@ -269,7 +281,7 @@ export function kitchenActs(c) {
     }
     const b = other(a);
     const ev = event(a, "meal", { ready: false, eat });
-    const calling = !!b && Math.random() < 0.85;
+    const calling = !!b && (!!fruit || Math.random() < 0.85); // fruit from the garden is always shared
     let coming = false;
     const call = () => (coming ||= calling && available(b) && invite(b, act("dine", dine, ev)));
     call();
@@ -306,12 +318,7 @@ export function kitchenActs(c) {
     a.props.only(dish);
     a.hold = HOLDS.tray;
     a.look = null;
-    if (!claim(a, "sink")) {
-      // Someone is at the sink: wait beside it.
-      yield* walk(a, [spots.sink.at[0] + 4, spots.sink.at[1] + 16]);
-      yield* turn(a, spots.sink.yaw);
-      yield* until(() => claim(a, "sink"), 30);
-    }
+    yield* claimSink(a, 45);
     yield* walk(a, spots.sink.at);
     yield* turn(a, spots.sink.yaw);
     a.hold = HOLDS.pick;
@@ -385,5 +392,5 @@ export function kitchenActs(c) {
     a.happy = false;
   }
 
-  return { snack, toBin, askToBeg, cook, bake, meal };
+  return { snack, toBin, askToBeg, cook, bake, meal, claimSink };
 }

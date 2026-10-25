@@ -36,6 +36,7 @@ export function gardenActs(c) {
   } = c;
   const askToBeg = (...args) => c.askToBeg(...args); // kitchen.js
   const meal = (...args) => c.meal(...args); // kitchen.js
+  const claimSink = (...args) => c.claimSink(...args); // kitchen.js
 
   // The garden: the basket first if it was left out, with whatever is in it; then whatever is ripe,
   // picked into the basket and taken straight to the fridge; else a bed picked clean sown again; else the
@@ -369,11 +370,7 @@ export function gardenActs(c) {
   function* fruitTime(a, kind) {
     const { basket } = house.garden;
     const { sink } = spots;
-    if (!claim(a, "sink")) {
-      yield* walk(a, [sink.at[0] + 4, sink.at[1] + 16]);
-      yield* turn(a, sink.yaw);
-      if (!(yield* until(() => claim(a, "sink"), 30))) return;
-    }
+    if (!(yield* claimSink(a, 45))) return;
     onEnd(a, () => Object.assign(house.sink, { running: false, fruit: null }));
     yield* walk(a, sink.at);
     yield* turn(a, sink.yaw);
@@ -416,6 +413,7 @@ export function gardenActs(c) {
     const left = clamp(picked, lo, hi);
     a.props.plate(kind, left);
     a.props.only(kind);
+    a.serving = true; // not to be called away now (life.js)
     a.hold = HOLDS.tray;
     a.beHappy(1);
     release(a, "sink");

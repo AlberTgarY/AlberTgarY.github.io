@@ -97,7 +97,8 @@ const NIGHT = {
 // The dog still needs her walk, rain or not.
 const RAIN = { fire: 2.5, fireside: 1.6, read: 1.5, nap: 1.6, tv: 1.3, perch: 2.5, bed: 1.3 };
 const LONGEST = 300; // s any one activity may run
-// What is never dropped for a hungry pet: changing clothes, feeding, running in from the rain, the cat's mess.
+// What is never dropped for a hungry pet: changing clothes, feeding, running in from the rain, the cat's mess;
+// nor is anyone with food in hand (`a.serving`: a dish out of the oven, the garden's fruit on its plate).
 const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff"];
 // The day's rhythm: what comes round every so often (s, at random between the two) whatever anyone's tastes,
 // each due that long after it was last done (by anyone, asked or not). A meal is either of them cooking, or
@@ -205,6 +206,7 @@ export function makeLife(home) {
       served: false,
       messy: false,
       tidied: false,
+      serving: false,
     });
     a.setState("idle");
     ["want", "mood", "say"].forEach((c) => a.show(c, null));
@@ -269,7 +271,7 @@ export function makeLife(home) {
   // one busy on their own rather than with the other, if there is one. What they were doing ends where it is
   // (its things put back, as when anything is cut short); what they were next asked to do still waits.
   function drop(todo) {
-    const busy = humans.filter((h) => !h.out && !h.asleep && !h.abed && !NO_DROP.includes(h.jobName) && h.pending?.name !== "feed");
+    const busy = humans.filter((h) => !h.out && !h.asleep && !h.abed && !h.serving && !NO_DROP.includes(h.jobName) && h.pending?.name !== "feed");
     const a = busy.find((h) => !together(h)) || busy[0];
     if (!a) return null;
     const { pending } = a;
