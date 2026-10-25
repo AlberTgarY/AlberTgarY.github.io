@@ -1,7 +1,8 @@
 /*******************************************************************************
- * Time at home for the two of them: watching TV, a nap, bed at night, a book,
- * watering the plant, the laptop, a video game together, a chat, a stretch, a
- * stroll, a rest, and the fire.
+ * Time at home for the two of them: watching TV (and putting up with a visitor
+ * clicking the TV and its remote), a nap, bed at night, a book, watering the
+ * plant, the laptop, a video game together on the PlayStation, a chat, a
+ * stretch, a stroll, a rest, and the fire.
  ******************************************************************************/
 
 import { rnd, pick, clamp } from "../../stage.js";
@@ -26,6 +27,7 @@ export function livingActs(c) {
     outOfBed,
     claim,
     holder,
+    release,
     act,
     event,
     available,
@@ -33,6 +35,7 @@ export function livingActs(c) {
     onEnd,
     t,
     other,
+    humans,
     LIVING,
     SOFA,
     freeSeat,
@@ -47,30 +50,169 @@ export function livingActs(c) {
   } = c;
   const snuggle = (...args) => c.snuggle(...args); // pets.js
 
-  // Watch TV on the sofa; the other may come and watch too, and the pets snuggle up. Some doze off.
+  // The remote, taken from the coffee table: theirs till they put it back (or what they are doing ends, when
+  // it is back on the table).
+  const hasRemote = (a) => holder("remote") === a && !house.tv.remoteHome;
+  function* fetchRemote(a) {
+    if (!house.tv.remoteHome || !claim(a, "remote")) return false;
+    yield* walk(a, spots.remote.at);
+    yield* turn(a, spots.remote.yaw);
+    a.hold = HOLDS.pick;
+    yield* wait(a, 0.5);
+    house.tv.remoteHome = false;
+    onEnd(a, () => holder("remote") === a && (house.tv.remoteHome = true));
+    a.props.only("remote");
+    a.hold = HOLDS.carry;
+    yield* wait(a, 0.2);
+    return true;
+  }
+  function* putRemote(a) {
+    yield* walk(a, spots.remote.at);
+    yield* turn(a, spots.remote.yaw);
+    a.hold = HOLDS.pick;
+    yield* wait(a, 0.4);
+    house.tv.remoteHome = true;
+    release(a, "remote");
+    a.props.only();
+    a.hold = null;
+    yield* wait(a, 0.2);
+  }
+  // The remote pointed at the TV, out to the side (standing, turned to the room first), and `then` when the
+  // button is pressed.
+  function* press(a, then) {
+    const held = a.hold;
+    if (!a.seated) yield* turn(a, V);
+    a.hold = HOLDS.point;
+    yield* wait(a, 0.45);
+    then();
+    yield* wait(a, 0.35);
+    a.hold = held;
+  }
+  // Back on the seat after getting up for the remote, eyes on the TV again.
+  function* sitBack(a, seat) {
+    yield* sitOn(a, seat);
+    if (hasRemote(a)) a.hold = HOLDS.lap;
+    a.look = spots.tv;
+  }
+  // A cross face for `secs`.
+  function* cross(a, secs) {
+    a.setState("react", secs, "angry");
+    yield* wait(a, secs);
+    a.setState("idle");
+  }
+
+  // Watch TV on the sofa, switched on with the remote from the coffee table on the way (put back there) unless
+  // it is on already; the other may come and watch too, and the pets snuggle up. Some doze off. Whoever is
+  // last to stop switches it off. A visitor clicking about is noticed (asleep, not): another channel is
+  // funny, or puzzling; flicking on and on, one of them gets up and keeps the remote; switched off, they
+  // switch it back on (with the remote, getting up for it if need be), the second time crossly, and the
+  // third time they give up.
   function* tv(a) {
     const seat = takeSeat(a, a.name === "girl" ? ["sofa1", "sofa0", "sofa2"] : ["sofa2", "sofa0", "sofa1"]);
     if (!seat) return;
+    if (house.tv.mode === "off" && (yield* fetchRemote(a))) {
+      yield* press(a, () => (a.watching = true));
+      yield* putRemote(a);
+    }
     yield* sitOn(a, seat);
     a.watching = true;
     a.look = spots.tv;
     const b = other(a);
     if (b && !b.watching && Math.random() < 0.4 && freeSeat(SOFA)) invite(b, act("tv", tv));
     for (const p of home.pets) if (Math.random() < 0.4) invite(p, act("snuggle", snuggle, a));
+    const end = t() + rnd(20, 35);
+    let dozeAt = dozeChance(0.15, 0.5);
     let laughAt = t() + rnd(4, 8);
-    yield* linger(a, rnd(20, 35), {
-      dozeAt: dozeChance(0.15, 0.5),
-      each() {
-        a.look = a.asleep ? null : spots.tv;
-        if (!a.asleep && t() > laughAt) {
-          if (Math.random() < 0.5) a.beHappy(1.4); // something funny
-          laughAt = t() + rnd(4, 9);
-        }
-      },
-    });
+    let zapAt = t() + rnd(10, 18);
+    let seen = house.tv.poke.n;
+    const flicks = []; // when a visitor turned over lately
+    // What there is to see to, if anything: something a visitor did, or a turn over to another channel.
+    const noticed = () => {
+      const { n, what } = house.tv.poke;
+      if (n !== seen) {
+        seen = n;
+        if (a.asleep) return null;
+        if (what === "channel") flicks.push(t());
+        return what;
+      }
+      return !a.asleep && hasRemote(a) && t() > zapAt ? "zap" : null;
+    };
+    for (;;) {
+      let what = null;
+      yield* linger(a, end - t(), {
+        dozeAt,
+        stop: () => (what = noticed()),
+        each() {
+          a.look = a.asleep ? null : spots.tv;
+          if (!a.asleep && t() > laughAt) {
+            if (Math.random() < 0.5) a.beHappy(1.4); // something funny
+            laughAt = t() + rnd(4, 9);
+          }
+        },
+      });
+      if (!what) break;
+      dozeAt = Infinity;
+      if (!(yield* seeTo(a, seat, what, flicks))) break;
+      if (what === "zap") zapAt = t() + rnd(10, 18);
+    }
+    // The last one watching switches it off; the remote goes back on the table.
+    if (house.tv.mode !== "off" && !humans.some((h) => h !== a && h.watching)) {
+      if (!hasRemote(a)) {
+        yield* getUp(a);
+        yield* fetchRemote(a);
+      }
+      if (hasRemote(a) && house.tv.mode !== "off") yield* press(a, () => (a.watching = false));
+    }
     a.watching = false;
     a.look = null;
-    yield* getUp(a);
+    if (a.seated) yield* getUp(a);
+    if (hasRemote(a)) yield* putRemote(a);
+  }
+
+  // Seeing to `what` happened to the TV while watching (tv() above); false once they give up.
+  function* seeTo(a, seat, what, flicks) {
+    const set = house.tv;
+    if (what === "zap") {
+      yield* press(a, () => set.zap(t()));
+      return true;
+    }
+    if (what === "on") {
+      a.beHappy(1.2); // back on
+      return true;
+    }
+    if (what === "channel") {
+      if (flicks.filter((f) => t() - f < 8).length >= 3 && set.remoteHome && claim(a, "remote")) {
+        yield* cross(a, 1);
+        yield* getUp(a);
+        yield* fetchRemote(a);
+        yield* sitBack(a, seat);
+      } else if (Math.random() < 0.45) a.beHappy(1.4);
+      else if (Math.random() < 0.55) a.pop("room-pop room-pop-question");
+      return true;
+    }
+    if (set.mode !== "off") return true;
+    if (set.offs >= 3) {
+      yield* cross(a, 1.6);
+      return false;
+    }
+    a.pop("room-pop room-pop-question");
+    yield* wait(a, 0.8);
+    if (set.mode !== "off") return true; // back on already
+    if (set.offs === 2) yield* cross(a, 1);
+    if (hasRemote(a)) yield* press(a, () => set.restore(t()));
+    else if (set.remoteHome && claim(a, "remote")) {
+      yield* getUp(a);
+      if (yield* fetchRemote(a)) yield* press(a, () => set.restore(t()));
+      yield* sitBack(a, seat);
+    }
+    return true;
+  }
+
+  // Switch off the TV a visitor left on (life.js asks), with the remote, and put it back.
+  function* tvOff(a) {
+    if (!(yield* fetchRemote(a))) return;
+    if (house.tv.mode !== "off" && house.tv.meddled) yield* press(a, () => house.tv.restore(t()));
+    yield* putRemote(a);
   }
 
   // A doze on the sofa or the armchair, maybe with a pet curled up beside.
@@ -238,7 +380,8 @@ export function livingActs(c) {
     a.hold = null;
   }
 
-  // A video game together on the sofa: one wins and cheers, the other pouts, then they laugh.
+  // A video game together on the sofa: the host fetches the two controllers from their stand on the mantel
+  // and puts them back after; one wins and cheers, the other pouts, then they laugh.
   function* game(a) {
     const b = other(a);
     const pair = [
@@ -251,9 +394,36 @@ export function livingActs(c) {
     if (!invite(b, act("game", gamePartner, ev, theirs))) return;
     const seat = takeSeat(a, [mine]);
     if (!seat) return;
+    yield* pads(a, false);
     yield* sitOn(a, seat);
     yield* play(a, ev);
     yield* getUp(a);
+    yield* pads(a, true);
+  }
+
+  // The controllers taken off their stand (`back` false: theirs till put back, or what they are doing ends,
+  // when they are back on it), or put back on it.
+  function* pads(a, back) {
+    if (back ? holder("pads") !== a : !house.tv.docked || !claim(a, "pads")) return;
+    if (back) {
+      a.props.only("pads");
+      a.hold = HOLDS.carry;
+    }
+    yield* walk(a, spots.dock.at);
+    yield* turn(a, spots.dock.yaw);
+    a.hold = HOLDS.reach;
+    yield* wait(a, 0.6);
+    house.tv.dock(back, t());
+    if (back) {
+      release(a, "pads");
+      a.props.only();
+      a.hold = null;
+      yield* wait(a, 0.3);
+    } else {
+      onEnd(a, () => holder("pads") === a && house.tv.dock(true, t()));
+      a.props.only("pads");
+      a.hold = HOLDS.carry;
+    }
   }
 
   function* gamePartner(a, ev, key) {
@@ -264,21 +434,37 @@ export function livingActs(c) {
     yield* getUp(a);
   }
 
+  // Playing, till the host calls it. A visitor switching the TV off (or over to a channel) makes them both
+  // cross, and the host switches it back with the controller's PS button.
   function* play(a, ev) {
     ev.ready.add(a);
-    if (!(yield* until(() => ev.ready.size === 2 || ev.over, 20)) || ev.over) return;
+    if (!(yield* until(() => ev.ready.size === 2 || ev.over, 45)) || ev.over) return;
     a.props.only("pad");
     a.hold = MOVES.pad;
     a.gaming = true;
     a.look = spots.tv;
-    if (a === ev.host) {
-      const end = t() + rnd(18, 24);
-      while (t() < end && !ev.over) {
-        a.nod = 0.08 * Math.sin(t() * 3);
-        yield;
+    const end = t() + rnd(18, 24);
+    const giveUp = t() + 60; // the guest's, should the host never call it
+    let seen = house.tv.poke.n;
+    while (!ev.over && (a === ev.host ? t() < end : !ev.result && t() < giveUp)) {
+      if (house.tv.poke.n !== seen) {
+        seen = house.tv.poke.n;
+        if (house.tv.mode !== "game") {
+          a.nod = 0;
+          yield* cross(a, 1.2);
+          if (a === ev.host && house.tv.mode !== "game") {
+            a.nod = 0.25; // a look down at the controller
+            yield* wait(a, 0.4);
+            house.tv.restore(t());
+            a.nod = 0;
+          }
+          continue;
+        }
       }
-      ev.result = { winner: Math.random() < 0.5 ? a : other(a) };
-    } else yield* until(() => ev.result || ev.over, 40);
+      if (a === ev.host) a.nod = 0.08 * Math.sin(t() * 3);
+      yield;
+    }
+    if (a === ev.host && !ev.over) ev.result = { winner: Math.random() < 0.5 ? a : other(a) };
     a.nod = 0;
     if (ev.result) {
       if (ev.result.winner === a) {
@@ -444,5 +630,5 @@ export function livingActs(c) {
     a.lie = false;
   }
 
-  return { tv, nap, sleep, read, water, laptop, game, chat, stretch, stroll, rest, walkUnless, lightFire, fireside };
+  return { tv, tvOff, nap, sleep, read, water, laptop, game, chat, stretch, stroll, rest, walkUnless, lightFire, fireside };
 }

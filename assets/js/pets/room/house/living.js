@@ -9,13 +9,15 @@ import { part, ellipsoid, box, pivotGroup, hash, cells } from "../../models/voxe
 import { sofaCorner } from "../../models/girl-props.js";
 import { pick } from "../../stage.js";
 import { CHANNELS, drawChannel, drawTvGame } from "../screens.js";
-import { DISHES, FRUIT_DISHES, buildDish } from "../props.js";
+import { DISHES, FRUIT_DISHES, buildDish, buildPad, buildRemote } from "../props.js";
 import { X0 } from "./layout.js";
 import { COLORS, pixelTexture, solid, place, turned } from "./kit.js";
 
 // `shared`: what the house so far has to share (house.js), with `night` and `overcast` as they are now.
 export function buildLiving(shared) {
   const { house, mesh, updates, clickables, footprint, turnedFootprint, shadeDay, shadeLit, bedLamp, lamps } = shared;
+  let now = 0; // the time, for what a visitor clicks
+  updates.push((t) => (now = t));
 
   // The sofa corner (the girl's): the sofa, a floor lamp at one end and a plant at the other.
   const SOFA = [-45, 30];
@@ -100,47 +102,79 @@ export function buildLiving(shared) {
   box(table, [-20, 19], [3, 3], [-8, 7], "woodMid"); // the shelf underneath, with magazines
   box(table, [-16, -6], [4, 4], [-5, 3], "magazine");
   box(table, [-13, -3], [5, 5], [-4, 4], "magazine2");
-  // A mug and the remote on top.
+  // A mug on top.
   for (let y = 12; y <= 15; y++) ellipsoid(table, [-14, y, -3], [1.7, 0.5, 1.7], y === 15 ? "coffee" : y === 13 ? "mugBlue" : "mug");
   table.add(-12, 14, -3, "mug");
-  box(table, [-6, -2], [12, 12], [3, 4], "remote");
   place(house, mesh(table), [TABLE[0], 0, TABLE[1]]);
   footprint(TABLE[0] - 22, TABLE[0] + 22, TABLE[1] - 10, TABLE[1] + 10);
-  // The laptop's charger: a white power strip on the rug by the table, its light on, and the lead from it up
-  // over the table's edge to the laptop; or, while the laptop is away, to its plug lying on the table.
-  const strip = part();
-  box(strip, [28, 33], [0, 0], [-5, -4], (x, y, z) => (x === 33 && z === -4 ? "padRed" : x === 29 && z === -4 ? "remote" : "white"));
-  place(house, mesh(strip), [TABLE[0], 0, TABLE[1]]);
-  const lead = (from) => {
-    const cells = [];
-    const along = (a, b, n) => {
-      for (let k = 0; k <= n; k++) cells.push(a.map((v, i) => v + ((b[i] - v) * k) / n));
-    };
-    along([from, 11.8, -1], [21.8, 11.8, -1], Math.round((21.8 - from) * 2));
-    for (let k = 1; k <= 24; k++) {
-      const s = k / 24; // over the edge and down, curving out a little
-      cells.push([21.8 + 2.2 * Math.sin(s * Math.PI * 0.5), 11.8 * (1 - s) + 0.3 * s, -1 - s * 0.5]);
-    }
-    along([24, 0.3, -1.5], [29, 0.3, -4], 12);
-    const m = new THREE.InstancedMesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), new THREE.MeshLambertMaterial({ color: "#2d2f36" }), cells.length);
-    cells.forEach((c, i) => m.setMatrixAt(i, new THREE.Matrix4().makeTranslation(...c)));
-    return place(house, m, [TABLE[0], 0, TABLE[1]]);
+  // The TV's remote, at the right end of the table: taken up to switch the TV, and put back.
+  const remote = place(house, new THREE.Group(), [TABLE[0] + 18, 11.75, TABLE[1] - 2], 1.35);
+  remote.add(buildRemote());
+  // An unseen box round it, so that it is not too small to click.
+  remote.add(new THREE.Mesh(new THREE.BoxGeometry(5, 3, 9), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })));
+  // The laptop's charger: a socket in the floor in front of the rug, its lid flipped up, with the MacBook's
+  // white power adapter plugged into it, and the white lead from the top of the adapter across the rug, up
+  // over the front of the table to the laptop's MagSafe plug (its light amber while it charges, then green);
+  // or, while the laptop is away, to the plug lying on the table where it was.
+  const SOCKET = [TABLE[0] + 34, 103];
+  const socket = part(); // in half voxels
+  box(socket, [-5, 4], [0, 0], [-5, 4], (x, y, z) => (Math.abs(x + 0.5) > 3 || Math.abs(z + 0.5) > 3 ? "steel" : "steelDark"));
+  box(socket, [-5, 4], [1, 6], [-6, -6], (x, y) => (y === 6 || Math.abs(x + 0.5) > 4 ? "steelDark" : "steel")); // the lid
+  box(socket, [-3, 2], [1, 6], [-1, 1], (x, y, z) => (y === 6 && z === 0 && Math.abs(x + 0.5) < 1 ? "steelDark" : "white")); // the adapter
+  box(socket, [-2, 1], [7, 7], [-1, 1], "white"); // its rounded top
+  const socketMesh = solid(socket);
+  socketMesh.scale.setScalar(0.5);
+  place(house, socketMesh, [SOCKET[0], -0.35, SOCKET[1]]);
+  footprint(SOCKET[0] - 4, SOCKET[0] + 4, SOCKET[1] - 4, SOCKET[1] + 4, false);
+  const [tx, tz] = TABLE;
+  const leadMat = new THREE.MeshLambertMaterial({ color: "#f3f3f0" });
+  // A lead from the plug at `from`, along the points `via`, to the adapter.
+  const lead = (from, via) => {
+    const points = [from, ...via].map(([x, y, z]) => new THREE.Vector3(tx + x, y, tz + z));
+    points.push(
+      ...[
+        [SOCKET[0] - 1.5, -0.2, SOCKET[1] - 4],
+        [SOCKET[0] - 0.7, 1.6, SOCKET[1] - 2],
+        [SOCKET[0] - 0.3, 4.4, SOCKET[1] - 0.8],
+        [SOCKET[0] - 0.25, 3.5, SOCKET[1]],
+      ].map((v) => new THREE.Vector3(...v))
+    );
+    const curve = new THREE.CatmullRomCurve3(points, false, "centripetal");
+    return place(house, new THREE.Mesh(new THREE.TubeGeometry(curve, 160, 0.26, 6), leadMat), [0, 0, 0]);
   };
-  const plugged = lead(13.5);
-  const loose = lead(16);
-  const plugHead = place(house, new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1), new THREE.MeshLambertMaterial({ color: "#2d2f36" })), [
-    TABLE[0] + 15.3,
-    11.9,
-    TABLE[1] - 1,
-  ]);
+  const PORT = [8 + 5.5, 11.75, -1 + 0.9]; // the laptop's left side, near the back (it lies at TABLE + [8, 12, -1], turned 0.2)
+  const across = [
+    [16.5, 11.75, 4],
+    [20.5, 11.75, 8.5],
+    [21.6, 11.6, 10.4],
+    [22.2, 8, 11.6],
+    [22.6, 2, 13],
+    [23.6, -0.2, 16],
+    [22.8, -0.2, 19.5],
+    [25.5, -0.2, 23.5],
+    [30.5, -0.2, 26.3],
+  ];
+  const pluggedLead = lead(PORT, across);
+  const looseLead = lead([11, 11.75, 2.5], across);
+  // The MagSafe plug: in the laptop's side, its light on; or lying on the table.
+  const plugMat = new THREE.MeshLambertMaterial({ color: "#d6d9de" });
+  const plug = place(house, new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.35, 0.7), plugMat), [tx + PORT[0] + 0.5, 11.75, tz + PORT[2]], 0.2);
+  const plugLight = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.3), new THREE.MeshBasicMaterial());
+  plugLight.position.set(0.2, 0.28, 0);
+  plug.add(plugLight);
+  const loosePlug = place(house, new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.35, 0.7), plugMat), [tx + 10.4, 11.7, tz + 2.2], -0.9);
+  let pluggedAt = -Infinity; // charged already
   const charger = {
     // Whether the laptop is home on the table, plugged in.
     set plugged(on) {
-      plugged.visible = on;
-      loose.visible = plugHead.visible = !on;
+      if (on && !pluggedLead.visible) pluggedAt = now;
+      pluggedLead.visible = plug.visible = on;
+      looseLead.visible = loosePlug.visible = !on;
     },
   };
-  charger.plugged = true;
+  pluggedLead.visible = plug.visible = true;
+  looseLead.visible = loosePlug.visible = false;
+  updates.push((t) => plugLight.material.color.set(t - pluggedAt < 150 ? "#ffab2e" : "#5fdc6a")); // amber while it charges, then green
 
   // The fireplace on the left wall, built facing +z and turned to face the room: a red brick surround round
   // a sooty firebox with logs on a grate, a wooden mantel with the games console, the two controllers, a
@@ -175,21 +209,68 @@ export function buildLiving(shared) {
   const emberList = logs.list().filter(([x, y, z, c]) => (c === "logChar" || c === "ash") && hash(x, y + 40, z) < (c === "ash" ? 0.3 : 0.4));
   emberList.forEach((v) => (v[3] = hash(v[0], v[2], 9) < 0.5 ? "ember" : "emberDeep"));
   logs.list().forEach(([x, y, z, c]) => !emberList.some((e) => e[0] === x && e[1] === y && e[2] === z) && hearth.add(x, y, z, c));
-  // On the mantel: the games console, a photo of the two of them, and two candles.
-  box(hearth, [-5, 4], [38, 39], [1, 6], "console");
-  box(hearth, [-4, 3], [39, 39], [7, 7], "steelDark");
-  box(hearth, [-20, -13], [38, 45], [2, 2], (x, y) =>
-    x === -20 || x === -13 || y === 38 || y === 45 ? "canvasFrame" : y < 41 ? "melon" : "photoSky"
+  // On the mantel: a photo of the two of them, the PlayStation 5 lying down and the controllers' charging
+  // stand (below), and two candles.
+  box(hearth, [-23, -17], [38, 44], [2, 2], (x, y) =>
+    x === -23 || x === -17 || y === 38 || y === 44 ? "canvasFrame" : y < 41 ? "melon" : "photoSky"
   );
-  for (const x of [14, 18]) box(hearth, [x, x + 1], [38, 41 + (x % 3)], [4, 5], "cream");
+  const CANDLES = [16, 20];
+  for (const x of CANDLES) box(hearth, [x, x + 1], [38, 41 + (x % 3)], [4, 5], "cream");
   tvGroup.add(mesh(hearth));
+  // The PlayStation 5, lying down (in half voxels): the white top and bottom panels, wide at the ends and
+  // swept back in the middle to show the black body between them, with two USB ports in front; and its
+  // light along the edge of the top panel, blue while it is on.
+  const ps5 = part();
+  const light = part();
+  const edge = (x) => 6 - Math.round(4 * (1 - ((x + 0.5) / 11) ** 2)); // the panels' front edge
+  for (let x = -11; x <= 10; x++)
+    for (let z = -6; z <= 6; z++) {
+      const end = Math.abs(x + 0.5) > 9.5;
+      if (z <= edge(x)) ps5.add(x, 0, z, "dsWhite");
+      if (z <= 5 && !end)
+        for (let y = 1; y <= 3; y++) {
+          if (y === 3 && z === edge(x) + 1) light.add(x, y, z, "light");
+          else if (y < 3 || z <= edge(x) || z > edge(x) + 1) ps5.add(x, y, z, "dsBlack");
+        }
+      if (z <= edge(x)) for (let y = 4; y <= 5; y++) ps5.add(x, y, z, y === 5 && z === edge(x) ? "dsShade" : "dsWhite");
+    }
+  for (const x of [-4, -2]) ps5.add(x, 1, 6, "steelDark");
+  const ps5Mesh = solid(ps5);
+  const ps5Glow = new THREE.MeshBasicMaterial({ color: "#2a2b30" });
+  const ps5Light = light.mesh({ light: "#ffffff" });
+  ps5Light.material = ps5Glow;
+  for (const m of [ps5Mesh, ps5Light]) {
+    m.scale.setScalar(0.5);
+    place(tvGroup, m, [-9, 37.75, 3]);
+  }
+  // The charging stand for the two controllers: a white base with a little display, each controller standing
+  // in its slot facing the room (`pads`, hidden while in someone's hands), with a light in front of each,
+  // amber while it charges after a game and then white.
+  const stand = part();
+  for (let x = -14; x <= 13; x++)
+    for (let z = -3; z <= 3; z++) {
+      const r = Math.abs(x + 0.5) - 11.5;
+      if (r > 0 && r * r + z * z > 9) continue; // the round ends
+      for (let y = 0; y <= 2; y++) stand.add(x, y, z, y === 2 && Math.abs(z) <= 1 && Math.abs(Math.abs(x + 0.5) - 7) < 6 ? "dsBlack" : "dsWhite");
+    }
+  box(stand, [-2, 1], [1, 2], [4, 4], (x, y) => (y === 2 && x !== -2 ? "dsLight" : "dsBlack")); // the display
+  const standMesh = solid(stand);
+  standMesh.scale.setScalar(0.5);
+  place(tvGroup, standMesh, [5, 37.75, 3]);
+  const pads = [-1, 1].map((side) => {
+    const holder = place(tvGroup, new THREE.Group(), [5 + side * 3.6, 40.7, 3.1]);
+    holder.add(buildPad());
+    holder.rotation.set(-Math.PI / 2 + 0.2, Math.PI, 0, "YXZ");
+    return holder;
+  });
+  const padLights = [-1, 1].map((side) =>
+    place(tvGroup, new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.2), new THREE.MeshBasicMaterial()), [5 + side * 3.6, 38.4, 4.85])
+  );
+  let dockedAt = -Infinity;
   // The candle flames and the fire: lit (unlit material) and flickering.
   const flameMat = new THREE.MeshBasicMaterial({ vertexColors: true });
   const candles = cells(
-    [
-      [14.5, 44, 4.5, "tin"],
-      [18.5, 42, 4.5, "tin"],
-    ],
+    CANDLES.map((x) => [x + 0.5, 42 + (x % 3), 4.5, "tin"]),
     COLORS
   );
   candles.material = new THREE.MeshBasicMaterial();
@@ -293,41 +374,42 @@ export function buildLiving(shared) {
     candles.visible = shared.night;
   });
 
-  // The TV on the wall over the mantel.
+  // The TV on the wall over the mantel, its little red light on while it is off.
   const tvBody = part();
   box(tvBody, [-23, 22], [44, 70], [0, 1], (x, y) => (Math.abs(x + 0.5) > 21.5 || y === 44 || y === 70 ? "tvEdge" : "tvBody"));
-  tvGroup.add(mesh(tvBody));
+  const tvMesh = tvGroup.add(mesh(tvBody)).children.at(-1);
   const SCREEN = [42, 24];
   const screen = pixelTexture(...SCREEN, () => {});
-  place(tvGroup, new THREE.Mesh(new THREE.PlaneGeometry(...SCREEN), new THREE.MeshBasicMaterial({ map: screen.tex })), [-0.5, 57, 1.6]);
+  const glass = place(tvGroup, new THREE.Mesh(new THREE.PlaneGeometry(...SCREEN), new THREE.MeshBasicMaterial({ map: screen.tex })), [-0.5, 57, 1.6]);
+  const standby = place(
+    tvGroup,
+    new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.2), new THREE.MeshBasicMaterial({ color: "#ff3b30" })),
+    [17, 44, 1.6]
+  );
   const tvLight = new THREE.PointLight(0x9fc8ff, 0, 110, 0);
   tvLight.position.set(0, 57, 18);
   tvGroup.add(tvLight);
-  // The controllers rest on the mantel until someone picks them up.
-  const padsOnStand = [-1, 1].map((side) => {
-    const p = cells(
-      [
-        [-2, 0, 0, "pad"],
-        [-1, 0, 0, "pad"],
-        [0, 0, 0, "pad"],
-        [1, 0, 0, "pad"],
-        [2, 0, 0, "pad"],
-        [-2, 0, 1, "pad"],
-        [2, 0, 1, "pad"],
-        [1, 1, 0, "padRed"],
-      ],
-      COLORS
-    );
-    return place(tvGroup, p, [side * 9, 38, 6]);
-  });
   const tvFace = (lx, ly, lz) => {
     const [x, z] = turned(TV.at, TV.turn, [lx, lz]);
     return [x, ly, z];
   };
 
-  // What is on (screens.js): the channels, one after another as they flick through, or the game the two of
-  // them play; or it is off, with a gleam on the glass.
-  const tv = { mode: "off", channel: "nature", since: 0, sky: "sunny" };
+  // What is on (screens.js): a channel, or the game the two of them play; or it is off, with a gleam on the
+  // glass. The two of them put on what they want (`want`, life.js: a show while someone watches, the game
+  // while they play); a visitor clicking the TV switches it on or off, and clicking the remote on the table
+  // turns to another channel. What a visitor puts on (`user`) stands until the two of them want something
+  // else, or one of them puts it right; `poke` is the last thing a visitor did ("on", "off" or "channel"),
+  // counted, for them to notice, and `offs` how often it was switched off on them since they put it on.
+  const tv = {
+    mode: "off",
+    want: "off",
+    user: null,
+    channel: pick(CHANNELS),
+    since: 0,
+    sky: "sunny",
+    poke: { n: 0, what: null, t: -Infinity },
+    offs: 0,
+  };
   function drawScreen(t) {
     const { g } = screen;
     const [w, h] = SCREEN;
@@ -341,18 +423,102 @@ export function buildLiving(shared) {
     else drawChannel(g, w, h, tv.channel, t, t - tv.since, tv.sky);
     screen.tex.needsUpdate = true;
   }
+  function show(t) {
+    const mode = tv.user ?? tv.want;
+    if (mode === tv.mode) return;
+    tv.mode = mode;
+    tv.since = t;
+    tvLight.intensity = mode === "off" ? 0 : 0.35;
+    tvLight.color.set(mode === "game" ? 0xd8b0ff : 0x9fc8ff);
+    standby.visible = mode === "off";
+    drawScreen(t);
+  }
+  const poked = (what, t) => (tv.poke = { n: tv.poke.n + 1, what, t });
+  const tvControls = {
+    get mode() {
+      return tv.mode;
+    },
+    // Whether what is on is a visitor's doing.
+    get meddled() {
+      return tv.user !== null;
+    },
+    get poke() {
+      return tv.poke;
+    },
+    get offs() {
+      return tv.offs;
+    },
+    set sky(sky) {
+      tv.sky = sky;
+    },
+    // What the two of them want on: "off", "show" or "game"; whatever a visitor did is over once that changes.
+    want(mode, t) {
+      if (mode !== tv.want) {
+        tv.want = mode;
+        tv.user = null;
+        tv.offs = 0;
+      }
+      show(t);
+    },
+    // Someone puts right what a visitor did (with the remote, or the controller's PS button).
+    restore(t) {
+      tv.user = null;
+      show(t);
+    },
+    // Over to the next channel (with the remote), in order, round and round.
+    zap(t) {
+      tv.channel = CHANNELS[(CHANNELS.indexOf(tv.channel) + 1) % CHANNELS.length];
+      tv.since = t;
+      drawScreen(t);
+    },
+    // A visitor clicks the TV: on (to what the two of them were watching or playing, if anything), or off.
+    power(t) {
+      if (tv.mode === "off") tv.user = tv.want === "off" ? "show" : null;
+      else tv.user = tv.want === "off" ? null : "off";
+      show(t);
+      if (tv.mode === "off" && tv.want !== "off") tv.offs++;
+      poked(tv.mode === "off" ? "off" : "on", t);
+    },
+    // A visitor clicks the remote: on if it is off, else the next channel (in the middle of a game, over from
+    // the game to the TV).
+    flick(t) {
+      if (tv.mode === "off") return tvControls.power(t);
+      if (tv.mode === "game") tv.user = "show";
+      tvControls.zap(t);
+      show(t);
+      poked("channel", t);
+    },
+    // The controllers on their stand (or in someone's hands), and the remote on the table (or in a hand).
+    get docked() {
+      return pads[0].visible;
+    },
+    dock(on, t) {
+      if (on && !pads[0].visible) dockedAt = t;
+      pads.forEach((p) => (p.visible = on));
+    },
+    get remoteHome() {
+      return remote.visible;
+    },
+    set remoteHome(on) {
+      remote.visible = on;
+    },
+  };
+  // Clicked: the TV (its frame or its screen), and the remote while it lies on the table.
+  clickables.push({ parts: [tvMesh, glass], toggle: () => tvControls.power(now) });
+  clickables.push({ parts: [remote], toggle: () => remote.visible && tvControls.flick(now) });
   let screenAt = -1;
   updates.push((t) => {
     // Redraw at about 12 frames a second: plenty for pixel art on a small screen.
     if (tv.mode !== "off" && t - screenAt > 0.08) {
-      if (tv.mode === "show" && t - tv.since > 12) {
-        tv.channel = pick(CHANNELS.filter((c) => c !== tv.channel));
-        tv.since = t;
-      }
       drawScreen(t);
       screenAt = t;
       tvLight.intensity = 0.35 + 0.1 * Math.sin(t * 5) * Math.sin(t * 1.7);
     }
+    ps5Glow.color.set(tv.want === "game" ? "#8fd6ff" : "#2a2b30"); // the console is on while they play
+    padLights.forEach((m) => {
+      m.visible = pads[0].visible;
+      m.material.color.set(t - dockedAt < 120 ? "#ffab2e" : "#f4f6ff");
+    });
   });
 
   /* ---------- the dining table ---------- */
@@ -381,12 +547,14 @@ export function buildLiving(shared) {
   footprint(DINING[0] - HALF, DINING[0] + HALF, DINING[1] + NEAR, DINING[1] + FAR);
   const tableDish = place(house, new THREE.Group(), [DINING[0], 14.5, DINING[1] + 1]);
   const tableDishes = Object.fromEntries([...DISHES, ...FRUIT_DISHES].map((kind) => [kind, place(tableDish, buildDish(kind), [0, 0, 0])]));
-  // What is on the table (props.js's DISHES or FRUIT_DISHES), or nothing; of the fruit, `left` pieces.
-  const dinner = { dish: null, left: 0 };
-  updates.push(() =>
+  // What is on the table (props.js's DISHES or FRUIT_DISHES), or nothing; of the fruit, `left` pieces; and
+  // whether it is hot from the oven (it steams).
+  const dinner = { dish: null, left: 0, hot: false };
+  updates.push((t) =>
     Object.entries(tableDishes).forEach(([kind, m]) => {
       m.visible = dinner.dish === kind;
       m.userData.pieces?.forEach((piece, k) => (piece.visible = k < dinner.left));
+      m.userData.steam?.(t, m.visible && dinner.hot);
     })
   );
   const DINE_Z = DINING[1] - 17;
@@ -452,5 +620,5 @@ export function buildLiving(shared) {
   place(house, mesh(dogBed), [DOGBED[0], 0, DOGBED[1]]);
   footprint(DOGBED[0] - 17, DOGBED[0] + 17, DOGBED[1] - 12, DOGBED[1] + 12);
 
-  return { SOFA, ARMCHAIR, TABLE, charger, TV, fire, tvLight, padsOnStand, tvFace, tv, drawScreen, DINING, PLACE, dinner, DINE_Z, TREE, DOGBED };
+  return { SOFA, ARMCHAIR, TABLE, charger, TV, fire, tvFace, tvControls, drawScreen, DINING, PLACE, dinner, DINE_Z, TREE, DOGBED };
 }

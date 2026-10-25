@@ -13,9 +13,10 @@
  *   stops is over for everyone.
  * - An activity that throws, or runs far too long, is stopped, and its actor
  *   put back on the floor with its things put away.
- * The director, run every frame, looks after what belongs to no one: the TV,
- * the fridge's doors and the quilt, who sits beside whom on the sofa, the pets
- * getting hungry and being fed, the cat's mischief while they are all out, the
+ * The director, run every frame, looks after what belongs to no one: the TV
+ * (and anyone looking round when a visitor switches it on, or going to switch
+ * it off), the fridge's doors and the quilt, who sits beside whom on the sofa,
+ * the pets getting hungry and being fed, the cat's mischief while they are all out, the
  * girl going to change into what a visitor picked for her, someone going to
  * turn the garden's sprinkler off once it has run a while, and the day's
  * rhythm (ROUTINE): the dog walked, a meal made and the garden seen to every
@@ -286,6 +287,8 @@ export function makeLife(home) {
   let hungerAt = t() + rnd(60, 120);
   let mischiefAt = null;
   let messAt = -Infinity; // the last mess: one at a time, and not too often
+  let tvSeen = 0; // the last thing a visitor did to the TV that was noticed
+  let tvOffAt = Infinity; // when someone goes to switch off a TV a visitor left on
   const seatIndex = (key) => (key && key.startsWith("sofa") ? +key.slice(4) : -1);
 
   function direct() {
@@ -302,11 +305,27 @@ export function makeLife(home) {
       if (girl.pending?.name === "dress") girl.interrupt = !together(girl); // wrap up as soon as she can, if on her own
     }
 
-    // The TV is on while someone sits watching (or playing), the controllers in their hands; the fridge
-    // is open while someone stands at it with the door open; the quilt is up over whoever is in bed.
-    const gaming = actors.some((a) => a.gaming && a.seated);
-    house.tv.set(gaming ? "game" : actors.some((a) => a.watching && a.seated) ? "show" : "off", t());
-    house.tv.pads.forEach((p) => (p.visible = !gaming));
+    // The TV is on while someone watches (once they have switched it on) or plays; the fridge is open while
+    // someone stands at it with the door open; the quilt is up over whoever is in bed.
+    const { tv } = house;
+    tv.want(actors.some((a) => a.gaming) ? "game" : actors.some((a) => a.watching) ? "show" : "off", t());
+    // A visitor switching the TV on with no one watching: whoever is free and awake looks round at it, and
+    // may come and watch; left on and not watched, it is switched off by whoever is free after a while.
+    if (tv.poke.n !== tvSeen) {
+      tvSeen = tv.poke.n;
+      if (tv.poke.what === "on" && tv.meddled) {
+        const free = humans.filter(available);
+        free.forEach((h) => h.pop("room-pop room-pop-question"));
+        if (free.length && Math.random() < 0.5) invite(pick(free), act("tv", home.acts.tv.run));
+        tvOffAt = t() + rnd(30, 50);
+      }
+    }
+    if (tv.mode === "off" || !tv.meddled) tvOffAt = Infinity;
+    if (t() > tvOffAt && !holder("remote")) {
+      const h = humans.find(available);
+      tvOffAt = t() + 10;
+      if (h) invite(h, act("tvOff", home.acts.tvOff.run));
+    }
     house.fridge.openers = actors.filter((a) => a.atFridge).length;
     house.fridge.freezers = actors.filter((a) => a.atFreezer).length;
     house.beds.slots = [0, 1].map((i) => humans.some((h) => h.lainDown && h.seatKey === `bed${i}`));

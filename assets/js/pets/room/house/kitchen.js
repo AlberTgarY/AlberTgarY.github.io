@@ -523,9 +523,13 @@ export function buildKitchen(shared) {
   const ovenLight = new THREE.PointLight(0xffb060, 0, 40, 0);
   ovenLight.position.set(-10.5, 16, 14);
   stoveGroup.add(ovenLight);
-  // `on` while baking, `open` while someone has the door down, `dish` what is in it (props.js's DISHES).
-  const oven = { on: false, open: false, dish: null, k: 0 };
+  // `on` while baking, `open` while someone has the door down, `dish` what is in it (props.js's DISHES) and
+  // `baked` how far it is done (0 to 1: it browns as it bakes).
+  const oven = { on: false, open: false, dish: null, baked: 0, k: 0 };
+  const BAKE_SECS = 15;
   updates.push((t, dt) => {
+    if (oven.on) oven.baked = Math.min(1, oven.baked + dt / BAKE_SECS);
+    if (oven.dish) ovenDishes[oven.dish].userData.bake(oven.baked);
     oven.k += ((oven.open ? 1 : 0) - oven.k) * (1 - Math.exp(-7 * dt));
     ovenDoor.outer.rotation.x = 1.35 * oven.k;
     ovenPane.visible = element.visible = oven.on;

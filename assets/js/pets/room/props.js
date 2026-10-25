@@ -30,13 +30,28 @@ const COLORS = {
   pageLine: "#d9d0bd",
   cover: "#c94f4f",
   coverDark: "#a63c3c",
-  laptop: "#b9bec8",
-  laptopDark: "#8e94a0",
-  screen: "#2b3a55",
-  sticker: "#f28aa8",
-  pad: "#4a4f5c",
-  padRed: "#e0605a",
-  padBlue: "#5aa8e0",
+  mac: "#d6d9de",
+  macEdge: "#bfc3ca",
+  macLogo: "#b2b7bf",
+  macKey: "#2a2c31",
+  macKeyGap: "#4a4d55",
+  macPad: "#c9ccd2",
+  macBezel: "#16171b",
+  macBar: "#e9e6ef",
+  macDock: "#c7cbe0",
+  wallTop: "#3d3f8f",
+  wallMid: "#7b5fc4",
+  wallLow: "#d77fb6",
+  wallGlow: "#f3b18f",
+  dsWhite: "#f4f5f7",
+  dsShade: "#dcdfe5",
+  dsBlack: "#25262b",
+  dsStick: "#3c3e45",
+  dsButton: "#b9bdc6",
+  dsLight: "#5bb4ff",
+  remote: "#33363d",
+  remoteKey: "#6b7079",
+  remoteRed: "#e0504a",
   cone: "#e3b06b",
   coneDark: "#c48d4a",
   scoop: "#f7a8c4",
@@ -121,6 +136,10 @@ export const HOLDS = {
   admire: [[-2.2, -0.9, 0.35, 0, 0], null],
   taste: [[-1.3, -1.9, 0.5, 0, 0], null],
   packet: [null, [-0.7, -0.9, -0.2, 0, 0]],
+  // The remote pointed at the TV, the arm out to the right (facing the room, the TV is over that side); or
+  // resting in the lap.
+  point: [[-0.35, -0.05, 0, -1.35, 0], null],
+  lap: [[-0.45, -0.75, 0.25, 0, 0], null],
 };
 const PACKET = HOLDS.packet[1];
 
@@ -254,27 +273,16 @@ export function propsFor(rig, who) {
   leaf.inner.add(leafPart.mesh(COLORS));
   at(body, open, [-0.5, 12, 7], [-0.65, 0, 0]);
 
-  // The laptop: carried shut, or open on the lap with the screen towards them and a heart on its lid.
+  // The laptop: carried shut, or open on the lap with the screen towards them.
   const laptop = at(body, buildLaptop(), [0, 11.2, 5.5]);
   const laptopShut = at(right, buildLaptop(), [0, -3, 3], [Math.PI / 2, 0, 0]);
 
-  // A game controller between the hands.
-  const pad = at(
-    body,
-    cells(
-      [
-        ...[-3, -2, -1, 0, 1, 2, 3].map((x) => [x, 0, 0, "pad"]),
-        [-3, 0, 1, "pad"],
-        [3, 0, 1, "pad"],
-        [-2, 1, 0, "pad"],
-        [2, 1, 0, "padRed"],
-        [1, 1, 0, "padBlue"],
-      ],
-      COLORS
-    ),
-    [0, 10.5, 7.5],
-    [-0.5, 0, 0]
-  );
+  // A game controller between the hands; both of them carried in one hand, to the sofa or back to their
+  // stand; and the TV's remote.
+  const pad = at(body, buildPad(), [0, 10.8, 7.5], [0.15, 0, 0]);
+  const pads = at(right, new THREE.Group(), [0, -2.5, 1.5], [Math.PI / 2, 0, 0]);
+  [-1.2, 1.2].forEach((y) => (pads.add(buildPad()).children.at(-1).position.y = y));
+  const remote = at(right, buildRemote(), [0, -2.2, 1.2], [Math.PI / 2, 0, 0]);
 
   // Treats from the fridge: an ice cream cone, or a juice box with a straw.
   const coneP = part();
@@ -434,6 +442,8 @@ export function propsFor(rig, who) {
     laptop,
     laptopShut,
     pad,
+    pads,
+    remote,
     iceCream,
     juice,
     can,
@@ -571,27 +581,141 @@ export function buildDish(kind) {
     );
     for (const side of [-1, 1]) box(p, [side * 6, side * 6], [2, 2], [-1, 1], "bakeDish"); // the handles
   }
-  return p.mesh(COLORS);
+  // Done, as built; `userData.bake(k)` makes it uncooked (0: the chicken pale, the cheese not yet browned)
+  // or on the way (0 to 1). `userData.steam(t, on)` lets faint wisps of steam rise off it while it is hot.
+  const m = p.mesh(COLORS);
+  const raw = p.mesh({ ...COLORS, ...UNCOOKED });
+  const [done, pale] = [m, raw].map((x) => x.instanceColor.array.slice());
+  raw.dispose();
+  m.userData.bake = (k) => {
+    const c = m.instanceColor.array;
+    for (let i = 0; i < c.length; i++) c[i] = pale[i] + (done[i] - pale[i]) * k;
+    m.instanceColor.needsUpdate = true;
+  };
+  const wisps = [0, 1, 2].map(() => {
+    const w = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 1.4, 1.4),
+      new THREE.MeshBasicMaterial({ color: "#f4f6f8", transparent: true, depthWrite: false })
+    );
+    w.visible = false;
+    m.add(w);
+    return w;
+  });
+  m.userData.steam = (t, on) =>
+    wisps.forEach((w, i) => {
+      const k = (t * 0.35 + i / 3) % 1; // each rising, drifting and fading, one after another
+      w.visible = on;
+      w.position.set(2.5 * Math.sin(t * 1.3 + i * 2.1) * k, 4 + 11 * k, 1.5 * Math.cos(t * 1.1 + i) * k);
+      w.material.opacity = 0.3 * Math.sin(Math.PI * k);
+      w.scale.setScalar(0.7 + 1.1 * k);
+    });
+  return m;
 }
+// How the dishes look before they go in the oven.
+const UNCOOKED = { roast: "#f1c8aa", roastDark: "#e6b394", cheese: "#f8ecc4", cheeseBrown: "#f3e2ad", sauce: "#d9573f" };
 
-// A laptop lying shut, its keyboard side up and the far edge at +z; `lid.outer.rotation.x` opens it
-// (about 1.9), the screen turning to face the -z side.
+// Small things built in half voxels, for the detail: the part's mesh at half the size.
+const fine = (p) => {
+  const m = p.mesh(COLORS);
+  m.scale.setScalar(0.5);
+  return m;
+};
+
+// The apple on the lid, a row at a time from the leaf down (the bite on the right, seen from behind).
+const APPLE = ["....X..", "...X...", ".XX.XX.", "XXXXX..", "XXXXX..", "XXXXXX.", ".XX.XX."];
+
+// The MacBook, lying shut, its keyboard side up and the hinge at +z; `lid.outer.rotation.x` opens it
+// (about 1.9), the screen turning to face the -z side. Silver, a black keyboard and a wide trackpad; the
+// screen in a thin black bezel with the notch, the desktop and the dock on it (glowing); the apple on the
+// back of the lid. Built in half voxels, each layer a quarter of a voxel thick: about 10 x 8 voxels and 1
+// thick shut, sitting on y = -0.5.
 export function buildLaptop() {
   const laptop = new THREE.Group();
+  const thin = (p, material) => {
+    const m = p.mesh(COLORS);
+    if (material) m.material = material;
+    m.scale.set(0.5, 0.25, 0.5);
+    m.position.y = -0.375;
+    return m;
+  };
+  const rim = (x, z) => Math.abs(x) === 10 || z === -8 || z === 7;
   const base = part();
-  box(base, [-5, 5], [0, 0], [-4, 3], "laptop");
-  box(base, [-4, 4], [0.4, 0.4], [-3, 1], "laptopDark");
-  laptop.add(base.mesh(COLORS));
-  const lid = pivotGroup(laptop, [0, 0.5, 3.5]);
+  box(base, [-10, 10], [0, 0], [-8, 7], (x, y, z) => (rim(x, z) ? "macEdge" : "mac"));
+  box(base, [-10, 10], [1, 1], [-8, 7], (x, y, z) => {
+    if (Math.abs(x) <= 8 && z >= 1 && z <= 6) return z === 6 || (x + 8) % 3 === 2 ? "macKeyGap" : "macKey"; // the keys
+    if (Math.abs(x) <= 4 && z >= -7 && z <= -2) return "macPad";
+    return rim(x, z) ? "macEdge" : "mac";
+  });
+  laptop.add(thin(base));
+  const lid = pivotGroup(laptop, [0, 0, 3.75]);
   const shell = part();
-  box(shell, [-5, 5], [1, 1], [-4, 3], (x, y, z) => (Math.abs(x) <= 1 && Math.abs(z + 0.5) <= 1 ? "sticker" : "laptop"));
+  box(shell, [-10, 10], [3, 3], [-8, 7], (x, y, z) => (APPLE[z + 3]?.[x + 3] === "X" ? "macLogo" : rim(x, z) ? "macEdge" : "mac"));
+  box(shell, [-10, 10], [2, 2], [-8, 7], "macEdge", [{ has: (x, y, z) => !rim(x, z) }]);
+  // The screen: a menu bar along the top (the free edge, -z), a dusky purple desktop, and the dock.
+  const DOCK = ["wallGlow", "dsLight", "melonRed", "lkkGold"];
   const glass = part();
-  box(glass, [-4, 4], [0.4, 0.4], [-3, 2], (x, y, z) => ((z + 9) % 2 && Math.abs(x) < 3 ? "page" : "screen"));
-  const screen = glass.mesh(COLORS);
-  screen.material = new THREE.MeshBasicMaterial(); // it glows
-  lid.inner.add(shell.mesh(COLORS), screen);
+  box(glass, [-9, 9], [2, 2], [-7, 6], (x, y, z) => {
+    if (Math.abs(x) === 9 || z === -7 || z === 6 || (z === -6 && Math.abs(x) <= 1)) return "macBezel";
+    if (z === -6) return "macBar";
+    if (z === 4 && Math.abs(x) <= 5) return Math.abs(x) % 2 ? "macDock" : DOCK[(x + 6) % 4];
+    return z < -2 ? "wallTop" : z < 1 ? "wallMid" : z < 3 ? "wallLow" : "wallGlow";
+  });
+  lid.inner.add(thin(shell), thin(glass, new THREE.MeshBasicMaterial())); // the screen glows
   laptop.lid = lid;
   return laptop;
+}
+
+// A DualSense controller, lying face up with its grips towards -z: white wings with the D-pad and the face
+// buttons, the black middle with the two sticks and the PS button, the touchpad at the top with the blue
+// light either side of it, and the shoulder buttons behind. About 7 x 4.5 voxels, its middle at the origin.
+export function buildPad() {
+  const p = part();
+  for (let x = -7; x <= 6; x++)
+    for (let z = -4; z <= 4; z++) {
+      const ax = Math.abs(x + 0.5); // from the middle
+      if (z === 4) {
+        if (ax >= 3.5 && ax <= 5.5) p.add(x, 0, z, "dsBlack"); // the shoulder buttons
+        continue;
+      }
+      const body = z >= -1 && ax <= (z === 3 ? 5.5 : 6.5);
+      const grip = z < -1 && ax >= (z === -4 ? 4.5 : 3.5) && ax <= (z === -4 ? 6 : 6.5);
+      const belly = z === -2 && ax <= 2.5;
+      if (!body && !grip && !belly) continue;
+      let c = "dsWhite";
+      if (ax <= 2.5) c = z <= 0 ? "dsBlack" : "dsShade"; // the black middle, and the touchpad
+      else if (ax <= 3.5 && z >= 1) c = "dsLight";
+      p.add(x, 0, z, c);
+    }
+  [
+    [-6, 1],
+    [-4, 1],
+    [-5, 0],
+    [-5, 2],
+  ].forEach(([x, z]) => p.add(x, 1, z, "dsButton")); // the D-pad
+  [
+    [4, 2],
+    [3, 1],
+    [5, 1],
+    [4, 0],
+  ].forEach(([x, z]) => p.add(x, 1, z, "dsButton")); // triangle, square, circle and cross
+  for (const x of [-2, 1]) p.add(x, 1, -1, "dsStick");
+  p.add(0, 1, -2, "dsButton"); // PS
+  const m = fine(p);
+  m.position.x = 0.25;
+  return m;
+}
+
+// The TV's remote, lying face up, its top end (the red power button) towards +z: about 2 x 6.5 voxels.
+export function buildRemote() {
+  const p = part();
+  box(p, [-2, 1], [0, 0], [-6, 6], "remote");
+  p.add(-1, 1, 5, "remoteRed");
+  p.add(0, 1, 5, "remoteRed");
+  box(p, [-1, 0], [1, 1], [1, 2], "remoteKey"); // the arrows
+  for (let z = -5; z <= -1; z += 2) for (const x of [-2, 0]) p.add(x, 1, z, "remoteKey"); // the numbers
+  const m = fine(p);
+  m.position.x = 0.25;
+  return m;
 }
 
 // The dog's tennis ball, out in the room: lying still, held (in a hand or a mouth), or flying in an arc

@@ -264,7 +264,7 @@ export function makeRoom(stage) {
   const thingAt = (x, y) => {
     ndc.set((x / view.W) * 2 - 1, 1 - (y / view.H) * 2);
     raycaster.setFromCamera(ndc, view.camera);
-    const [first] = raycaster.intersectObjects([...owners.keys()], true);
+    const first = raycaster.intersectObjects([...owners.keys()], true).find(({ object }) => shown(object)); // not the remote while in a hand
     if (!first) return null;
     raycaster.far = first.distance - 0.5;
     const hidden = raycaster

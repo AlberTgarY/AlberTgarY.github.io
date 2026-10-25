@@ -11,7 +11,9 @@
  * the cat's tree, and the garden door out to the vegetable beds.
  *
  * Some things move: the fridge's two doors, the bin's lid and the front door,
- * the TV and the two computer screens (screens.js draws what is on them), the
+ * the TV (switched with its remote) and the two computer screens (screens.js
+ * draws what is on them), the PlayStation's light and the controllers on their
+ * stand, the laptop's charging plug, the
  * computer's power light, the gaming chair, the little Kirby on the desk
  * (rocking while the sun is up), steam off the stove, the oven's door and its
  * glow while it bakes, a dish on the dining table, the fire, the quilt when
@@ -29,8 +31,6 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { pick } from "../stage.js";
-import { CHANNELS } from "./screens.js";
 import { solid, turned } from "./house/kit.js";
 import { X0, SIDE, BACK, FRONT, DOOR, GARDEN_DOOR, floorY } from "./house/layout.js";
 import { buildShell } from "./house/shell.js";
@@ -51,7 +51,8 @@ export function buildHouse(scene, water) {
   const obstacles = []; // [x0, x1, z0, z1] footprints on the floor, for finding the way round
   const updates = []; // (t, dt) each frame
   // What a visitor can click to switch or open (playground.js): the curtains, the fridge and freezer doors,
-  // the two lamps. Each is { parts, toggle() }; the people take no notice of any of it.
+  // the two lamps, the TV and its remote. Each is { parts, toggle() }; the people notice only what is done to
+  // the TV.
   const clickables = [];
 
   // A soft shadow on the floor (or the loft) under a piece of furniture.
@@ -134,10 +135,8 @@ export function buildHouse(scene, water) {
     charger,
     TV,
     fire,
-    tvLight,
-    padsOnStand,
     tvFace,
-    tv,
+    tvControls,
     drawScreen,
     DINING,
     PLACE,
@@ -202,6 +201,9 @@ export function buildHouse(scene, water) {
     shelf: { at: [SHELF[0] + 20, SHELF[1]], yaw: -Math.PI / 2 },
     laptop: { at: [TABLE[0] + 8, TABLE[1] + 22], yaw: Math.PI },
     laptopHome: [TABLE[0] + 8, 12, TABLE[1] - 1],
+    // The remote, from the right end of the coffee table; the controllers, from their stand on the mantel.
+    remote: { at: [TABLE[0] + 29, TABLE[1] - 2], yaw: -Math.PI / 2 },
+    dock: { at: [-131, 65], yaw: -Math.PI / 2 },
     plant: { at: [SOFA[0] + 53, SOFA[1] - 8], yaw: -Math.PI / 2, pot: [SOFA[0] + 39, 6, SOFA[1] - 5] },
     tree: {
       at: [TREE[0] + 5, TREE[1] + 23],
@@ -289,7 +291,7 @@ export function buildHouse(scene, water) {
       drawSky();
       drawClouds();
     }
-    tv.sky = sky;
+    tvControls.sky = sky;
     views.rain(k);
     rainMat.opacity = doorRainMat.opacity = k;
     rainVeil.tex.offset.set(0.02 * t, (t * 1.6) % 1);
@@ -312,22 +314,8 @@ export function buildHouse(scene, water) {
       in: (who) => standUmbrellas[who].visible,
     },
     update: (t, dt) => updates.forEach((u) => u(t, dt)),
-    tv: {
-      // `mode`: "off", "show" or "game".
-      set(mode, t) {
-        if (mode === tv.mode) return;
-        if (mode === "show") tv.channel = pick(CHANNELS); // whatever happens to be on
-        tv.mode = mode;
-        tv.since = t;
-        tvLight.intensity = mode === "off" ? 0 : 0.35;
-        tvLight.color.set(mode === "game" ? 0xd8b0ff : 0x9fc8ff);
-        drawScreen(t);
-      },
-      get mode() {
-        return tv.mode;
-      },
-      pads: padsOnStand,
-    },
+    // The TV (house/living.js): what is on, who switched it, the remote and the controllers.
+    tv: tvControls,
     pc: {
       // `mode`: "off", "game", "win", "lose" or "show" (a drama she streams); `game` the one played or shown
       // (screens.js's GAMES, GIRL_GAMES or DRAMAS). `sitter`: who the chair turns with.

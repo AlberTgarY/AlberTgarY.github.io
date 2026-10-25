@@ -171,10 +171,10 @@ export function kitchenActs(c) {
     yield* meal(a);
   }
 
-  // Baking (either of them): a roast chicken or a lasagna out of the fridge and into the oven, kneeling to
-  // let its door down; it bakes while they wait by it, crouching to peek through the glass, the smell
-  // drifting up, till it is done; out of the oven, onto the table, the other called over to eat it with
-  // them, and the dish to the sink after.
+  // Baking (either of them): a roast chicken or a lasagna out of the fridge (pale, uncooked) and into the
+  // oven, kneeling to let its door down; it bakes (browning) while they wait by it, crouching to peek
+  // through the glass, the smell drifting up, till it is done; out of the oven, onto the table (steaming),
+  // the other called over to eat it with them, and the dish to the sink after.
   function* bake(a) {
     if (!claim(a, "stove") || !claim(a, "fridge")) return;
     const { oven } = house;
@@ -186,6 +186,7 @@ export function kitchenActs(c) {
     yield* wait(a, 0.5);
     a.hold = HOLDS.pick;
     yield* wait(a, 0.8);
+    a.props[dish].userData.bake(0); // uncooked
     a.props.only(dish);
     a.hold = HOLDS.tray;
     a.atFridge = false;
@@ -194,6 +195,7 @@ export function kitchenActs(c) {
     yield* atOven(a, () => {
       a.props.only();
       oven.dish = dish;
+      oven.baked = 0;
     });
     oven.on = true;
     a.hold = null;
@@ -218,11 +220,13 @@ export function kitchenActs(c) {
       yield;
     }
     oven.on = false;
+    oven.baked = 1; // golden brown
     home.popAt(smell, "room-pop room-pop-star"); // ding!
     a.pop();
     yield* wait(a, 0.6);
     yield* atOven(a, () => {
       oven.dish = null;
+      a.props[dish].userData.bake(1);
       a.props.only(dish);
     });
     a.hold = HOLDS.tray;
@@ -276,7 +280,7 @@ export function kitchenActs(c) {
       a.hold = HOLDS.pick;
       yield* wait(a, 0.5);
       a.props.only();
-      Object.assign(house.dinner, { dish, left });
+      Object.assign(house.dinner, { dish, left, hot: DISHES.includes(dish) }); // out of the oven, steaming
       yield* wait(a, 0.3);
       a.hold = null;
       a.look = null;

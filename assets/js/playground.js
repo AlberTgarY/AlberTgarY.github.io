@@ -5,7 +5,9 @@
  * Clicking someone says hi (or wakes them); they look round at the pointer.
  * Clicking the girl's dressing corner, up in the loft, asks what she should
  * wear, and she goes to change into it. Clicking the curtains draws them,
- * clicking the fridge opens it, and clicking a lamp switches it on or off.
+ * clicking the fridge opens it, clicking a lamp switches it on or off, clicking
+ * the TV switches it on or off, and clicking the remote on the coffee table
+ * turns to another channel (whoever is watching notices).
  * Styles are in _sass/_playground.scss.
  ******************************************************************************/
 
@@ -57,8 +59,8 @@ function start() {
   // front of it says hi instead.
   const closetAt = (x, y) => !room.hit(x, y) && room.onCloset(x, y);
   const picker = outfitPicker(stage, room, (e) => e.target === view.canvas && closetAt(...toCanvas(e)));
-  // Clicking someone says hi; the dressing corner asks what she should wear; the curtains, the fridge and
-  // the lamps open, shut or switch.
+  // Clicking someone says hi; the dressing corner asks what she should wear; the curtains, the fridge, the
+  // lamps, the TV and its remote open, shut or switch.
   view.canvas.addEventListener("click", (e) => {
     const [x, y] = toCanvas(e);
     const who = room.hit(x, y);

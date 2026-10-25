@@ -4,8 +4,9 @@
  * be chosen just now; the ones without it are only done when asked (the
  * director's, or another's invitation).
  *
- * The two of them watch TV, have a snack from the fridge or the freezer (the
- * dog begs for a treat, and the empty box goes in the bin), cook (her, with
+ * The two of them watch TV (and switch it off when a visitor left it on), have
+ * a snack from the fridge or the freezer (the dog begs for a treat, and the
+ * empty box goes in the bin), cook (her, with
  * vegetables from the garden when there are some) or bake a roast chicken or a
  * lasagna in the oven, and eat it together at the table, read, water the plant,
  * work on the laptop, play a video game together on the sofa, chat, nap,
@@ -57,6 +58,7 @@ export function makeActs(home, life) {
     sprinkler,
     gardenWet,
     tv,
+    tvOff,
     nap,
     sleep,
     snack,
@@ -122,7 +124,7 @@ export function makeActs(home, life) {
     pcGirl: (a) => a.name === "girl" && !holder("pc") && !holder("chair"),
     watchPc: (a) => a.name === "girl" && playing() && !holder("watchPc"),
     laptop: () => !holder("laptop") && freeSeat(),
-    game: (a) => available(other(a)) && !holder("sofa1") && (!holder("sofa0") || !holder("sofa2")),
+    game: (a) => available(other(a)) && house.tv.docked && !holder("sofa1") && (!holder("sofa0") || !holder("sofa2")),
     chat: (a) => available(other(a)),
     walk: () => available(byName.collie) && !home.actors.some((o) => o.out || o.event?.kind === "walk"),
     fetch: () => byName.collie && available(byName.collie) && home.ball.landed() && !holder("ball"),
@@ -217,6 +219,7 @@ export function makeActs(home, life) {
     sprinkle,
     splash,
     // Only when asked.
+    tvOff,
     sprinklerOff,
     shelter,
     hungry,
