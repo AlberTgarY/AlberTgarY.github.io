@@ -150,7 +150,7 @@ export function gardenActs(c) {
   // the right hand, kneeling to the low ones, every piece in turn from the top down into a bunch of its own
   // in the basket. Now and then a moment: a strawberry tasted, a fine one held up to admire, a stubborn
   // carrot that comes up all at once, a heavy pumpkin and a wipe of the brow. The dog, if she came to watch,
-  // gets a carrot.
+  // gets a carrot. Asked to wrap up, they stop after the plant they are at (before the first, they never go in).
   function* pickBed(a, i) {
     const g = house.garden;
     const { basket } = g;
@@ -158,10 +158,13 @@ export function gardenActs(c) {
     const sp = spots.beds[i];
     const ev = askToBeg(a, sp.watch, 0.5);
     const moments = { taste: !!veg.taste && Math.random() < 0.8, admire: Math.random() < 0.6, stuck: Math.random() < 0.6, wipe: !!veg.heavy };
+    let entered = false;
     for (const k of [0, 1, 2]) {
       const fruits = g.left(i, k);
+      if (a.interrupt) break;
       if (!fruits.length) continue;
       const spot = sp.plants[k];
+      entered = true;
       yield* toBed(a, sp, spot.at);
       yield* turn(a, 0);
       yield* basketDown(a, spot.basket);
@@ -172,6 +175,10 @@ export function gardenActs(c) {
       Object.assign(a, { lie: false, look: null, hold: null, lean: 0 });
       yield* wait(a, 0.3);
       yield* basketUp(a);
+    }
+    if (!entered) {
+      if (ev) ev.over = true;
+      return;
     }
     const dog = byName.collie;
     if (ev && veg === VEG.carrot && dog.state === "beg") {

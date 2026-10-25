@@ -29,6 +29,7 @@ export function kitchenActs(c) {
     event,
     available,
     invite,
+    summon,
     onEnd,
     t,
     other,
@@ -53,8 +54,7 @@ export function kitchenActs(c) {
     yield* wait(a, 1);
     a.hold = null;
     a.atFridge = a.atFreezer = false;
-    yield* wait(a, 0.4);
-    release(a, "fridge");
+    yield* wait(a, 0.4); // the fridge stays theirs till they are done: they eat it standing in front of it
     yield* turn(a, V);
     a.beHappy(0.8);
     yield* treat(a, ev);
@@ -267,11 +267,11 @@ export function kitchenActs(c) {
     a.lie = false;
   }
 
-  // At the table with what was cooked: sit down (a dish from the oven goes in the middle), call the other
-  // over to eat too (again, if they were busy) and wait a little for them, and eat; the dog hopes for a
-  // bite. A dish goes to the sink after. For fruit from the garden (`left` pieces on its plate), they eat
-  // from the plate together till it is empty; if the other was busy, they are called again whenever they
-  // come free while there is some left, and waited for.
+  // At the table with what was made: sit down (a dish from the oven goes in the middle), and wait for the
+  // other, called over out of whatever they are doing ("dinner's ready!" now and then till they come), unless
+  // they are out of the house; then eat, the dog hoping for a bite. Someone who comes home in the middle is
+  // called too. A dish goes to the sink after. For fruit from the garden (`left` pieces on its plate), they
+  // eat from the plate together till it is empty, waiting for someone on their way while there is enough.
   function* meal(a, dish = null, left = 0) {
     const fruit = FRUIT_DISHES.includes(dish) ? dish : null;
     const seat = takeSeat(a, ["dine0", "dine1"]);
@@ -279,22 +279,34 @@ export function kitchenActs(c) {
       a.props.only();
       return yield* eatRice(a);
     }
+    a.serving = true; // at the table with what they made: not to be called away (life.js)
     const b = other(a);
-    const ev = event(a, "meal", { ready: false });
-    const calling = !!b && (!!fruit || Math.random() < 0.85); // fruit from the garden is always shared
-    let coming = false;
-    const call = () => (coming ||= calling && available(b) && invite(b, act("dine", dine, ev)));
-    const waitFor = function* () {
-      a.look = b;
-      yield* until(() => call() && b.seated && b.seatKey?.startsWith("dine"), 12);
+    const ev = event(a, "meal", { ready: false, guest: null });
+    const away = () => !b || b.out || b.jobName === "walk";
+    const there = () => !!b && b.seated && !!b.seatKey?.startsWith("dine");
+    // Whether the other is (now) on their way: called, once, unless they are out or already at the table.
+    const calling = () => !ev.guest && !away() && !there() && (b.pending?.ev === ev || b.event === ev || summon(b, act("dine", dine, ev)));
+    const waitFor = function* (secs) {
+      const end = t() + secs;
+      let shoutAt = t() + 0.8;
+      while (t() < end && !there() && !away()) {
+        calling();
+        a.look = b;
+        if (t() > shoutAt) {
+          a.show("say", "room-say room-say-bowl");
+          yield* wait(a, 1.4);
+          a.show("say", null);
+          shoutAt = t() + rnd(5, 8);
+        }
+        yield;
+      }
       a.look = null;
     };
     const late = function* () {
-      if (!coming && house.dinner.left >= 2 && call()) yield* waitFor();
+      if (house.dinner.left >= 2 && calling() && !there()) yield* waitFor(20);
     };
-    const eat = (who, friend) => (fruit ? eatFruit(who, friend, fruit, who === a ? late : null) : eatRice(who, friend));
-    ev.eat = eat;
-    call();
+    ev.eat = (who, friend) => (fruit ? eatFruit(who, friend, fruit, who === a ? late : null) : eatRice(who, friend, who === a ? calling : null));
+    calling();
     yield* sitOn(a, seat);
     if (dish) {
       onEnd(a, () => (house.dinner.dish = null));
@@ -307,10 +319,12 @@ export function kitchenActs(c) {
       a.hold = null;
       a.look = null;
     }
-    if (calling) yield* waitFor();
+    yield* waitFor(90);
     ev.ready = true;
     const begging = askToBeg(a, spots.dining.beg, 0.5);
-    yield* eat(a, b);
+    a.event = ev; // still the meal's host; the dog's begging is over with it
+    if (begging) onEnd(a, () => (begging.over = true));
+    yield* ev.eat(a, b);
     yield* treat(a, begging);
     ev.over = true; // too late to come now
     yield* getUp(a);
@@ -344,6 +358,7 @@ export function kitchenActs(c) {
     const seat = takeSeat(a, ["dine1", "dine0"]);
     if (!seat || ev.over) return;
     yield* sitOn(a, seat);
+    ev.guest = a;
     const host = ev.host;
     a.look = host;
     yield* until(() => ev.ready || ev.over, 30);
@@ -386,9 +401,11 @@ export function kitchenActs(c) {
   }
 
   // A bowl of pork rice, a glance at whoever eats with them now and then, and a happy sigh at the end.
-  function* eatRice(a, friend = null) {
+  // `each` (the host's) runs every frame.
+  function* eatRice(a, friend = null, each = null) {
     a.setState("trick", SNACKS.porkRice, "porkRice");
     while (t() < a.until) {
+      each?.();
       a.look = friend && friend.seatKey?.startsWith("dine") && Math.sin(t() * 0.9) > 0.6 ? friend : null;
       yield;
     }

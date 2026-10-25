@@ -6,7 +6,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { part, ellipsoid, box, pivotGroup, hash } from "../../models/voxels.js";
 import { LOOKS } from "../../models/girl-outfits.js";
-import { GAMES, drawPcGame, drawPcDrama, drawSideShow } from "../screens.js";
+import { GAMES, drawPcGame, drawPcDrama, drawSideShow, drawGameSide } from "../screens.js";
 import { BACK, LOFT } from "./layout.js";
 import { COLORS, pixelTexture, solid, glowing, place } from "./kit.js";
 
@@ -105,8 +105,8 @@ export function buildLoft(shared) {
   for (const x of [-4, -3, 3, 4]) paint(x, 22, "kirbyBlush");
   paint(0, 21, "kirbyMouth");
   rocker.inner.add(mesh(kirbyTop));
-  // The two screens, and their glow on him at night. The one on end shows his team's voice chat while he
-  // plays, his own name lit up green while he talks, and the chat scrolling up below.
+  // The two screens, and their glow on him at night. The one on end shows his team's voice chat, his music,
+  // the computer's stats or a guide to the game while he plays (`pc.side`).
   const MON = [26, 15];
   const monitor = pixelTexture(...MON, () => {});
   place(house, new THREE.Mesh(new THREE.PlaneGeometry(...MON), new THREE.MeshBasicMaterial({ map: monitor.tex })), [
@@ -146,7 +146,7 @@ export function buildLoft(shared) {
   const chair = place(house, new THREE.Group(), [CHAIR[0], Y, CHAIR[1]]);
   chair.add(mesh(chairTop));
   footprint(CHAIR[0] - 7, CHAIR[0] + 7, CHAIR[1] - 6, CHAIR[1] + 8);
-  const pc = { mode: "off", game: GAMES[0], since: 0, sitter: null, talking: false };
+  const pc = { mode: "off", game: GAMES[0], side: "chat", since: 0, sitter: null, talking: false };
   const rectOn = (g) => (x, y, rw, rh, c) => {
     g.fillStyle = c;
     g.fillRect(Math.round(x), Math.round(y), rw, rh);
@@ -157,32 +157,11 @@ export function buildLoft(shared) {
     else drawPcGame(monitor.g, ...MON, pc.mode, pc.game, t, t - pc.since);
     monitor.tex.needsUpdate = true;
   }
-  const TEAM = ["#f28aa8", "#8fd3ff", "#f6cf4a", "#9fe0a8"]; // his, then his three teammates'
   function drawSideMonitor(t) {
-    const rect = rectOn(sideMonitor.g);
     const [w, h] = SIDE_MON;
     if (pc.mode !== "off" && pc.sitter?.name === "girl") drawSideShow(sideMonitor.g, w, h, pc.mode, pc.game, t, t - pc.since);
-    else if (pc.mode === "off") rect(0, 0, w, h, "#060608");
-    else {
-      rect(0, 0, w, h, "#262a3a");
-      rect(0, 0, w, 2, "#5b6ee1");
-      // The voice channel: a little face for each of them, ringed in green while they talk.
-      TEAM.forEach((c, i) => {
-        const y = 3 + i * 3;
-        const talking = i === 0 ? pc.talking : Math.sin(t * (1.3 + i) + i * 2) > 0.7;
-        rect(1, y, 3, 2, talking ? "#3fd47a" : "#262a3a");
-        rect(2, y, 1, 2, c);
-        rect(5, y + 1, 3 + ((i * 2) % 4), 1, "#9aa3c0");
-      });
-      // The chat, scrolling up a line every second.
-      const first = Math.floor(t);
-      for (let k = 0; k < 6; k++) {
-        const line = first + k;
-        rect(1, 16 + k * 1.5, 1, 1, TEAM[line % 4]);
-        rect(3, 16 + k * 1.5, 2 + Math.floor(hash(line, 1, 2) * 7), 1, "#c9cfe3");
-      }
-      if (pc.mode !== "game") rect(1, 15, w - 2, 1, pc.mode === "win" ? "#f6cf4a" : "#e0605a");
-    }
+    else if (pc.mode === "off") rectOn(sideMonitor.g)(0, 0, w, h, "#060608");
+    else drawGameSide(sideMonitor.g, w, h, pc.side, pc.mode, pc.game, t, pc.talking);
     sideMonitor.tex.needsUpdate = true;
   }
   let monitorAt = -1;

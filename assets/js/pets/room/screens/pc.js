@@ -2,7 +2,8 @@
  * The games he plays on his computer (a platformer, a farm, a world of blocks,
  * a race, falling blocks, a space shooter, a rhythm game, fishing, tower
  * defence, karts, pinball, a memory card game, snake, a monster battle) with
- * their win and loss screens, and her cosy farm game.
+ * their win and loss screens and the launcher he picks them from, what his side
+ * screen shows while he plays, and her cosy farm game.
  ******************************************************************************/
 
 import { hash } from "../../models/voxels.js";
@@ -24,6 +25,24 @@ export const GAMES = [
   "snake",
   "battle",
 ];
+
+// Each game's two colours, for its tile in the launcher and its picture in a guide.
+const ICON = {
+  platformer: ["#8fd0f5", "#3fae6a"],
+  farm: ["#6fb24f", "#f2c14e"],
+  blocks: ["#5fb03a", "#8a5a34"],
+  race: ["#5c6066", "#e0402e"],
+  puzzle: ["#2a2a4a", "#f6cf4a"],
+  space: ["#0b0d26", "#ffffff"],
+  rhythm: ["#3a1f5c", "#f28aa8"],
+  fishing: ["#3e8fd6", "#f6cf4a"],
+  defence: ["#7cc463", "#8a8f97"],
+  kart: ["#f39a33", "#3e6fd6"],
+  pinball: ["#1f2a5a", "#e0e0e0"],
+  cards: ["#2e7d4f", "#ffffff"],
+  snake: ["#1f1f24", "#7fe07a"],
+  battle: ["#f6e7c1", "#e0402e"],
+};
 
 // The snake's round on the computer screen, cell by cell: right along the top, back and forth down the middle,
 // along the bottom and up the left side home.
@@ -55,11 +74,35 @@ export const farmDay = (t, e) => e / DAY + Math.floor(hash(Math.floor(t - e), 7,
 
 const CROPS = ["#f39a33", "#e0402e", "#fff1c9"];
 
-// His computer: `mode` "off", "game", "win" or "lose", `game` (GAMES, or hers from GIRL_GAMES) while one is
-// on, `e` how long since the mode changed.
+// His computer: `mode` "off", "menu" (the launcher, `game` about to be played), "game", "win" or "lose",
+// `game` (GAMES, or hers from GIRL_GAMES) while one is on, `e` how long since the mode changed.
 export function drawPcGame(g, w, h, mode, game, t, e) {
   const { rect, px } = pen(g);
   if (mode === "off") return rect(0, 0, w, h, "#060608");
+  if (mode === "menu") {
+    // His library, a row of tiles with the one he picks in the middle: the cursor steps along to it, its
+    // banner shows below, and PLAY flashes once it is chosen.
+    rect(0, 0, w, h, "#141623");
+    rect(0, 0, w, 2, "#22263a");
+    rect(w - 3, 0, 2, 2, "#f28aa8"); // his picture
+    const i = GAMES.indexOf(game);
+    const slot = Math.min(2, Math.floor(e / 0.35));
+    for (let k = 0; k < 5; k++) {
+      const [a, b] = ICON[GAMES[(i + k - 2 + GAMES.length) % GAMES.length]];
+      const x = 1 + k * 5;
+      rect(x - 1, 3, 6, 6, k === slot ? "#ffffff" : "#3a3f58");
+      rect(x, 4, 4, 4, a);
+      rect(x, 6, 4, 2, b);
+    }
+    const [a, b] = ICON[game];
+    rect(1, 10, w - 2, 4, "#2c3048");
+    rect(2, 11, 3, 2, a);
+    px(3, 12, b);
+    rect(6, 11, 9, 1, "#ffffff");
+    rect(6, 12, 6, 1, "#9aa3c0");
+    if (slot === 2) rect(w - 8, 11, 6, 2, e % 0.5 < 0.3 ? "#3fd47a" : "#2a9a58");
+    return;
+  }
   if (mode === "win") {
     rect(0, 0, w, h, e % 0.4 < 0.2 ? "#f6cf4a" : "#f39a33");
     rect(10, 4, 6, 4, "#fff8ef"); // a trophy
@@ -434,4 +477,68 @@ export function drawPcGame(g, w, h, mode, game, t, e) {
     rect(w - ((t * 13 + 9) % (w + 6)), 9, 3, 2, "#e0605a");
     rect(1, 1, 6, 1, "#8fd3ff");
   }
+}
+
+// What his side screen (on end, `w` by `h`) shows while he plays, a different thing now and then (`side`):
+// "chat", his team's voice channel (his own name lit up green while he is `talking`) and the chat scrolling
+// up below; "music", the song playing, its progress and the equaliser; "stats", the frame rate and the
+// processor's and graphics card's load scrolling by; "guide", a guide to `game`, a picture and its text
+// scrolling slowly. A win or a loss shows as a line in gold or red.
+export const SIDES = ["chat", "music", "stats", "guide"];
+const TEAM = ["#f28aa8", "#8fd3ff", "#f6cf4a", "#9fe0a8"]; // his, then his three teammates'
+const ART = ["#f28aa8", "#8fd3ff", "#f6cf4a", "#9fe0a8", "#c79bf2", "#f39a33"];
+
+export function drawGameSide(g, w, h, side, mode, game, t, talking) {
+  const { rect, px } = pen(g);
+  if (side === "music") {
+    const song = Math.floor(t / 40);
+    rect(0, 0, w, h, "#121218");
+    rect(2, 2, 7, 7, ART[song % 6]); // the cover
+    rect(4, 4, 3, 3, ART[(song + 3) % 6]);
+    rect(1, 11, 3 + Math.floor(hash(song, 0, 30) * 6), 1, "#e8e8f0");
+    rect(1, 13, 2 + Math.floor(hash(song, 1, 30) * 5), 1, "#8a8fa8");
+    rect(1, 15, w - 2, 1, "#33333f");
+    rect(1, 15, Math.max(1, Math.round(((t % 40) / 40) * (w - 2))), 1, "#3fd47a");
+    for (let k = 0; k < w - 2; k++) {
+      const tall = 1 + Math.floor(5 * Math.abs(Math.sin(t * (2.6 + k * 0.7) + k)));
+      rect(1 + k, 24 - tall, 1, tall, "#3fd47a");
+    }
+  } else if (side === "stats") {
+    rect(0, 0, w, h, "#0f1117");
+    number(px, 140 + Math.floor(hash(Math.floor(t * 2), 0, 31) * 5), 0, 1, "#7fe07a");
+    ["#8fd3ff", "#f39a33", "#c79bf2"].forEach((c, row) => {
+      const y = 8 + row * 6;
+      rect(0, y + 5, w, 1, "#262a3a");
+      for (let x = 0; x < w; x++) {
+        const tall = 1 + Math.floor(hash(Math.floor(t * 4) + x, row, 32) * (2 + row));
+        rect(x, y + 5 - tall, 1, tall, c);
+      }
+    });
+  } else if (side === "guide") {
+    const [a, b] = ICON[game] || ICON.platformer;
+    rect(0, 0, w, h, "#f4f1ea");
+    rect(0, 0, w, 2, "#5b6ee1");
+    rect(1, 3, w - 2, 6, a);
+    rect(3, 6, 3, 2, b);
+    const line = Math.floor(t * 0.8);
+    for (let k = 0; k < 6; k++) rect(1, 11 + k * 2, 3 + Math.floor(hash(line + k, 4, 33) * 7), 1, "#8a8fa8");
+  } else {
+    rect(0, 0, w, h, "#262a3a");
+    rect(0, 0, w, 2, "#5b6ee1");
+    TEAM.forEach((c, i) => {
+      const y = 3 + i * 3;
+      const on = i === 0 ? talking : Math.sin(t * (1.3 + i) + i * 2) > 0.7;
+      rect(1, y, 3, 2, on ? "#3fd47a" : "#262a3a");
+      rect(2, y, 1, 2, c);
+      rect(5, y + 1, 3 + ((i * 2) % 4), 1, "#9aa3c0");
+    });
+    // The chat, scrolling up a line every second.
+    const first = Math.floor(t);
+    for (let k = 0; k < 6; k++) {
+      const line = first + k;
+      rect(1, 16 + k * 1.5, 1, 1, TEAM[line % 4]);
+      rect(3, 16 + k * 1.5, 2 + Math.floor(hash(line, 1, 2) * 7), 1, "#c9cfe3");
+    }
+  }
+  if (mode === "win" || mode === "lose") rect(1, side === "chat" ? 15 : 10, w - 2, 1, mode === "win" ? "#f6cf4a" : "#e0605a");
 }

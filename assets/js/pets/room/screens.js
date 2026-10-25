@@ -8,7 +8,8 @@
  * it, and the games he plays on his computer (a platformer, a farm, a world of
  * blocks, a race, a falling-blocks puzzle, a space shooter, a rhythm game,
  * fishing, tower defence, karts, pinball, a memory card game, snake, a monster
- * battle) with their win and loss screens; and, when the girl sits at his
+ * battle) with their win and loss screens, the launcher he picks them from and
+ * what his side screen shows meanwhile; and, when the girl sits at his
  * computer, the TV dramas she streams (a palace drama, a romance in the rain, a
  * hospital drama, a detective mystery, a school romance, a sword fight in the
  * bamboo, a family sitcom, a café romance) or her cosy farm game, and what the
@@ -18,5 +19,5 @@
  ******************************************************************************/
 
 export { CHANNELS, drawChannel, drawTvGame } from "./screens/tv.js";
-export { GAMES, drawPcGame } from "./screens/pc.js";
+export { GAMES, SIDES, drawPcGame, drawGameSide } from "./screens/pc.js";
 export { DRAMAS, GIRL_GAMES, drawPcDrama, drawSideShow } from "./screens/dramas.js";

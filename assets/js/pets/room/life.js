@@ -2,7 +2,8 @@
  * The life of the playground's home: what each of them does next, and what
  * they do together. Each actor (actor.js) runs one activity at a time (acts.js),
  * a generator stepped once a frame; when it ends, they pick another by their
- * own tastes (MENUS), seldom the same twice (choose.js).
+ * own tastes (MENUS) and their mood of the moment (LEANINGS), seldom the same
+ * twice (choose.js).
  *
  * Keeping it sound:
  * - Places (a seat, a side of the bed, the fridge, the book) are claimed while
@@ -43,7 +44,7 @@ const MENUS = {
     chat: 7,
     game: 5,
     watchPc: 6,
-    pcGirl: 6,
+    pcGirl: 10,
     nap: 6,
     stroll: 8,
     stretch: 4,
@@ -96,10 +97,37 @@ const NIGHT = {
 // A rainy spell (weather.js) makes for a cosy afternoon in: the fire, a book, a nap, and the cat at the window.
 // The dog still needs her walk, rain or not.
 const RAIN = { fire: 2.5, fireside: 1.6, read: 1.5, nap: 1.6, tv: 1.3, perch: 2.5, bed: 1.3 };
+// Moods: every few minutes each of them leans a little towards one kind of thing, or none in particular: a
+// spell when she is all for the garden, then one for the screens, or the kitchen. What they lean towards is
+// LEAN times as likely, and the day's rhythm (ROUTINE) goes to whoever feels like it.
+const LEANINGS = {
+  girl: {
+    garden: ["garden", "water", "sprinkle"],
+    screens: ["tv", "pcGirl", "watchPc", "laptop", "game"],
+    kitchen: ["cook", "bake", "snack"],
+    cosy: ["read", "nap", "fire", "stretch"],
+    pets: ["walk", "fetch", "pet"],
+  },
+  boy: {
+    garden: ["garden", "water", "sprinkle"],
+    screens: ["pc", "tv", "laptop", "game"],
+    kitchen: ["bake", "snack"],
+    cosy: ["read", "nap", "fire", "stretch"],
+    pets: ["walk", "fetch", "pet"],
+  },
+  collie: { play: ["zoomies", "splash", "stroll", "sniff"], lazy: ["bed", "rug", "rest", "sunbathe", "fireside"], company: ["visit"] },
+  cat: { play: ["chase", "climb", "perch", "tower"], lazy: ["nap", "rest", "fireside", "groom"], company: ["visit", "cuddle"] },
+};
+const LEAN = 2;
+const MOOD_LASTS = [240, 420]; // s
 const LONGEST = 300; // s any one activity may run
-// What is never dropped for a hungry pet: changing clothes, feeding, running in from the rain, the cat's mess;
-// nor is anyone with food in hand (`a.serving`: a dish out of the oven, the garden's fruit on its plate).
-const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff"];
+// What is never dropped for a hungry pet: changing clothes, feeding, running in from the rain, the cat's mess,
+// going to the table when called; nor is anyone with food in hand or at the table with what they made
+// (`a.serving`).
+const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff", "dine"];
+// Nor is anyone called to the table out of these (summon()): those, cooking or baking (food of their own on
+// the way), or going out with the dog.
+const NO_CALL = [...NO_DROP, "cook", "bake", "walk"];
 // The day's rhythm: what comes round every so often (s, at random between the two) whatever anyone's tastes,
 // each due that long after it was last done (by anyone, asked or not). A meal is either of them cooking, or
 // one of them baking.
@@ -147,6 +175,19 @@ export function makeLife(home) {
   // Ask `a` to do `todo` (an act): now if it is idle, else once it has wrapped up what it is doing.
   function invite(a, todo) {
     if (!available(a)) return false;
+    if (!a.job) start(a, todo);
+    else {
+      a.pending = todo;
+      a.interrupt = true;
+    }
+    return true;
+  }
+  // Call `a` for something that will not wait, a meal on the table: asked as by invite() if free; else, if
+  // home and not already asked to do something, told to wrap up what they are doing (woken, if asleep) and
+  // come next. Whether they will come.
+  function summon(a, todo) {
+    if (invite(a, todo)) return true;
+    if (!a || a.out || a.pending || a.serving || NO_CALL.includes(a.jobName)) return false;
     if (!a.job) start(a, todo);
     else {
       a.pending = todo;
@@ -217,7 +258,9 @@ export function makeLife(home) {
       a.seated = false;
       a.abed = false;
       if (a.ground) [a.x, a.z] = a.ground;
-      if (a.out || !home.nav.free(a.x, a.z)) [a.x, a.z] = [house.spots.door.x, house.spots.door.inside];
+      const door = [house.spots.door.x, house.spots.door.inside];
+      if (a.out) [a.x, a.z] = door;
+      else if (!home.nav.free(a.x, a.z)) [a.x, a.z] = home.nav.nearest(a.x, a.z) || door;
       a.y = house.floorY(a.x, a.z);
       a.out = false;
     }
@@ -229,17 +272,29 @@ export function makeLife(home) {
     a.nextAt = t() + (failed ? 0.3 : crowded(a) ? 0.5 : a.human ? rnd(1.5, 5) : rnd(2.5, 7));
   }
 
-  // The next thing to do, by its tastes, from what can be done just now; but first, out of the way of
-  // anyone standing too close.
+  // What `a` leans towards just now (LEANINGS): a new mood once the last has run its course, never the same
+  // twice running.
+  function leaning(a) {
+    if (t() >= a.mood.until) {
+      const kinds = Object.keys(LEANINGS[a.name] || {}).filter((k) => k !== a.mood.kind);
+      a.mood = { kind: pick([null, ...kinds]), until: t() + rnd(...MOOD_LASTS) };
+    }
+    return LEANINGS[a.name]?.[a.mood.kind] || [];
+  }
+
+  // The next thing to do, by its tastes and mood, from what can be done just now; but first, out of the way
+  // of anyone standing too close.
   function crowded(a) {
     return actors.some((o) => o !== a && !o.out && Math.abs(o.y - a.y) < 3 && Math.hypot(o.x - a.x, o.z - a.z) < 14);
   }
   function choose(a) {
     if (a.above() < 0.5 && crowded(a)) return start(a, act("stroll", home.acts.stroll.run));
     const weights = {};
+    const leans = leaning(a);
     for (const [name, w] of Object.entries(MENUS[a.name])) {
       const todo = home.acts[name];
-      if (todo && todo.can(a)) weights[name] = w * (home.night ? NIGHT[name] || 1 : 1) * (home.weather.raining ? RAIN[name] || 1 : 1);
+      if (todo && todo.can(a))
+        weights[name] = w * (home.night ? NIGHT[name] || 1 : 1) * (home.weather.raining ? RAIN[name] || 1 : 1) * (leans.includes(name) ? LEAN : 1);
     }
     const name = a.picker.choose(weights);
     if (!name) return (a.nextAt = t() + 2);
@@ -373,11 +428,16 @@ export function makeLife(home) {
     }
     if (sprinkler.on && t() - sprinkler.since > 100) sprinkler.stop(t());
 
-    // The day's rhythm: whatever is due goes to whoever is free and can do it (the two of them in turn, so it
-    // is not always the same one); if no one can just now, it is looked at again a little later.
+    // The day's rhythm: whatever is due goes to whoever is free and can do it, first whoever is in the mood for
+    // it, else either (so it is not always the same one); if no one can just now, it is looked at again a
+    // little later.
     for (const r of ROUTINE) {
       if (t() < due.get(r)) continue;
-      const free = [...awake].sort(() => Math.random() - 0.5).filter(available);
+      const keen = (h) => (r.names.some((name) => leaning(h).includes(name)) ? 1 : 0);
+      const free = [...awake]
+        .sort(() => Math.random() - 0.5)
+        .filter(available)
+        .sort((p, q) => keen(q) - keen(p));
       const pair = free.flatMap((h) => r.names.filter((name) => home.acts[name].can(h)).map((name) => [h, name]))[0];
       const asked = pair && invite(pair[0], act(pair[1], home.acts[pair[1]].run));
       due.set(r, t() + (asked ? rnd(...r.every) : 10));
@@ -420,6 +480,7 @@ export function makeLife(home) {
     a.queue = [];
     a.cleanups = [];
     a.picker = freshPicker(2);
+    a.mood = { kind: null, until: -1 };
   });
 
   return {
@@ -430,6 +491,7 @@ export function makeLife(home) {
     event,
     available,
     invite,
+    summon,
     later,
     onEnd,
     // A frame: the director, then everyone's activity.

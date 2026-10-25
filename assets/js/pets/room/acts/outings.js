@@ -388,8 +388,11 @@ export function outingsActs(c) {
   function* fetchDog(a, ev) {
     const ball = home.ball;
     const human = ev.host;
-    // Ears up, tail going, a bounce or two while they get the ball.
+    // Ears up, tail going: over towards the ball (off wherever she was lying, which is free for others now),
+    // and a bounce or two while they get it.
     Object.assign(a, { happy: true, look: human });
+    const [near] = beside(a, ball.at, 24, 10);
+    if (near) yield* walk(a, near, 1.4);
     let bounceAt = t() + rnd(0.3, 0.8);
     const end = t() + 25;
     while (!ev.spot && !ev.over && t() < end) {

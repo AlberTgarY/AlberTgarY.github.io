@@ -317,8 +317,9 @@ export function buildHouse(scene, water) {
     // The TV (house/living.js): what is on, who switched it, the remote and the controllers.
     tv: tvControls,
     pc: {
-      // `mode`: "off", "game", "win", "lose" or "show" (a drama she streams); `game` the one played or shown
-      // (screens.js's GAMES, GIRL_GAMES or DRAMAS). `sitter`: who the chair turns with.
+      // `mode`: "off", "menu" (his launcher), "game", "win", "lose" or "show" (a drama she streams); `game` the
+      // one played or shown (screens.js's GAMES, GIRL_GAMES or DRAMAS); `side` what his side screen shows
+      // (screens.js's SIDES). `sitter`: who the chair turns with.
       set(mode, t, game = pc.game) {
         if (mode === pc.mode && game === pc.game) return;
         pc.mode = mode;
@@ -332,6 +333,9 @@ export function buildHouse(scene, water) {
       },
       set sitter(a) {
         pc.sitter = a;
+      },
+      set side(s) {
+        pc.side = s;
       },
       set talking(on) {
         pc.talking = on;

@@ -199,5 +199,11 @@ export function makeNav([x0, x1, z0, z1], obstacles, floorY) {
     return null;
   }
 
-  return { path, free, clearLine, randomSpot };
+  // The middle of the free cell nearest (x, z) (nearestFree), or null.
+  function nearest(x, z) {
+    const c = nearestFree(x, z);
+    return c && [cx(c[0]), cz(c[1])];
+  }
+
+  return { path, free, nearest, clearLine, randomSpot };
 }

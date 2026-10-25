@@ -116,8 +116,9 @@ export function makeActs(home, life) {
     nap: (a) => !a.human || freeSeat(),
     sleep: () => home.night && freeSeat(["bed0", "bed1"]),
     snack: () => !holder("fridge"),
-    cook: (a) => a.name === "girl" && !holder("stove"),
-    bake: (a) => a.human && !holder("stove") && !holder("fridge") && !holder("dine0") && !holder("dine1"),
+    // A meal is made for the two of them: not while the other is in bed.
+    cook: (a) => a.name === "girl" && !holder("stove") && !other(a)?.abed,
+    bake: (a) => a.human && !holder("stove") && !holder("fridge") && !holder("dine0") && !holder("dine1") && !other(a)?.abed,
     read: () => !holder("book"),
     water: () => !holder("plant"),
     pc: (a) => a.name === "boy" && !holder("pc") && !holder("chair"),

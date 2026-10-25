@@ -5,17 +5,18 @@
 
 import { rnd, pick } from "../../stage.js";
 import { HOLDS, MOVES } from "../props.js";
-import { GAMES, DRAMAS, GIRL_GAMES } from "../screens.js";
+import { GAMES, SIDES, DRAMAS, GIRL_GAMES } from "../screens.js";
 import { V, TEAM_SAY } from "./common.js";
 
 // `c` is everything they share (common.js), and the activities of the other files.
 export function pcActs(c) {
   const { house, byName, spots, walk, turn, wait, sitOn, getUp, claim, holder, act, event, available, invite, onEnd, t, takeSeat, halfTowards } = c;
 
-  // The boy at his computer in the loft: his headphones off their stand and on, a few games, talking to his
-  // team through the mic; a win and he spins his chair round to cheer, a loss and he slumps. The girl may
-  // come up to watch, and he gives the cat a look if she comes to lie on his computer. The headphones go back on
-  // their stand after.
+  // The boy at his computer in the loft: his headphones off their stand and on, a few rounds, mostly of a
+  // different game each time (picked in his launcher; the side screen changes now and then too), talking to
+  // his team through the mic; a win and he spins his chair round to cheer, a loss and he slumps. Asked to
+  // wrap up, he finishes the round. The girl may come up to watch, and he gives the cat a look if she comes
+  // to lie on his computer. The headphones go back on their stand after.
   function* pc(a) {
     if (!claim(a, "pc")) return;
     const seat = takeSeat(a, ["chair"]);
@@ -42,19 +43,28 @@ export function pcActs(c) {
     house.pc.sitter = a;
     a.hold = MOVES.mouse;
     a.look = spots.monitor;
-    house.pc.set("game", t(), pick(GAMES)); // what he feels like playing today
     const ev = event(a, "pc", { playing: true, round: 0, result: null });
     const girl = byName.girl;
     if (girl && Math.random() < 0.3 && !holder("watchPc")) invite(girl, act("watchPc", watchPc, ev));
     const cat = byName.cat;
-    const rounds = 2 + Math.floor(Math.random() * 2);
-    for (let r = 0; r < rounds; r++) {
-      const end = t() + rnd(14, 22);
+    const rounds = 3 + Math.floor(Math.random() * 3);
+    let game = null;
+    let side = null;
+    for (let r = 0; r < rounds && !a.interrupt; r++) {
+      if (!game || Math.random() < 0.7) {
+        game = pick(GAMES.filter((g) => g !== game));
+        if (!side || Math.random() < 0.5) side = pick(SIDES.filter((s) => s !== side));
+        house.pc.side = side;
+        house.pc.set("menu", t(), game);
+        yield* wait(a, rnd(1.6, 2.4));
+      }
+      house.pc.set("game", t(), game);
+      const end = t() + rnd(10, 16);
       let talkUntil = 0;
       let talkAt = t() + rnd(3, 6);
       let catAt = t() + rnd(2, 4);
       let lookUntil = 0;
-      while (t() < end) {
+      while (t() < end && !a.interrupt) {
         if (t() > talkAt) {
           talkUntil = t() + 1.6;
           talkAt = t() + rnd(5, 9);
@@ -98,7 +108,6 @@ export function pcActs(c) {
         a.hold = MOVES.mouse;
       }
       a.look = spots.monitor;
-      house.pc.set("game", t());
     }
     ev.playing = false;
     house.pc.set("off", t());
