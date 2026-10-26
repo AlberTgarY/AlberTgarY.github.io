@@ -409,7 +409,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
       rig.pose.position.y += hy * (1 - Math.cos(back)) + hz * Math.sin(back);
       rig.pose.position.z += hz * (1 - Math.cos(back)) - hy * Math.sin(back);
     }
-    rig.hat.visible = night && inBed < 0.05 && !a.phones;
+    rig.hat.visible = night && inBed < 0.05 && !a.phones && !a.props?.umbrellaOpen.visible; // (off under an umbrella)
     a.show("z", sleeping ? "room-z" : a.state === "petted" && rig.purrs ? "room-z room-note" : null);
     placeBadges();
   };

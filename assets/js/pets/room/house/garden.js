@@ -5,8 +5,8 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { part, box, hash, cells } from "../../models/voxels.js";
-import { pick } from "../../stage.js";
-import { VEG, KINDS, seeded, extent, basketPart, fillBasket } from "../veg.js";
+import { pick, clamp } from "../../stage.js";
+import { VEG, KINDS, seeded, extent, basketPart, fillBasket, canPart } from "../veg.js";
 import { buildSprinkler } from "../sprinkler.js";
 import { X1, SIDE, FRONT, LOFT, GARDEN_DOOR, floorY } from "./layout.js";
 import { COLORS, pixelTexture, solidMaterial, solid, place, turned } from "./kit.js";
@@ -274,24 +274,15 @@ export function buildGarden(shared) {
       bed.soil.material.color.lerpColors(dry, wet, Math.min(1, bed.wet * 1.5));
     }
   });
-  // The sprinkler between the beds, on its hose from the tap by the garden door (sprinkler.js).
+  // The sprinkler between the beds, on its hose from the reel under the tap on the wall (sprinkler.js).
   const sprinkler = buildSprinkler(house, water);
   footprint(...sprinkler.footprint, false);
+  footprint(...sprinkler.reelFootprint, false);
   garden.sprinkler = sprinkler;
   updates.push((t, dt) => sprinkler.update(t, dt));
 
-  // The garden's watering can, by the door when nobody has it.
-  const gardenCan = part();
-  box(gardenCan, [-2, 2], [0, 3], [-1, 1], (x, y) => (y === 0 ? "canDark" : "can"));
-  for (const x of [-1, 0, 1]) gardenCan.add(x, 4, 0, "can");
-  for (const [y, z] of [
-    [1, 2],
-    [1, 3],
-    [2, 4],
-    [2, 5],
-  ])
-    gardenCan.add(0, y, z, "canDark");
-  garden.can = place(house, mesh(gardenCan), [156, 0, 58], -0.6);
+  // The garden's watering can, by the door beside the basket when nobody has it.
+  garden.can = place(house, mesh(canPart(part())), [156, 0, 29], Math.PI / 2);
 
   // The garden basket, by the door across from the can when nobody has it out: set down beside them at a
   // bed while they pick, carried in full to the fridge and back out empty. What is in it is in bunches, one
@@ -331,7 +322,8 @@ export function buildGarden(shared) {
   basket.goHome();
   garden.basket = basket;
 
-  // A white butterfly over the beds by day, and fireflies over the garden at night.
+  // A white butterfly over the beds by day, and fireflies over the garden at night, each glowing and fading
+  // in turn (and all of them coming out slowly as night falls, and going as it lifts).
   const wingPart = part();
   [
     [1, 0],
@@ -359,11 +351,12 @@ export function buildGarden(shared) {
   );
   house.add(butterfly);
   const fireflies = [0, 1, 2, 3, 4].map(() => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: "#e9ff8a" }));
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: "#e9ff8a", transparent: true, depthWrite: false }));
     house.add(m);
     return m;
   });
-  updates.push((t) => {
+  let dark = 0; // 0 by day, 1 at night
+  updates.push((t, dt) => {
     butterfly.visible = !shared.night;
     if (!shared.night) {
       butterfly.position.set(186 + 14 * Math.sin(t * 0.31) + 4 * Math.sin(t * 1.7), 13 + 4 * Math.sin(t * 1.1), 40 + 58 * Math.sin(t * 0.19 + 1));
@@ -371,13 +364,95 @@ export function buildGarden(shared) {
       const flap = 0.9 * Math.abs(Math.sin(t * 16));
       wings.forEach((w, i) => (w.rotation.z = (i ? 1 : -1) * flap));
     }
+    dark = clamp(dark + (shared.night ? dt : -dt) / 3, 0, 1);
     fireflies.forEach((m, i) => {
-      m.visible = shared.night && Math.sin(t * (1.1 + i * 0.3) + i * 2) > 0.2;
+      m.material.opacity = dark * clamp((Math.sin(t * (1.1 + i * 0.3) + i * 2) - 0.2) / 0.6, 0, 1);
+      m.visible = m.material.opacity > 0;
       m.position.set(180 + 22 * Math.sin(t * 0.21 + i * 1.3), 8 + 6 * Math.sin(t * 0.5 + i), 40 + 60 * Math.sin(t * 0.13 + i * 2.1));
     });
   });
   garden.butterfly = butterfly;
   garden.fireflies = fireflies;
+
+  // Now and then by day a couple of bees come to the beds: chubby and striped, a while at each plant,
+  // then off to another, and away over the wall when the spell is over.
+  const BEE = { beeYellow: "#f6c445", beeBlack: "#3a2f28", beeWing: "#f4fbff" };
+  const beeBody = part();
+  box(beeBody, [0, 1], [0, 1], [-2, 1], (x, y, z) => (z === 1 || z === -1 ? "beeBlack" : "beeYellow")); // head at +z
+  const beeWing = part();
+  [
+    [1, 0],
+    [2, 0],
+    [1, -1],
+  ].forEach(([x, z]) => beeWing.add(x, 0, z, "beeWing"));
+  const bees = new THREE.Group();
+  house.add(bees);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const away = () => new THREE.Vector3(214, 26, rnd(10, 110));
+  const flower = () => {
+    const growing = garden.beds.filter((b) => b.stage === 1 || b.stage === 2);
+    const bed = pick(growing.length ? growing : garden.beds);
+    return new THREE.Vector3(pick(PLANT_X) + rnd(-2, 2), rnd(7, 11), bed.zc + rnd(-3, 3));
+  };
+  const swarm = [0, 1].map(() => {
+    const g = new THREE.Group();
+    const body = beeBody.mesh(BEE);
+    body.position.set(-0.5, -0.5, 0.5);
+    g.add(body);
+    const flaps = [1, -1].map((side) => {
+      const w = beeWing.mesh(BEE);
+      w.scale.x = side;
+      w.position.y = 1;
+      g.add(w);
+      return w;
+    });
+    g.scale.setScalar(0.65);
+    g.visible = false;
+    bees.add(g);
+    return { g, flaps, home: true, from: new THREE.Vector3(), to: new THREE.Vector3(), t0: 0, dur: 1, stay: 0 };
+  });
+  // Fly from where the bee is to `to`, starting at `t0`, and stay `stay` s there.
+  const fly = (b, t0, to, stay) => {
+    Object.assign(b, { from: b.g.position.clone(), to, t0, stay });
+    b.dur = Math.max(0.6, b.from.distanceTo(to) / 14);
+  };
+  const spell = { on: false, flip: rnd(20, 60) };
+  updates.push((t) => {
+    bees.visible = !shared.night;
+    if (shared.night) spell.on = false;
+    else if (t > spell.flip) {
+      spell.on = !spell.on;
+      spell.flip = t + (spell.on ? rnd(40, 90) : rnd(60, 150));
+    }
+    swarm.forEach((b, i) => {
+      if (b.home) {
+        if (!spell.on) return;
+        b.home = false;
+        b.g.position.copy(away());
+        fly(b, t + i * rnd(1, 5), flower(), rnd(2, 5));
+      }
+      const s = (t - b.t0) / b.dur;
+      b.g.visible = s >= 0;
+      if (s < 0) return;
+      if (s < 1) {
+        const e = s * s * (3 - 2 * s);
+        b.g.position.lerpVectors(b.from, b.to, e).y += 2 * Math.sin(Math.PI * s) + 0.3 * Math.sin(t * 9 + i);
+        b.g.rotation.y = Math.atan2(b.to.x - b.from.x, b.to.z - b.from.z);
+      } else if (t < b.t0 + b.dur + b.stay) {
+        // Hovering at the plant: small loops, turning about.
+        const k = t * 3 + i * 2;
+        b.g.position.set(b.to.x + 0.6 * Math.cos(k), b.to.y + 0.4 * Math.sin(t * 5 + i), b.to.z + 0.6 * Math.sin(k));
+        b.g.rotation.y = k + Math.PI / 2;
+      } else if (b.stay === 0) {
+        b.home = true; // gone over the wall
+        b.g.visible = false;
+      } else if (spell.on) fly(b, t, flower(), rnd(2, 5));
+      else fly(b, t, away(), 0);
+      b.flaps.forEach((w, j) => (w.rotation.z = (j ? -1 : 1) * (0.2 + 0.7 * Math.abs(Math.sin(t * 40 + i)))));
+    });
+  });
+  garden.bees = bees;
+  garden.beeSpell = spell; // (when the next one starts or ends: `flip`)
 
   return { PLANT_X, garden };
 }

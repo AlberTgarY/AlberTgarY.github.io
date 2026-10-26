@@ -323,7 +323,7 @@ export function kitchenActs(c) {
   // At the table with what was made: sit down (a dish from the oven goes in the middle), and wait for the
   // other, called over out of whatever they are doing ("dinner's ready!" now and then till they come), unless
   // they are out of the house; then eat, the dog hoping for a bite. Someone who comes home in the middle is
-  // called too. A dish goes to the sink after. For fruit from the garden (`left` pieces on its plate), they
+  // called too. The clearing up after is his if he ate too (clearTable), hers if she ate alone. For fruit from the garden (`left` pieces on its plate), they
   // eat from the plate together till it is empty, waiting for someone on their way while there is enough.
   function* meal(a, dish = null, left = 0) {
     anew(a); // (after the cooking, or the harvest)
@@ -357,6 +357,7 @@ export function kitchenActs(c) {
       }
       a.look = null;
     };
+    const handedOn = () => ev.guest?.name === "boy" && ev.guest !== a && ev.guest.event === ev; // (he clears up)
     const late = function* () {
       if (house.dinner.left >= 2 && calling() && !there()) yield* waitFor(20);
     };
@@ -369,12 +370,12 @@ export function kitchenActs(c) {
       yield* wait(a, 0.5);
       a.props.only();
       house.dinner.laid.add("dine0").add("dine1");
-      onEnd(a, () => house.dinner.laid.delete(seat.key)); // (cut short, theirs is gone with them)
+      onEnd(a, () => !handedOn() && house.dinner.laid.delete(seat.key)); // (cut short, theirs is gone with them)
       yield* wait(a, 0.3);
       a.hold = null;
     }
     if (dish) {
-      onEnd(a, () => (house.dinner.dish = null));
+      onEnd(a, () => !handedOn() && (house.dinner.dish = null));
       a.look = spots.dining.dish;
       a.hold = HOLDS.pick;
       yield* wait(a, 0.5);
@@ -393,17 +394,7 @@ export function kitchenActs(c) {
     yield* treat(a, begging);
     ev.over = true; // too late to come now
     yield* getUp(a);
-    if (!dish) return yield* clearBowl(a, seat.key, ev.guest ? null : takeOther(seat.key), true); // (theirs too, if they never came)
-    // Clear the dish away to the sink, rinse it, and into the dishwasher.
-    a.look = spots.dining.dish;
-    a.hold = HOLDS.pick;
-    yield* wait(a, 0.5);
-    if (fruit) a.props.plate(dish, house.dinner.left); // what is left of it
-    house.dinner.dish = null;
-    a.props.only(dish);
-    a.hold = HOLDS.tray;
-    a.look = null;
-    yield* washUp(a);
+    if (a.name === "boy" || ev.guest?.name !== "boy") yield* clearTable(a, ev);
   }
 
   // The bowls and chopsticks for two out of the cupboard under the counter: the drawer out for the
@@ -416,11 +407,13 @@ export function kitchenActs(c) {
       return false;
     }
     const { cupboard } = house;
-    onEnd(a, () => (cupboard.door = cupboard.drawer = false));
+    cupboard.using = a; // (a visitor's clicks do nothing till they are done)
+    onEnd(a, () => Object.assign(cupboard, { door: false, drawer: false, using: null }));
     yield* walk(a, spots.cupboard.at);
     yield* turn(a, spots.cupboard.yaw);
     a.look = spots.cupboard.inside;
     a.hold = HOLDS.pick;
+    cupboard.clicked.door = cupboard.clicked.drawer = false; // (if a visitor left them open, theirs now)
     cupboard.drawer = true;
     yield* wait(a, 0.8);
     cupboard.door = true;
@@ -435,28 +428,38 @@ export function kitchenActs(c) {
     cupboard.drawer = false;
     yield* wait(a, 0.3);
     a.look = null;
+    cupboard.using = null;
     release(a, "cupboard");
     release(a, "fridge");
     return true;
   }
 
-  // Their own bowl and chopsticks (at seat `key`) off the table, if laid there, and the other place's too
-  // (`also`), and the host what was cooked; washed up.
-  const takeOther = (key) => (key === "dine0" ? "dine1" : "dine0");
-  function* clearBowl(a, key, also = null, host = false) {
+  // Everything off the table once whoever ate with them has finished (the bowls and chopsticks, what was
+  // cooked, or the dish or the plate of fruit with what is left on it), all to the sink in one go and washed up.
+  // Cut short, whatever is left there goes with them.
+  function* clearTable(a, ev) {
     const { dinner } = house;
-    const taken = [key, also].filter((k) => k && dinner.laid.has(k));
-    const cooked = host ? dinner.cooked.length : 0;
-    if (!taken.length && !cooked) return;
+    onEnd(a, () => {
+      dinner.laid.clear();
+      dinner.cooked = [];
+      dinner.dish = null;
+    });
+    const guest = ev.guest !== a ? ev.guest : ev.host;
+    if (guest && guest !== a) yield* until(() => guest.event !== ev || ev.eaten?.has(guest), 20);
+    const { dish } = dinner;
+    const n = dinner.laid.size + dinner.cooked.length;
+    if (!dish && !n) return;
     a.look = spots.dining.dish;
     a.hold = HOLDS.pick;
     yield* wait(a, 0.5);
-    taken.forEach((k) => dinner.laid.delete(k));
-    dinner.cooked = host ? [] : dinner.cooked;
-    a.props.only(taken.length + cooked > 1 ? "bowls" : "bowl");
+    if (FRUIT_DISHES.includes(dish)) a.props.plate(dish, dinner.left); // what is left of it
+    a.props.only(dish || (n > 1 ? "bowls" : "bowl"));
+    dinner.laid.clear();
+    dinner.cooked = [];
+    dinner.dish = null;
     a.hold = HOLDS.tray;
     a.look = null;
-    yield* washUp(a, taken.length + cooked);
+    yield* washUp(a, dish ? 1 : n);
   }
 
   // What is in their hands (`n` things), to the sink to rinse under the tap, and into the dishwasher (on
@@ -514,7 +517,7 @@ export function kitchenActs(c) {
   }
 
   // Called to the table: sit beside them, wait for them (looking over), eat together, and stay a moment
-  // after they get up.
+  // after; he clears the table after (clearTable).
   function* dine(a, ev) {
     const seat = takeSeat(a, ["dine1", "dine0"]);
     if (!seat || ev.over) return;
@@ -524,11 +527,12 @@ export function kitchenActs(c) {
     a.look = host;
     yield* until(() => ev.ready || ev.over, 30);
     if (ev.ready) yield* ev.eat(a, host);
+    (ev.eaten ||= new Set()).add(a);
     a.look = host;
     yield* wait(a, rnd(0.8, 2));
     a.look = null;
     yield* getUp(a);
-    yield* clearBowl(a, seat.key);
+    if (a.name === "boy") yield* clearTable(a, ev); // (she leaves it to him)
   }
 
   // Fruit off the plate on the table, a piece at a time, a happy munch with each, till the plate is empty

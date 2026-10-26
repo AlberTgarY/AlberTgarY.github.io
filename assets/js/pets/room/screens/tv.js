@@ -1,35 +1,38 @@
 /*******************************************************************************
- * The TV's channels (a nature programme, a cartoon, a cooking show, the news,
- * the weather forecast with today's real sky, adverts, football, a concert,
- * crafts, baking, travel, the ocean, a pop video, a quiz, gardening, tennis, an
- * anime drama, a late-night film) and the game the two of them play on it.
+ * The TV's channels (a nature programme, a cartoon, a cooking show, the
+ * weather forecast with today's real sky, adverts, football, a concert, baking,
+ * travel, the ocean, tennis, a late-night film, the evening news at seven and
+ * the dramas 放羊的星星, 就想賴著妳 and two episodes of 我的前半生, clips from
+ * the real episodes: clipshows.js) and the game the two of them play on it.
  ******************************************************************************/
 
 import { hash } from "../../models/voxels.js";
 import { pen, number2, person2, shade } from "./pen.js";
 import { drawXinwen } from "./xinwen.js";
+import { CLIP_SHOWS, drawClipShow } from "./clipshows.js";
 
 export const CHANNELS = [
   "nature",
   "cartoon",
   "cooking",
-  "news",
   "weather",
   "advert",
   "football",
   "concert",
-  "crafts",
   "baking",
   "travel",
   "ocean",
-  "dance",
-  "quiz",
-  "garden",
   "tennis",
-  "anime",
   "film",
   "xinwen",
+  "luckystar",
+  "downwithlove",
+  "firsthalf6",
+  "firsthalf27",
 ];
+
+// The shows drawn twice as finely (w x h texels twice the others': house/living.js).
+export const HI_RES = Object.keys(CLIP_SHOWS);
 
 // v wrapped into 0 to n, for things that go round and come back in from the other side.
 const wrap = (v, n) => ((v % n) + n) % n;
@@ -50,15 +53,6 @@ function cloud(rect, x, y, c) {
   rect(x + 1, y + 5, 14, 1, shade(c, -0.12));
 }
 
-// A little heart five texels wide.
-function heart(rect, x, y, c) {
-  rect(x, y, 2, 1, c);
-  rect(x + 3, y, 2, 1, c);
-  rect(x, y + 1, 5, 1, c);
-  rect(x + 1, y + 2, 3, 1, c);
-  rect(x + 2, y + 3, 1, 1, c);
-}
-
 // Big letters for the goal banner, five texels wide and seven high.
 const GOAL = {
   G: ["01110", "10001", "10000", "10111", "10001", "10001", "01111"],
@@ -72,6 +66,7 @@ const GOAL = {
 // outside ("sunny", "cloudy" or "rain"), which the forecast shows for home. The screen is w x h texels (84 x 48).
 export function drawChannel(g, w, h, channel, t, e, sky = "sunny") {
   if (channel === "xinwen") return drawXinwen(g, w, h, t, e);
+  if (CLIP_SHOWS[channel]) return drawClipShow(g, w, h, channel, t, e);
   const { rect, px } = pen(g);
   if (channel === "nature" && Math.floor(e / 6) % 2) {
     // ...then a pond: a duck and her ducklings paddling across, and a frog hopping from lily pad to lily pad.
@@ -270,44 +265,6 @@ export function drawChannel(g, w, h, channel, t, e, sky = "sunny") {
       const y = 16 - ((t * 12 + k * 6) % 16);
       rect(32 + k * 8 + Math.round(Math.sin(t * 3 + k + y * 0.3) * 2), y, 2, 3, "#ffffff");
     }
-  } else if (channel === "news") {
-    // The evening news: two presenters at the desk, the globe in the corner, the headlines along the bottom.
-    rect(0, 0, w, h, "#1d3f7a");
-    for (let x = 0; x < w; x += 12) rect(x, 0, 6, 30, "#22488a");
-    disc(rect, 10, 9, 5, "#3a7bd5");
-    rect(5, 9, 10, 1, "#8fd3ff");
-    rect(9, 4, 2, 10, "#8fd3ff");
-    px(7, 6, "#8fd3ff");
-    px(7, 12, "#8fd3ff");
-    px(12, 6, "#8fd3ff");
-    px(12, 12, "#8fd3ff");
-    const talker = Math.floor(e / 3) % 2;
-    person2(rect, px, 27, 12, {
-      hair: "#221e21",
-      clothes: "#2b2c33",
-      collar: "#ffffff",
-      tie: "#c8323c",
-      mouth: talker === 0 && Math.sin(t * 11) > 0,
-      blink: t % 5 < 0.12,
-    });
-    person2(rect, px, 57, 12, {
-      hair: "#5e3624",
-      style: "bob",
-      clothes: "#e3e1dc",
-      collar: "#c8323c",
-      mouth: talker === 1 && Math.sin(t * 11) > 0,
-      blink: (t + 2) % 5 < 0.12,
-    });
-    rect(0, 28, w, 12, "#c9d4e6");
-    rect(0, 28, w, 1, "#ffffff");
-    rect(0, 31, w, 2, "#2a5cab");
-    rect(20, 27, 8, 1, "#ffffff"); // their papers
-    rect(51, 27, 8, 1, "#ffffff");
-    rect(0, 40, w, 8, "#c8323c");
-    rect(0, 40, w, 1, "#e0505a");
-    for (let k = 0; k < 8; k++) rect(wrap(k * 18 - t * 20, w + 18) - 6, 43, 4 + (k % 3) * 4, 2, "#ffffff");
-    rect(0, 40, 12, 8, "#f6cf4a");
-    rect(2, 43, 8, 2, "#c8323c");
   } else if (channel === "weather") {
     // The weather forecast: home in the middle of the map under the biggest symbol, showing the sky outside, with
     // the presenter's pointer on it; two other places around it (different each time it comes on), each place's
@@ -577,47 +534,6 @@ export function drawChannel(g, w, h, channel, t, e, sky = "sunny") {
       rect(x + 1, y, 4, 4, "#0d0a18");
       rect(x, y + 4, 6, h - y - 4, "#0d0a18");
     }
-  } else if (channel === "crafts") {
-    // A children's craft show: the presenter at the table snipping a paper chain that grows link by link, a pot
-    // of pens, and glitter twinkling in the air.
-    rect(0, 0, w, h, "#fff1b8");
-    for (let x = 0; x < w; x += 16) rect(x, 0, 8, 32, "#ffe89a");
-    rect(0, 32, w, h - 32, "#e8a36a");
-    rect(0, 32, w, 2, "#f2bb86");
-    person2(rect, px, 13, 16 + Math.round(Math.sin(t * 3)), {
-      hair: "#e0402e",
-      style: "pigtails",
-      clothes: "#3fb8c8",
-      mouth: Math.sin(t * 9) > 0,
-      blink: t % 4 < 0.12,
-      blush: true,
-    });
-    const LINK = ["#e0402e", "#f6cf4a", "#3fd47a", "#3e6fd6", "#b46be0"];
-    const links = 1 + (Math.floor(e / 2) % 6);
-    for (let k = 0; k < links; k++) {
-      const [x, y] = [22 + k * 8, 34 + (k % 2) * 2];
-      rect(x, y, 8, 6, LINK[k % 5]);
-      rect(x, y + 5, 8, 1, shade(LINK[k % 5], -0.25));
-      rect(x + 2, y + 2, 4, 2, "#e8a36a");
-    }
-    const sx = 22 + links * 8;
-    rect(sx + 2, Math.sin(t * 12) > 0 ? 32 : 34, 6, 1, "#c9ced6");
-    rect(sx + 2, 36, 6, 1, "#c9ced6");
-    px(sx + 2, 35, "#7d8ca3");
-    rect(sx - 2, 34, 4, 4, "#e0402e");
-    px(sx - 1, 35, "#e8a36a");
-    rect(77, 20, 1, 4, "#e0402e"); // the pot of pens
-    rect(79, 18, 1, 6, "#3fd47a");
-    rect(81, 20, 1, 4, "#f6cf4a");
-    rect(76, 24, 7, 8, "#3e6fd6");
-    rect(76, 24, 7, 1, "#6f9ef0");
-    for (let k = 0; k < 6; k++) {
-      const s = Math.sin(t * 5 + k * 2.3);
-      if (s < 0.5) continue;
-      const [x, y] = [24 + ((k * 26) % 48), 4 + ((k * 14) % 22)];
-      px(x, y, "#ffffff");
-      if (s > 0.8) [-1, 1].forEach((d) => (px(x + d, y, "#fff8d8"), px(x, y + d, "#fff8d8")));
-    }
   } else if (channel === "baking") {
     // A baking contest in a tent: bunting along the top, two bakers at their benches, and a cake in the middle
     // rising layer by layer until the icing and a cherry go on top.
@@ -810,131 +726,6 @@ export function drawChannel(g, w, h, channel, t, e, sky = "sunny") {
       rect(x, y, 2, 2, "#cfeefc");
       px(x, y, "#ffffff");
     }
-  } else if (channel === "dance") {
-    // A pop music video: three dancers moving in step on a floor of flashing tiles under a glitter ball, the
-    // backdrop changing colour on every beat and hearts floating up.
-    const beat = Math.floor(t * 2.5);
-    rect(0, 0, w, h, ["#ff8fb4", "#b48cff", "#7fd6ff", "#ffd36e"][beat % 4]);
-    for (let x = beat % 2 ? 0 : 6; x < w; x += 12) rect(x, 0, 6, 34, "#ffffff40");
-    rect(42, 0, 1, 3, "#3b3330");
-    disc(rect, 42.5, 6, 3, "#c9ced6");
-    px(41 + (beat % 3), 5 + (beat % 2), "#ffffff");
-    for (let x = 0; x < w; x += 12)
-      for (let r = 0; r < 2; r++) {
-        const lit = (x / 12 + r + beat) % 2;
-        rect(x, 34 + r * 7, 12, 7, lit ? "#3a2f58" : "#e05aa0");
-        if (!lit) rect(x + 1, 35 + r * 7, 3, 1, "#f08cc4");
-      }
-    const move = beat % 4;
-    const HAIR = ["#221e21", "#f2c14e", "#b46be0"];
-    const STYLE = ["spiky", "pigtails", "bob"];
-    const CLOTHES = ["#ffffff", "#3e6fd6", "#2b2c33"];
-    for (let k = 0; k < 3; k++) {
-      const x = 19 + k * 23 + (move === 2 ? -2 : 0);
-      const top = move === 3 ? 10 : 14;
-      const skin = "#f9d6bd";
-      rect(x - 3, top + 16, 2, 6, "#2b2c33");
-      rect(x + 1, top + 16, 2, 6, "#2b2c33");
-      person2(rect, px, x, top, { hair: HAIR[k], style: STYLE[k], clothes: CLOTHES[k], arms: false, mouth: k === 1 && Math.sin(t * 9) > 0 });
-      if (move === 0 || move === 2) rect(x - 8, top + 3, 2, 8, skin);
-      else rect(x - 10, top + 10, 4, 2, skin);
-      if (move === 0) rect(x + 6, top + 3, 2, 8, skin);
-      else rect(x + 6, top + 10, 4, 2, skin);
-    }
-    for (let k = 0; k < 3; k++) heart(rect, 8 + k * 30 + Math.round(Math.sin(t * 2 + k) * 2), 30 - ((t * 8 + k * 12) % 32), "#ffffff");
-  } else if (channel === "quiz") {
-    // A quiz show: the host at her stand with the question up on the board, two contestants at their buzzers,
-    // whoever is faster lighting up, and the scores going up by ten.
-    rect(0, 0, w, h, "#2a1f5c");
-    for (let x = 2; x < w; x += 8) rect(x, 0, 4, 2, (Math.floor(t * 4) + (x >> 3)) % 4 ? "#6b5bb0" : "#f6cf4a");
-    rect(26, 4, 32, 14, "#1d3f7a");
-    rect(26, 4, 32, 2, "#8fd3ff");
-    rect(26, 17, 32, 1, "#14305e");
-    ["111", "001", "010", "000", "010"].forEach((row, y) => [...row].forEach((on, x) => on === "1" && rect(39 + x * 2, 7 + y * 2, 2, 2, "#ffffff")));
-    const on = Math.floor(t - e);
-    const round = Math.floor(e / 3);
-    const buzzed = e % 3 > 1;
-    const who = (r) => (hash(r, on, 9) < 0.5 ? 0 : 1);
-    const score = [0, 0];
-    for (let r = 0; r < round + (buzzed ? 1 : 0); r++) score[who(r)] += 10;
-    person2(rect, px, 41, 20, { hair: "#f2c14e", style: "bob", clothes: "#e05aa0", mouth: !buzzed && Math.sin(t * 9) > 0, blink: t % 4 < 0.12 });
-    rect(34, 32, 16, 16, "#6b5bb0");
-    rect(34, 32, 16, 2, "#8c7dd0");
-    rect(41, 38, 2, 4, "#f6cf4a");
-    rect(39, 39, 6, 2, "#f6cf4a");
-    [13, 73].forEach((x, k) => {
-      const lit = buzzed && who(round) === k;
-      person2(rect, px, x, 16, {
-        hair: k ? "#221e21" : "#5e3624",
-        style: k ? "spiky" : "pony",
-        clothes: k ? "#3fd47a" : "#f39a33",
-        mouth: lit,
-        blush: lit,
-      });
-      rect(x - 9, 32, 18, 16, k ? "#e0402e" : "#3e6fd6");
-      rect(x - 9, 32, 18, 2, lit && t % 0.3 < 0.15 ? "#ffffff" : k ? "#f0706a" : "#6f9ef0");
-      rect(x - 2, 29, 4, 3, lit ? "#ffe58a" : "#8a7a3a");
-      number2(rect, score[k], x - (score[k] < 10 ? 2 : 5), 37, "#ffffff");
-    });
-  } else if (channel === "garden") {
-    // A gardening show: the presenter in her sun hat watering a bed of flowers that come up and open while you
-    // watch, a bee going from flower to flower, and a robin on the fence.
-    rect(0, 0, w, h, "#bfe6fb");
-    disc(rect, 66, 8, 4, "#ffe58a");
-    rect(0, 18, w, 2, "#c9a477");
-    for (let x = 2; x < w; x += 8) {
-      rect(x, 14, 4, 12, "#d9b98a");
-      rect(x + 1, 13, 2, 1, "#d9b98a");
-      rect(x + 3, 14, 1, 12, "#c9a477");
-    }
-    rect(0, 26, w, h - 26, "#7fbf5a");
-    for (let x = 3; x < w; x += 9) rect(x, 28 + (x % 4) * 4, 1, 2, "#6aae4f");
-    rect(28, 34, 52, 8, "#8a5a34");
-    rect(28, 34, 52, 1, "#6e4528");
-    for (let x = 30; x < 80; x += 5) px(x, 37 + (x % 3), "#a06a40");
-    const BLOOM = ["#e0402e", "#f28aa8", "#b46be0", "#f6cf4a", "#ffffff", "#f39a33"];
-    for (let k = 0; k < 6; k++) {
-      const x = 33 + k * 8;
-      const grow = Math.min(1, Math.max(0, (e - k * 0.8) / 3));
-      const tall = 2 + Math.round(grow * 10);
-      const top = 34 - tall;
-      rect(x, top, 1, tall, "#4f9a3a");
-      if (tall > 5) {
-        px(x + 1, top + Math.floor(tall / 2), "#5bb046");
-        px(x - 1, top + Math.floor(tall / 2) + 2, "#5bb046");
-      }
-      if (grow < 1) rect(x, top - 1, 1, 2, grow > 0.6 ? BLOOM[k] : "#7cc463");
-      else {
-        const c = BLOOM[k];
-        rect(x - 1, top - 4, 3, 1, c);
-        rect(x - 2, top - 3, 5, 3, c);
-        rect(x - 1, top, 3, 1, c);
-        px(x, top - 2, k === 3 ? "#f39a33" : "#f6cf4a");
-      }
-    }
-    person2(rect, px, 13, 18, { hair: "#5e3624", clothes: "#5bb046", mouth: Math.sin(t * 9) > 0, blink: t % 4 < 0.12 });
-    rect(7, 18, 12, 1, "#e8c27a");
-    rect(10, 15, 6, 3, "#e8c27a");
-    rect(10, 17, 6, 1, "#d9334a");
-    rect(21, 24, 4, 1, "#2f5ab0"); // the watering can and the water out of it
-    rect(20, 26, 6, 4, "#3e6fd6");
-    rect(26, 26, 2, 1, "#3e6fd6");
-    px(28, 25, "#3e6fd6");
-    for (let k = 0; k < 3; k++) px(29 + k, 26 + Math.floor((t * 8 + k * 2) % 8), "#8fd3ff");
-    const bx = 56 + 18 * Math.sin(t * 0.9);
-    const by = 16 + 6 * Math.sin(t * 2.3);
-    rect(bx + 1, by - 2, 2, 2, Math.sin(t * 20) > 0 ? "#ffffff" : "#cfeefc");
-    rect(bx, by, 4, 3, "#f6cf4a");
-    rect(bx + 1, by, 1, 3, "#2b2522");
-    px(bx + 4, by + 1, "#2b2522");
-    const hop = Math.sin(t * 3) > 0.8 ? 2 : 0;
-    rect(72, 9 - hop, 2, 2, "#5e3d28");
-    rect(74, 9 - hop, 5, 4, "#7a5236");
-    rect(77, 7 - hop, 3, 3, "#7a5236");
-    rect(77, 10 - hop, 2, 2, "#e0602e");
-    px(78, 8 - hop, "#2b2522");
-    px(80, 8 - hop, "#3b3330");
-    px(76, 13 - hop, "#3b3330");
   } else if (channel === "tennis") {
     // A tennis match seen from above: the blue court and its white lines, the net across the middle, the two
     // players running to meet the ball as it goes back and forth, and the games won along the top.
@@ -978,100 +769,6 @@ export function drawChannel(g, w, h, channel, t, e, sky = "sunny") {
     number2(rect, Math.floor(t / 20) % 7, 28, 2, "#ffffff");
     number2(rect, Math.floor(t / 27) % 7, 50, 2, "#ffffff");
     rect(59, 2, 3, 6, "#f6cf4a");
-  } else if (channel === "anime") {
-    // An anime drama: cherry petals drifting down as it cuts between her close-up (big shining eyes), his, and
-    // the two of them under the blossom tree.
-    const shot = Math.floor(e / 3) % 3;
-    if (shot === 2) {
-      rect(0, 0, w, h, "#ffe6ee");
-      rect(0, 38, w, h - 38, "#9ccf6a");
-      rect(0, 38, w, 1, "#b4dd8a");
-      rect(56, 14, 6, 25, "#7a5236");
-      rect(56, 14, 2, 25, "#664330");
-      rect(50, 18, 6, 2, "#7a5236");
-      rect(40, 3, 40, 12, "#f7b8cc");
-      rect(44, 0, 30, 18, "#f7b8cc");
-      rect(38, 6, 6, 6, "#f7b8cc");
-      for (let k = 0; k < 24; k++) px(39 + Math.floor(hash(k, 1, 23) * 40), Math.floor(hash(k, 2, 23) * 17), k % 3 ? "#ff9fbf" : "#ffd6e2");
-      person2(rect, px, 19, 22, { hair: "#b46be0", style: "long", clothes: "#ffffff", collar: "#d9334a", blush: true, blink: t % 4 < 0.12 });
-      person2(rect, px, 33, 22, { hair: "#2b2c33", style: "spiky", clothes: "#3e6fd6", mouth: Math.sin(t * 7) > 0 });
-      if (t % 2 < 1) heart(rect, 24, 16 - (t % 1) * 6, "#ff6f9a");
-    } else {
-      const her = shot === 0;
-      const hair = her ? "#b46be0" : "#2b2c33";
-      const skin = "#f9d6bd";
-      rect(0, 0, w, h, her ? "#ffd1e0" : "#cfe3ff");
-      for (let k = 0; k < 6; k++)
-        if (Math.sin(t * 4 + k * 1.3) > 0.2) {
-          const [x, y] = [4 + ((k * 7) % 9) * 2 + (k % 2) * 60, 6 + ((k * 5) % 17) * 2];
-          px(x, y, "#ffffff");
-          px(x - 1, y, "#ffffffa0");
-          px(x + 1, y, "#ffffffa0");
-          px(x, y - 1, "#ffffffa0");
-          px(x, y + 1, "#ffffffa0");
-        }
-      if (her) rect(22, 6, 40, 38, hair); // her long hair behind
-      rect(26, 8, 32, 30, skin);
-      rect(28, 38, 28, 2, skin);
-      rect(31, 40, 22, 2, skin);
-      rect(26, 12, 1, 26, shade(skin, -0.08));
-      rect(22, 2, 40, 10, hair);
-      for (let x = 26; x < 58; x += 5) {
-        rect(x, 12, 3, 2, hair);
-        px(x + 1, 14, hair);
-      }
-      for (let x = 30; x < 54; x += 6) rect(x, 5, 3, 1, shade(hair, 0.35));
-      if (her) {
-        rect(22, 8, 5, 34, hair);
-        rect(57, 8, 5, 34, hair);
-      } else {
-        for (let x = 22; x < 62; x += 8) rect(x + 2, 0, 3, 2, hair);
-        rect(23, 10, 3, 10, hair);
-        rect(58, 10, 3, 10, hair);
-        rect(24, 20, 2, 6, skin);
-        rect(58, 20, 2, 6, skin);
-      }
-      const eye = her ? "#e05aa0" : "#3e6fd6";
-      const lid = "#3b2a4a";
-      const blink = t % 4 < 0.15;
-      for (const ex of [30, 46]) {
-        rect(ex + 1, 15, 6, 1, shade(hair, -0.25)); // the brows
-        if (blink) {
-          rect(ex, 24, 8, 1, lid);
-          continue;
-        }
-        rect(ex, 18, 8, 10, lid);
-        rect(ex + 1, 21, 6, 6, eye);
-        rect(ex + 2, 24, 4, 2, shade(eye, 0.35));
-        rect(ex + 3, 22, 2, 2, lid);
-        rect(ex + 1, 20, 2, 2, "#ffffff");
-        px(ex + 5, 25, "#ffffff");
-        if (her) {
-          rect(ex - 1, 17, 10, 1, lid);
-          px(ex === 30 ? ex - 2 : ex + 9, 18, lid);
-        }
-      }
-      px(42, 31, shade(skin, -0.2));
-      if (her) {
-        rect(28, 30, 6, 2, "#f7a1b5");
-        rect(50, 30, 6, 2, "#f7a1b5");
-      }
-      const open = Math.sin(t * 8) > 0.3;
-      rect(40, 35, 4, open ? 3 : 1, open ? "#8a2e2e" : "#c4503f");
-      if (open) rect(41, 37, 2, 1, "#c4503f");
-      rect(18, 42, 48, 6, her ? "#ffffff" : "#2b2c33");
-      rect(36, 42, 12, 2, skin);
-      if (her) {
-        rect(36, 44, 12, 3, "#d9334a"); // her ribbon
-        rect(41, 44, 2, 4, "#b52238");
-      } else rect(38, 42, 8, 2, "#ffffff");
-    }
-    for (let k = 0; k < 12; k++) {
-      const x = ((k * 7 + t * (6 + (k % 3) * 2)) % (w + 4)) - 2 + Math.sin(t * 2 + k) * 3;
-      const y = (k * 11 + t * 8) % h;
-      rect(x, y, 2, 1, k % 3 ? "#ff9fbf" : "#ffffff");
-      if (k % 2) px(x + 1, y + 1, k % 3 ? "#ff9fbf" : "#ffffff");
-    }
   } else if (channel === "film") {
     // A late-night film between black bars, the subtitles changing in the bottom one: a rainy city at night with
     // its windows lit, then two people talking under a street lamp, the old film flickering with specks of dust.

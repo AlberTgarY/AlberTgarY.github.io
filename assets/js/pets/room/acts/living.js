@@ -6,6 +6,7 @@
  ******************************************************************************/
 
 import { rnd, pick, clamp } from "../../stage.js";
+import { smoothstep } from "../../models/voxels.js";
 import { HOLDS, MOVES } from "../props.js";
 import { V, F, SAY, DOWNSTAIRS } from "./common.js";
 
@@ -281,6 +282,8 @@ export function livingActs(c) {
     if (!a.interrupt) yield* moveMoth(a, "bed");
   }
 
+  const LINES = 4; // read down each page
+  const TURN = 0.9; // s for a page to go over
   // A book from the low shelf, one not read lately (house.js), read sitting down (sometimes dozing off over
   // it), and put back.
   function* read(a) {
@@ -304,22 +307,75 @@ export function livingActs(c) {
       yield* turn(a, V);
     }
     a.props.only("open");
-    a.hold = HOLDS.read;
-    a.nod = 0.12; // eyes on the page
-    let flip = t() + 3;
+    // Reading: the eyes going down the left page line by line and then the right, the book swaying a little
+    // with the breath; at the end of the right page the right hand takes its corner over to the left, the
+    // page curling over with it; now and then a look up from the book, at a good line (a smile) or at whoever
+    // is about. Dozing off, the book sinks to the lap.
+    const { leaf } = a.props;
+    onEnd(a, () => leaf.outer.rotation.set(0, 0, 0));
+    const fwd = [Math.sin(a.yaw), Math.cos(a.yaw)];
+    const side = [Math.cos(a.yaw), -Math.sin(a.yaw)]; // to their left, as they face out
+    const page = (across, down) => {
+      const [x, y, z] = a.facePoint();
+      return [x + fwd[0] * 9 + side[0] * across, y - 6 - down, z + fwd[1] * 9 + side[1] * across];
+    };
+    let turning = -1; // when the page started over, while it is
+    a.hold = (time) => {
+      if (a.asleep) return HOLDS.lap;
+      const sway = 0.03 * Math.sin(time * 0.8);
+      const k = turning < 0 ? 0 : Math.sin(Math.PI * clamp((time - turning) / TURN, 0, 1)); // the hand over and back
+      return [
+        [-0.72 + sway - 0.25 * k, -1.0 + 0.2 * k, 0.2 + 0.45 * k, 0, 0],
+        [-0.72 + sway, -1.0, -0.2, 0, 0],
+      ];
+    };
+    let next = t() + 0.5; // the next look, line or page
+    let line = 0; // the lines down the two pages, 0 to 2 * LINES
     yield* linger(a, rnd(18, 30), {
       dozeAt: dozeChance(0.2, 0.5),
       each() {
-        // A page turns every few seconds while awake.
-        const k = clamp((t() - flip) / 0.5, 0, 1);
-        a.props.leaf.outer.rotation.y = -Math.PI * k;
-        if (k >= 1) {
-          a.props.leaf.outer.rotation.y = 0;
-          flip = t() + rnd(3, 5);
+        if (a.asleep) {
+          a.look = null;
+          return;
         }
-        if (a.asleep) flip = t() + 1;
+        if (turning >= 0) {
+          const k = clamp((t() - turning) / TURN, 0, 1);
+          leaf.outer.rotation.y = -Math.PI * smoothstep(0, 1, k);
+          leaf.outer.rotation.x = 0.35 * Math.sin(Math.PI * k); // curling as it goes over
+          if (k >= 1) {
+            leaf.outer.rotation.set(0, 0, 0);
+            turning = -1;
+            line = 0;
+            next = t() + 0.4;
+          }
+          return;
+        }
+        if (t() < next) return;
+        if (line >= 2 * LINES) {
+          turning = t();
+          a.look = page(-2, 1);
+          return;
+        }
+        if (line === LINES && Math.random() < 0.35) {
+          // A look up between the pages: a smile at something, or a glance at whoever is about.
+          const o = other(a);
+          a.look = Math.random() < 0.5 && o && !o.out && Math.hypot(o.x - a.x, o.z - a.z) < 90 ? o : null;
+          a.nod = 0;
+          if (!a.look) a.beHappy(1.2);
+          line++;
+          next = t() + rnd(1.5, 2.5);
+          return;
+        }
+        const right = line >= LINES;
+        const k = (right ? line - LINES : line) / (LINES - 1);
+        a.look = page(right ? -2.5 : 2.5, 3 * k);
+        a.nod = 0.2; // (the head bent over the page)
+        line++;
+        next = t() + rnd(0.9, 1.4);
       },
     });
+    leaf.outer.rotation.set(0, 0, 0);
+    a.look = null;
     a.nod = 0;
     a.props.only("bookShut");
     a.hold = HOLDS.carry;

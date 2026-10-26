@@ -1,10 +1,10 @@
 /*******************************************************************************
  * The garden's sprinkler (water.js flies its drops): an impact sprinkler on a
- * spike in the grass between the beds, fed by a green hose from a little pump
- * on the grass by the low wall, which draws its water from the house. Switched
- * on at the pump, it hums, the water comes up to pressure (the gauge's needle
- * climbing) and the head ticks round and round over the beds (the arm knocking
- * the jet into a spray at each tick); switched off, the jet sinks and stops.
+ * spike in the grass between the beds, fed by a green hose wound on a red reel
+ * under the outside tap on the low wall. Turned on at the tap (its red handle
+ * round a quarter turn), the water comes up to pressure and the head ticks
+ * round and round over the beds (the arm knocking the jet into a spray at each
+ * tick); turned off, the jet sinks and stops.
  *
  * It stands in the middle of the four beds, and its range cam carries the jet
  * just to the far edge of the beds whichever way it faces, so the water comes
@@ -12,7 +12,7 @@
  * breaks off it all along the way.
  *
  * Now and then it has been left facing the wrong way: on comes the jet straight
- * at whoever is at the pump, until they run over and turn it round (acts.js).
+ * at whoever is at the tap, until they run over and turn it round (acts.js).
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -20,7 +20,8 @@ import { part, box, ellipsoid, pivotGroup } from "../models/voxels.js";
 import { GRAVITY } from "./water.js";
 
 const AT = [186, 38]; // the sprinkler, on the beds' middle line, between the near pair and the far pair
-const PUMP = [154, 70]; // the pump, on the grass against the garden side of the wall
+const TAP = [151, 70]; // the outside tap, on the garden side of the low wall
+const REEL = [153, 63]; // the hose reel, against the wall just along from the tap, its axle out from the wall
 const NOZZLE_Y = 6.5;
 const ELEVATION = 0.47; // the jet's angle up from the level, as the real ones (about 27°)
 const REACH = 66; // how far the jet carries at full pressure
@@ -36,13 +37,8 @@ const COLORS = {
   brass: "#d9a441",
   brassDark: "#b5832c",
   steel: "#c3c9cf",
-  motor: "#4c9a6a",
-  motorDark: "#3a7a53",
-  housing: "#2f3338",
-  pumpBase: "#4a4d52",
-  switchBox: "#e8e4da",
-  rocker: "#d9433f",
-  gaugeFace: "#fbfbf6",
+  reel: "#d24a3c",
+  reelDark: "#a83528",
 };
 
 // Speed for a drop leaving the nozzle at `angle` up to come down `range` away on the ground (NOZZLE_Y + 0.5
@@ -80,44 +76,55 @@ export function buildSprinkler(scene, water) {
   armPart.add(0, -1, -2, "brassDark"); // the counterweight
   arm.inner.add(armPart.mesh(COLORS));
 
-  // The pump on the grass by the wall, lying along it: a green motor with cooling fins on a grey base, a
-  // fan cover at its back and the round black pump housing at its front, the pipe from the house coming
-  // through the wall into it and the hose going out of its side; on top, a pressure gauge facing the room
-  // and a white switch box with a red rocker and a little light, green while it runs.
-  const pump = new THREE.Group();
-  pump.position.set(PUMP[0], 0, PUMP[1]);
-  group.add(pump);
-  const pumpPart = part();
-  box(pumpPart, [-2, 2], [0, 0], [-5, 4], "pumpBase");
-  for (let z = -4; z <= 1; z++) {
-    const r = z % 2 ? 2.1 : 2.5; // the fins
-    ellipsoid(pumpPart, [0, 3, z], [r, r, 0.5], z % 2 ? "motor" : "motorDark");
-  }
-  ellipsoid(pumpPart, [0, 3, -5], [1.6, 1.6, 0.5], "pumpBase");
-  ellipsoid(pumpPart, [0, 3, 3], [2.6, 2.6, 1.3], "housing");
-  box(pumpPart, [-5, -3], [2, 2], [3, 3], "steel"); // in from the house, through the wall
-  box(pumpPart, [3, 4], [3, 3], [3, 3], "brass"); // out to the hose
-  box(pumpPart, [0, 0], [6, 6], [3, 3], "steel"); // the gauge on its stem
-  box(pumpPart, [-1, 1], [7, 9], [4, 4], (x, y) => (x || y !== 8 ? "steel" : "gaugeFace"));
-  box(pumpPart, [-1, 1], [6, 6], [-3, -1], "switchBox");
-  pump.add(pumpPart.mesh(COLORS));
-  const needle = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.1, 0.2), new THREE.MeshBasicMaterial({ color: 0xd9433f }));
-  needle.geometry.translate(0, 0.45, 0); // turning about its foot
-  needle.position.set(0, 7.6, 4.6);
-  pump.add(needle);
-  const rocker = new THREE.Mesh(new THREE.BoxGeometry(1, 0.6, 1.6), new THREE.MeshLambertMaterial({ color: COLORS.rocker }));
-  rocker.position.set(0, 6.8, -2);
-  pump.add(rocker);
-  const light = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), new THREE.MeshBasicMaterial({ color: 0x4a4d52 }));
-  light.position.set(1.3, 6.2, -3);
-  pump.add(light);
-  const [lightOn, lightOff] = [new THREE.Color(0x5cff7a), new THREE.Color(0x4a4d52)];
+  // The outside tap: a pipe out of the wall, a brass body with its spout turned down, and a red cross handle
+  // on top that turns a quarter round to open it.
+  const tapPart = part();
+  box(tapPart, [0, 1], [8, 8], [0, 0], "steel");
+  box(tapPart, [2, 3], [7, 9], [-1, 1], (x, y) => (y === 9 ? "brassDark" : "brass"));
+  box(tapPart, [3, 3], [5, 6], [0, 0], "brass");
+  const tapMesh = tapPart.mesh(COLORS);
+  tapMesh.position.set(TAP[0], 0, TAP[1]);
+  group.add(tapMesh);
+  const handle = new THREE.Group();
+  handle.position.set(TAP[0] + 2.5, 10.4, TAP[1]);
+  group.add(handle);
+  const handleMat = new THREE.MeshLambertMaterial({ color: COLORS.reel });
+  handle.add(new THREE.Mesh(new THREE.BoxGeometry(4, 0.8, 0.8), handleMat), new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 4), handleMat));
 
-  // The hose, lying in loose curves on the grass from the pump to the sprinkler, clear of the beds.
+  // The hose reel: a drum between two red discs on a red stand against the wall, its axle out from the wall
+  // (so that it keeps out of the way along the beds), the hose wound round it, a crank on the outer disc,
+  // and a short length of hose from the tap's spout to its hub.
+  const reel = part();
+  const [RX, RZ] = REEL;
+  for (const dx of [-2, 2])
+    for (let z = -5; z <= 5; z++)
+      for (let y = -5; y <= 5; y++) {
+        const r = Math.hypot(z, y);
+        if (r <= 4.6) reel.add(RX + dx, 6 + y, RZ + z, r < 1.2 ? "reelDark" : (z + y) % 3 ? "reel" : "reelDark"); // the discs
+      }
+  for (let dx = -1; dx <= 1; dx++)
+    for (let z = -4; z <= 4; z++)
+      for (let y = -4; y <= 4; y++) if (Math.abs(Math.hypot(z, y) - 3.3) < 0.7) reel.add(RX + dx, 6 + y, RZ + z, (y + dx) % 2 ? "hose" : "hoseDark"); // the hose round the drum
+  for (const dx of [-2, 2])
+    for (const z of [-3, 3]) for (let y = 0; y <= 2; y++) reel.add(RX + dx, y, RZ + z + Math.sign(z) * (2 - y) * 0.5, "reelDark"); // the stand's legs
+  for (let y = 7; y <= 9; y++) reel.add(RX + 2, y, RZ + 3, "reelDark"); // the crank's arm, on the outer disc
+  reel.add(RX + 2, 10, RZ + 3, "steel"); // and its knob
+  for (let k = 0; k <= 10; k++) {
+    const u = k / 10; // from the tap's spout down to the hub
+    reel.add(
+      Math.round(TAP[0] + 3 + (RX + 2 - TAP[0] - 3) * u),
+      Math.round(5 + 1 * u - 3 * Math.sin(Math.PI * u)),
+      Math.round(TAP[1] + (RZ - TAP[1]) * u),
+      "hose"
+    );
+  }
+  group.add(reel.mesh(COLORS));
+
+  // The hose, lying in loose curves on the grass from the reel to the sprinkler, clear of the beds.
   const hose = part();
-  const from = [PUMP[0] + 5, PUMP[1] + 3];
+  const from = [REEL[0] + 3, REEL[1] - 4];
   const ctrl = [
-    [PUMP[0] + 11, PUMP[1] - 4],
+    [REEL[0] + 9, REEL[1] - 14],
     [AT[0] - 26, AT[1] + 16],
   ];
   let last = null;
@@ -130,29 +137,30 @@ export function buildSprinkler(scene, water) {
     hose.add(x, 0, z, (x + z) % 5 ? "hose" : "hoseDark");
     last = [x, z];
   }
-  for (let y = 0; y <= 3; y++) hose.add(from[0], y, from[1], "hose"); // up to the pump's outlet
+  for (let y = 0; y <= 2; y++) hose.add(from[0] - 1, y, from[1], "hose"); // up off the bottom of the drum
   group.add(hose.mesh(COLORS));
 
-  const tapAt = [PUMP[0] + 6, PUMP[1] - 2]; // where to kneel to the pump's switch, facing the wall
+  const tapAt = [TAP[0] + 9, TAP[1] - 1]; // where to kneel to the tap, facing the wall
   const fixAt = [AT[0] - 12, AT[1] + 3]; // where to crouch to turn the head round
   const s = {
     spots: {
       tap: { at: tapAt, yaw: -Math.PI / 2 },
       fix: { at: fixAt, yaw: Math.atan2(AT[0] - fixAt[0], AT[1] - fixAt[1]) },
       head: [AT[0], 6, AT[1]],
-      tap3: [PUMP[0], 7, PUMP[1] - 2], // the switch
+      tap3: [TAP[0] + 2.5, 10, TAP[1]], // the handle
     },
     at: AT,
     footprint: [AT[0] - 3, AT[0] + 3, AT[1] - 3, AT[1] + 3],
-    on: false, // the pump running
+    reelFootprint: [REEL[0] - 3, REEL[0] + 2, REEL[1] - 5, REEL[1] + 5], // (along the wall: clear of the way past it)
+    on: false, // the tap on
     wrong: false, // facing the tap, until turned round
-    since: 0, // when the pump was last switched
+    since: 0, // when the tap was last turned
     offAt: Infinity, // when someone should come and turn it off
     pressure: 0,
     heading: 0,
     nextTick: 0,
     lastTick: -1,
-    // Switch the pump on at time t, the head left facing the pump or not.
+    // Turn the tap on at time t, the head left facing the tap or not.
     start(t, wrong) {
       Object.assign(s, { on: true, wrong, since: t, offAt: t + 18 + Math.random() * 14, nextTick: t + 0.6 });
       if (wrong) s.heading = Math.atan2(tapAt[0] - AT[0], tapAt[1] - AT[1]);
@@ -168,11 +176,8 @@ export function buildSprinkler(scene, water) {
     spraying: () => s.on || s.pressure > 0.02,
     update(t, dt) {
       s.pressure += ((s.on ? 1 : 0) - s.pressure) * (1 - Math.exp(-(s.on ? 2.5 : 4) * dt));
-      // The pump: the rocker over, the light on, a hum (a shiver), and the needle up with the pressure.
-      rocker.rotation.x += ((s.on ? 0.35 : -0.35) - rocker.rotation.x) * (1 - Math.exp(-14 * dt));
-      light.material.color.copy(s.on ? lightOn : lightOff);
-      pump.position.x = PUMP[0] + (s.on ? 0.07 * Math.sin(t * 95) : 0);
-      needle.rotation.z = 1.2 - 2.4 * s.pressure;
+      // The tap's handle a quarter turn round while it is on.
+      handle.rotation.y += ((s.on ? Math.PI / 2 : 0) - handle.rotation.y) * (1 - Math.exp(-10 * dt));
       // The head: knocked round a little at each tick of the arm. Facing the tap, it rocks to and fro about
       // it a little.
       if (s.pressure > 0.2 && t > s.nextTick) {
@@ -214,6 +219,9 @@ export function buildSprinkler(scene, water) {
     const [dx, dz] = [Math.sin(heading), Math.cos(heading)];
     const [h, v] = [Math.cos(elev) * speed, Math.sin(elev) * speed];
     water.emit("jet", AT[0] + dx * 2.5, NOZZLE_Y, AT[1] + dz * 2.5, dx * h, v, dz * h, 3);
+    // Now and then a puff of mist off it, drifting and settling.
+    if (Math.random() < 0.25)
+      water.emit("mist", AT[0] + dx * 3, NOZZLE_Y + 0.5, AT[1] + dz * 3, dx * h * 0.3, v * 0.3, dz * h * 0.3, 0.6 + Math.random() * 0.5);
   }
   function burst() {
     for (let k = 0; k < 12; k++) drop(0.32, 0.3, false);

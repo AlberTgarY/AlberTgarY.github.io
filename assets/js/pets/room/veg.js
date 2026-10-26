@@ -78,6 +78,9 @@ export const VEG_COLORS = {
   melonSeed: "#2a2522",
   wicker: "#c08d58",
   wickerDark: "#9e6f40",
+  canBody: "#9cc9ec",
+  canDark: "#6fa6d6",
+  canRose: "#e9e4d6",
   packet: "#fbf6ea",
 };
 
@@ -453,6 +456,23 @@ export const VEG = {
   },
 };
 export const KINDS = Object.keys(VEG);
+
+// The watering can: a round-shouldered body, a handle arching over the top from the back, and a long spout
+// rising from the bottom of its front to the rose; its bottom on y = 0, the spout to +z. `CAN_ROSE` is where
+// the water comes out.
+export const CAN_ROSE = [0, 7, 10];
+export function canPart(p) {
+  for (let y = 0; y <= 5; y++) {
+    const r = y < 4 ? 2.6 : 2.6 - (y - 3) * 0.7; // (the shoulders rounding in to the top)
+    for (let x = -3; x <= 3; x++)
+      for (let z = -4; z <= 4; z++) if ((x / r) ** 2 + (z / (r + 0.9)) ** 2 <= 1) p.add(x, y, z, y === 0 || y === 3 ? "canDark" : "canBody");
+  }
+  for (let z = -4; z <= 1; z++) p.add(0, z < -2 ? 6 + (z + 4) : 8, z, "canDark"); // the handle, up from the back
+  p.add(0, 7, 1, "canDark");
+  for (let k = 0; k <= 6; k++) p.add(0, 1 + k, 3 + k, "canBody"); // the spout
+  for (let x = -1; x <= 1; x++) for (let y = 6; y <= 8; y++) p.add(x, y, 10, "canRose"); // the rose
+  return p;
+}
 
 // The garden basket: wicker, oval, open at the top, its handle arching over; its bottom on y = 0. What is
 // in it sits on y = 2, in rows (`fillBasket`).

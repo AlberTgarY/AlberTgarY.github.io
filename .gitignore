@@ -17,3 +17,6 @@ _config.local.yml
 jekyll_serve.log
 jekyll_serve.err.log
 assets/img/publication_preview/*_orig.png
+
+# the source videos of the playground's drama clips (assets/playground/), never committed
+assets/js/mp4/

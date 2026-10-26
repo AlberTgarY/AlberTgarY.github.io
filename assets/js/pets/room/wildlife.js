@@ -4,9 +4,8 @@
  * crumbs thrown in, and doze by the reeds at night), a frog on a lily pad who
  * now and then hops to another, two little birds coming down to the bird bath
  * to drink and splash (off they fly when anyone comes near, or the rain comes),
- * butterflies over the flowers by day, a few fireflies blinking over the
- * lawn and a moth now and then at a lamp at night, and cherry petals
- * drifting down from the tree.
+ * butterflies over the flowers by day, a moth now and then at a lamp at
+ * night, and cherry petals drifting down from the tree.
  *
  * `crumbs([x, z])` brings the ducks over; `duckNear`, `birdNear` say where to
  * look; `flutter(at)` sends a butterfly up off the flowers there.
@@ -122,7 +121,7 @@ export function makeWildlife(scene, yard, home) {
     const m = model(duckPart(baby), baby ? 0.45 : 0.8);
     group.add(m);
     const at = intoPond([pond.x - 12 - i * 6, pond.z + 2], 0.6);
-    return { m, baby, x: at[0], z: at[1], yaw: Math.PI / 2, bob: Math.random() * 6, dip: 0 };
+    return { m, baby, x: at[0], z: at[1], yaw: Math.PI / 2, bob: Math.random() * 6, dip: 0, rippleAt: 0, v: 0 };
   });
   const mother = ducks[0];
   let goal = null; // where she is paddling to
@@ -130,32 +129,45 @@ export function makeWildlife(scene, yard, home) {
   let restAt = 0;
   const NIGHT_SPOT = [pond.x + pond.rx - 10, pond.z + 2]; // by the reeds
   function updateDucks(t, dt) {
+    // At night they doze huddled by the reeds, drifting a little this way and that, now and then one of
+    // them waking to preen.
     const asleep = home.night && !crumbAt;
     if (crumbAt && t > crumbAt.until) crumbAt = null;
     if (crumbAt) goal = crumbAt.at;
-    else if (asleep) goal = NIGHT_SPOT;
-    else if (!goal || (Math.hypot(goal[0] - mother.x, goal[1] - mother.z) < 2 && t > restAt)) {
-      goal = intoPond([pond.x + rnd(-1, 1) * pond.rx, pond.z + rnd(-1, 1) * pond.rz], rnd(0.3, 0.72));
-      restAt = t + rnd(1, 5);
-    }
-    const speed = crumbAt ? 9 : asleep ? 3 : 4;
+    else if (!goal || (Math.hypot(goal[0] - mother.x, goal[1] - mother.z) < 3 && t > restAt)) {
+      const [cx, cz, rx, rz] = asleep ? [...NIGHT_SPOT, 6, 5] : [pond.x, pond.z, pond.rx, pond.rz];
+      goal = intoPond([cx + rnd(-1, 1) * rx, cz + rnd(-1, 1) * rz], asleep ? 0.8 : rnd(0.3, 0.72));
+      restAt = t + (asleep ? rnd(15, 40) : rnd(1, 5));
+    } else if (asleep && Math.hypot(goal[0] - NIGHT_SPOT[0], goal[1] - NIGHT_SPOT[1]) > 9) goal = NIGHT_SPOT; // (night falling)
+    const speed = crumbAt ? 6 : asleep ? 1.2 : 4;
+    const turnRate = crumbAt ? 2.5 : asleep ? 0.6 : 1.6; // (radians a second)
     ducks.forEach((d, i) => {
-      // Each duckling follows the one ahead of it, a little way behind.
+      // Each duckling follows the one ahead of it, a little way behind (close up while they doze).
       const lead = i ? ducks[i - 1] : null;
-      const [tx, tz] = lead ? [lead.x - Math.sin(lead.yaw) * (i === 1 ? 7 : 5), lead.z - Math.cos(lead.yaw) * (i === 1 ? 7 : 5)] : goal;
+      const gap = asleep ? 4 : i === 1 ? 7 : 5;
+      const [tx, tz] = lead ? [lead.x - Math.sin(lead.yaw) * gap, lead.z - Math.cos(lead.yaw) * gap] : goal;
       const dist = Math.hypot(tx - d.x, tz - d.z);
-      const step = Math.min(dist, (lead ? speed * 1.3 : speed) * dt);
-      if (dist > 0.3) {
-        const next = intoPond([d.x + ((tx - d.x) / dist) * step, d.z + ((tz - d.z) / dist) * step], 0.8);
-        [d.x, d.z] = next;
-        d.yaw += wrap(Math.atan2(tx - d.x, tz - d.z) - d.yaw) * Math.min(1, 4 * dt);
-      }
-      // At the crumbs, heads down for them now and then.
+      // Paddling forwards only: turning towards where it is going (slowing while it turns round), easing
+      // off as it gets there.
+      const turn = dist > 0.5 ? wrap(Math.atan2(tx - d.x, tz - d.z) - d.yaw) : 0;
+      d.yaw += clamp(turn, -turnRate * dt, turnRate * dt);
+      const want = dist > 0.5 ? (lead ? speed * 1.3 : speed) * Math.max(0, Math.cos(turn)) * Math.min(1, dist / 4) : 0;
+      d.v += (want - d.v) * Math.min(1, 2 * dt);
+      const moving = d.v > 0.3;
+      [d.x, d.z] = intoPond([d.x + Math.sin(d.yaw) * d.v * dt, d.z + Math.cos(d.yaw) * d.v * dt], 0.8);
+      if (asleep) d.yaw += Math.sin(t * 0.21 + i * 1.7) * 0.08 * dt; // turning slowly on the water
+      // At the crumbs, heads down for them now and then; at night, a preen now and then.
       if (crumbAt && dist < 4 && Math.random() < dt * 1.5) d.dip = 1;
+      if (asleep && Math.random() < dt / 25) d.dip = 0.5;
       d.dip = Math.max(0, d.dip - dt * 1.6);
       d.bob += dt * (asleep ? 1.2 : 2.4);
       d.m.position.set(d.x, 0.2 + Math.sin(d.bob) * 0.18, d.z);
-      d.m.rotation.set(Math.sin(d.dip * Math.PI) * 0.7 + (asleep ? 0.12 : 0), d.yaw, 0, "YXZ");
+      d.m.rotation.set(Math.sin(d.dip * Math.PI) * 0.7 + (asleep ? 0.12 : 0), d.yaw, Math.sin(d.bob * 0.5) * (asleep ? 0.05 : 0.03), "YXZ");
+      // Rings on the water: behind them as they paddle, and now and then as they shift about asleep.
+      if (t > d.rippleAt) {
+        yard.ripple(d.x - Math.sin(d.yaw) * 2, d.z - Math.cos(d.yaw) * 2, d.baby ? 0.4 : 0.7);
+        d.rippleAt = t + (moving && !asleep ? 0.5 : rnd(3, 7));
+      }
     });
   }
 
@@ -267,7 +279,7 @@ export function makeWildlife(scene, yard, home) {
     });
   }
 
-  /* ---------- butterflies and fireflies ---------- */
+  /* ---------- butterflies and moths ---------- */
 
   const beds = yard.flowerBeds;
   const inBed = () => {
@@ -318,65 +330,6 @@ export function makeWildlife(scene, yard, home) {
   const one = new THREE.Vector3(1, 1, 1);
   const at = new THREE.Vector3();
 
-  // Fireflies at night, low over the lawn by the hedges, the flowers, the pond and under the tree: each
-  // drifting slowly about its own patch and glowing for a moment every several seconds, a soft round glow (one
-  // point each, sized to the view).
-  const FIREFLIES = 10;
-  const glowTex = (() => {
-    const c = Object.assign(document.createElement("canvas"), { width: 32, height: 32 });
-    const g = c.getContext("2d");
-    const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
-    grad.addColorStop(0, "rgba(255, 255, 255, 1)");
-    grad.addColorStop(0.18, "rgba(255, 255, 255, 0.9)");
-    grad.addColorStop(0.45, "rgba(255, 255, 255, 0.25)");
-    grad.addColorStop(1, "rgba(255, 255, 255, 0)");
-    g.fillStyle = grad;
-    g.fillRect(0, 0, 32, 32);
-    return new THREE.CanvasTexture(c);
-  })();
-  const patches = [
-    ...yard.flowerBeds.map(([x0, x1, z0, z1]) => [(x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, 8]),
-    [pond.x, pond.z, pond.rx + 8, pond.rz + 8],
-    [yard.tree[0], yard.tree[1], 30, 26],
-    [yard.bath[0], yard.bath[1], 30, 20],
-  ]; // [x, z] and how far about them [x, z]
-  const sparks = Array.from({ length: FIREFLIES }, (_, i) => {
-    const [x, z, rx, rz] = patches[i % patches.length];
-    return { x, z, rx, rz, y: rnd(3, 12), ph: rnd(0, 20), every: rnd(4, 8), s: rnd(0.04, 0.09) };
-  });
-  const sparkAt = new Float32Array(FIREFLIES * 3);
-  const sparkGlow = new Float32Array(FIREFLIES * 3);
-  const sparkGeo = new THREE.BufferGeometry();
-  sparkGeo.setAttribute("position", new THREE.BufferAttribute(sparkAt, 3));
-  sparkGeo.setAttribute("color", new THREE.BufferAttribute(sparkGlow, 3));
-  const sparkMat = new THREE.PointsMaterial({
-    map: glowTex,
-    vertexColors: true,
-    sizeAttenuation: false,
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const glow = new THREE.Points(sparkGeo, sparkMat);
-  glow.frustumCulled = false;
-  group.add(glow);
-  const LIT = new THREE.Color("#d8ff70");
-  function updateFireflies(t) {
-    glow.visible = home.night && !raining();
-    if (!glow.visible) return;
-    sparkMat.size = 7 * home.view.scale * home.view.renderer.getPixelRatio();
-    sparks.forEach((f, i) => {
-      // Wandering smoothly about its patch, and a glow rising and fading over 0.7 s once each `every` s.
-      const u = t * f.s + f.ph;
-      sparkAt.set([f.x + f.rx * Math.sin(u) * Math.cos(u * 0.37), f.y + 3 * Math.sin(u * 1.3), f.z + f.rz * Math.sin(u * 0.71 + 1)], i * 3);
-      const phase = ((t + f.ph) % f.every) / 0.7;
-      const k = phase < 1 ? Math.sin(phase * Math.PI) ** 2 : 0.04;
-      sparkGlow.set([LIT.r * k, LIT.g * k, LIT.b * k], i * 3);
-    });
-    sparkGeo.attributes.position.needsUpdate = true;
-    sparkGeo.attributes.color.needsUpdate = true;
-  }
-
   // A moth now and then at a lamp at night: one to each, mostly away, that every so often flutters in out of
   // the dark, loops lazily round the light for a while (turning back the other way now and then) and drifts
   // off again.
@@ -390,11 +343,11 @@ export function makeWildlife(scene, yard, home) {
     way: Math.random() < 0.5 ? -1 : 1,
     speed: rnd(1.2, 2),
     ph: rnd(0, 6.3),
-    from: rnd(3, 40), // its next visit, from when until when
+    from: rnd(1, 10), // its next visit, from when until when
     until: 0,
     off: [0, 0], // where it comes from and goes back to, along x and z
   }));
-  moths.forEach((m) => (m.until = m.from + rnd(6, 12)));
+  moths.forEach((m) => (m.until = m.from + rnd(8, 16)));
   const mothMesh = new THREE.InstancedMesh(MOTH, new THREE.MeshBasicMaterial({ color: "#f1e6c8" }), moths.length);
   mothMesh.frustumCulled = false;
   group.add(mothMesh);
@@ -405,8 +358,8 @@ export function makeWildlife(scene, yard, home) {
     if (!mothMesh.visible) return;
     moths.forEach((m, i) => {
       if (t > m.until) {
-        m.from = t + rnd(15, 40);
-        m.until = m.from + rnd(6, 12);
+        m.from = t + rnd(4, 12);
+        m.until = m.from + rnd(8, 16);
         const away = rnd(0, 6.3);
         m.off = [Math.cos(away) * 26, Math.sin(away) * 26];
       }
@@ -465,7 +418,6 @@ export function makeWildlife(scene, yard, home) {
       updateFrog(t, dt);
       updateBirds(t, dt);
       updateFlies(t, dt);
-      updateFireflies(t);
       updateMoths(t, dt);
       updatePetals(t, dt);
     },

@@ -244,22 +244,25 @@ export function makeSteps(home) {
 
   // Into bed (a person): at the foot of the bed, sit back on the end of it, as on a seat; a moment, then
   // lie back, the legs swinging up onto it, and wriggle up till the head is on the pillow. The pose follows
-  // `abed` (actor.js).
+  // `abed` (actor.js). A bed got into from its side (the hammock) has `sitYaw`, the way to face sitting on its
+  // edge, and they turn to lie along it as they lie back.
   function* intoBed(a, bed) {
     yield* walk(a, bed.front);
     a.ground = bed.front;
-    yield* turn(a, bed.yaw);
+    yield* turn(a, bed.sitYaw ?? bed.yaw);
     a.seated = true;
     yield* glide(a, bed.end, 0.55);
     yield* wait(a, rnd(0.4, 0.9));
     a.seated = false;
     a.abed = true;
+    a.face(bed.yaw);
     yield* arc(a, [bed.x, bed.y, bed.z], BED_TIME, 0);
   }
-  // Out of bed: sit up on the end of it, a stretch, and up onto the feet.
+  // Out of bed: sit up on the end (or the edge) of it, a stretch, and up onto the feet.
   function* outOfBed(a, bed) {
     const [x, z] = bed.end;
     a.abed = false;
+    a.face(bed.sitYaw ?? bed.yaw);
     a.seated = true;
     yield* arc(a, [x, floorY(x, z), z], BED_TIME, 0);
     a.hold = MOVES.stretch;

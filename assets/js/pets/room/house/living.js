@@ -8,7 +8,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 import { part, ellipsoid, box, pivotGroup, hash, cells } from "../../models/voxels.js";
 import { sofaCorner } from "../../models/girl-props.js";
 import { pick } from "../../stage.js";
-import { CHANNELS, drawChannel, drawTvGame } from "../screens.js";
+import { CHANNELS, HI_RES, drawChannel, drawTvGame } from "../screens.js";
 import { DISHES, FRUIT_DISHES, COOKED, buildDish, buildPad, buildRemote, tableware } from "../props.js";
 import { X0 } from "./layout.js";
 import { COLORS, pixelTexture, solid, place, turned } from "./kit.js";
@@ -27,12 +27,38 @@ export function buildLiving(shared) {
   const lamp = corner.lamp;
   const shadeGlow = lamp.shade.material; // unlit: it glows
   const shadeDull = new THREE.MeshLambertMaterial(); // off, it is lit by the room like the rest
-  lamp.light.distance = 130;
+  lamp.light.intensity = 0; // (the sofa corner's own flat light: this room has its own, below)
+  // The floor lamp's light, from the bulb in its shade: most of it down out of the open bottom, a warm pool on
+  // the floor round the end of the sofa, falling off with distance, with the shadows of the sofa, the plant
+  // and the coffee table (drawn once as it comes on: room.js); and through the shade a soft warm light all
+  // round, over most of the room, fading out towards its edge.
+  const BULB = [SOFA[0] - 38, 26, SOFA[1] - 6];
+  const floorSpot = new THREE.SpotLight(0xffc27a, 0, 160, 1.3, 0.7, 1);
+  floorSpot.position.set(...BULB);
+  floorSpot.target.position.set(BULB[0] + 4, 0, BULB[2] + 6);
+  floorSpot.castShadow = true;
+  floorSpot.shadow.mapSize.set(1024, 1024);
+  floorSpot.shadow.camera.near = 2;
+  floorSpot.shadow.bias = -0.0005;
+  floorSpot.shadow.normalBias = 0.3;
+  const floorGlow = new THREE.PointLight(0xffc98a, 0, 130, 0);
+  floorGlow.position.set(...BULB);
+  house.add(floorSpot, floorSpot.target, floorGlow);
+  const floorLight = {
+    on: false,
+    dirty: false, // its shadows to be drawn again (room.js)
+    set(on) {
+      if (on && !this.on) this.dirty = true;
+      floorSpot.intensity = on ? 40 : 0;
+      floorGlow.intensity = on ? 1.1 : 0;
+      this.on = on;
+    },
+  };
   // The lamps, each { set(on) }, clicked on and off.
   lamps.push(
     {
       set(on) {
-        lamp.light.intensity = on ? 1.3 : 0; // dimmed, not hidden, so that the lights in the room stay the same
+        floorLight.set(on);
         lamp.shade.material = on ? shadeGlow : shadeDull;
         this.on = on;
       },
@@ -106,7 +132,12 @@ export function buildLiving(shared) {
   // A mug on top.
   for (let y = 12; y <= 15; y++) ellipsoid(table, [-14, y, -3], [1.7, 0.5, 1.7], y === 15 ? "coffee" : y === 13 ? "mugBlue" : "mug");
   table.add(-12, 14, -3, "mug");
-  place(house, mesh(table), [TABLE[0], 0, TABLE[1]]);
+  const tableMesh = place(house, mesh(table), [TABLE[0], 0, TABLE[1]]);
+  // In the floor lamp's light: the sofa corner (but its shade, the light is in it) and the table cast shadows,
+  // and take them with the rug (the floor too: shell.js).
+  sofaHolder.traverse((m) => m.isMesh && m !== lamp.shade && (m.castShadow = m.receiveShadow = true));
+  tableMesh.castShadow = tableMesh.receiveShadow = true;
+  rugMesh.receiveShadow = true;
   footprint(TABLE[0] - 22, TABLE[0] + 22, TABLE[1] - 10, TABLE[1] + 10);
   // The TV's remote, at the right end of the table: taken up to switch the TV, and put back.
   const remote = place(house, new THREE.Group(), [TABLE[0] + 18, 11.75, TABLE[1] - 2], 1.35);
@@ -380,8 +411,13 @@ export function buildLiving(shared) {
   box(tvBody, [-23, 22], [44, 70], [0, 1], (x, y) => (Math.abs(x + 0.5) > 21.5 || y === 44 || y === 70 ? "tvEdge" : "tvBody"));
   const tvMesh = tvGroup.add(mesh(tvBody)).children.at(-1);
   const SCREEN = [42, 24];
-  const RES = 2; // texels on the screen per voxel
-  const screen = pixelTexture(SCREEN[0] * RES, SCREEN[1] * RES, () => {});
+  // Texels on the screen per voxel: two, or for the shows drawn finer (HI_RES) four, on a canvas of their own.
+  const [screen, screenHi] = [2, 4].map((res) =>
+    Object.assign(
+      pixelTexture(SCREEN[0] * res, SCREEN[1] * res, () => {}),
+      { res }
+    )
+  );
   const glass = place(tvGroup, new THREE.Mesh(new THREE.PlaneGeometry(...SCREEN), new THREE.MeshBasicMaterial({ map: screen.tex })), [-0.5, 57, 1.6]);
   const standby = place(
     tvGroup,
@@ -413,8 +449,10 @@ export function buildLiving(shared) {
     offs: 0,
   };
   function drawScreen(t) {
-    const { g } = screen;
-    const [w, h] = SCREEN.map((n) => n * RES);
+    const on = tv.mode === "show" && HI_RES.includes(tv.channel) ? screenHi : screen;
+    glass.material.map = on.tex;
+    const { g } = on;
+    const [w, h] = SCREEN.map((n) => n * on.res);
     if (tv.mode === "off") {
       g.fillStyle = "#20232a";
       g.fillRect(0, 0, w, h);
@@ -423,7 +461,7 @@ export function buildLiving(shared) {
       for (let k = 0; k < 8; k++) g.fillRect(62 + k, 6 + k, 2, 1);
     } else if (tv.mode === "game") drawTvGame(g, w, h, t);
     else drawChannel(g, w, h, tv.channel, t, t - tv.since, tv.sky);
-    screen.tex.needsUpdate = true;
+    on.tex.needsUpdate = true;
   }
   function show(t) {
     const mode = tv.user ?? tv.want;
@@ -547,6 +585,38 @@ export function buildLiving(shared) {
   ].forEach(([x, y, z, c]) => ellipsoid(dining, [x, y, z], [1.2, 1.2, 1.2], c));
   place(house, mesh(dining), [DINING[0], 0, DINING[1]]);
   footprint(DINING[0] - HALF, DINING[0] + HALF, DINING[1] + NEAR, DINING[1] + FAR);
+  // Three little pillar candles on a round wooden tray at the other end of the table, clear of the places and
+  // the dishes: lit at night, each flame flickering in its own time, a warm glow on the table round them.
+  const candleSet = part(); // (half voxels, shown at half size)
+  ellipsoid(candleSet, [0, 0, 0], [6.5, 0.5, 6.5], "woodMid");
+  const WICKS = [
+    [-2.5, 12, -1.5],
+    [2.5, 9, -1],
+    [0, 6, 2.5],
+  ];
+  for (const [x, h, z] of WICKS) {
+    for (let y = 1; y <= h; y++) ellipsoid(candleSet, [x, y, z], [1.7, 0.5, 1.7], y === h ? "white" : "cream");
+    candleSet.add(Math.round(x), h + 1, Math.round(z), "frameShade"); // the wick
+  }
+  const CANDLE_AT = [DINING[0] + 19, 14, DINING[1] + 3];
+  place(house, mesh(candleSet), CANDLE_AT).scale.setScalar(0.5);
+  const tableFlames = WICKS.map(([x, h, z]) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.4, 0.7), new THREE.MeshBasicMaterial({ color: 0xffc35a }));
+    m.geometry.translate(0, 0.7, 0); // (flickering up from its foot)
+    m.position.set(CANDLE_AT[0] + x / 2, CANDLE_AT[1] + (h + 1.5) / 2, CANDLE_AT[2] + z / 2);
+    house.add(m);
+    return m;
+  });
+  const candleLight = new THREE.PointLight(0xffb060, 0, 45, 2);
+  candleLight.position.set(CANDLE_AT[0], CANDLE_AT[1] + 9, CANDLE_AT[2]);
+  house.add(candleLight);
+  updates.push((t) => {
+    tableFlames.forEach((m, i) => {
+      m.visible = shared.night;
+      m.scale.set(1, 0.85 + 0.25 * Math.sin(t * (9 + i * 2.3) + i) * Math.sin(t * (5.1 + i)), 1);
+    });
+    candleLight.intensity = shared.night ? 26 * (0.9 + 0.1 * Math.sin(t * 11) * Math.sin(t * 6.7)) : 0;
+  });
   const tableDish = place(house, new THREE.Group(), [DINING[0], 14.5, DINING[1] + 1]);
   const tableDishes = Object.fromEntries([...DISHES, ...FRUIT_DISHES].map((kind) => [kind, place(tableDish, buildDish(kind), [0, 0, 0])]));
   // What is on the table (props.js's DISHES or FRUIT_DISHES), or nothing; of the fruit, `left` pieces; and
@@ -637,5 +707,5 @@ export function buildLiving(shared) {
   place(house, mesh(dogBed), [DOGBED[0], 0, DOGBED[1]]);
   footprint(DOGBED[0] - 17, DOGBED[0] + 17, DOGBED[1] - 12, DOGBED[1] + 12);
 
-  return { SOFA, ARMCHAIR, TABLE, charger, TV, fire, tvFace, tvControls, drawScreen, DINING, PLACE, dinner, DINE_Z, TREE, DOGBED };
+  return { SOFA, ARMCHAIR, TABLE, floorLight, charger, TV, fire, tvFace, tvControls, drawScreen, DINING, PLACE, dinner, DINE_Z, TREE, DOGBED };
 }

@@ -6,7 +6,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { part, ellipsoid, box, pivotGroup, hash } from "../../models/voxels.js";
 import { LOOKS } from "../../models/girl-outfits.js";
-import { GAMES, drawPcGame, drawPcDrama, drawSideShow, drawGameSide } from "../screens.js";
+import { GAMES, drawPcGame, drawGameSide, drawClipShow, drawClipSide, drawFarmSide, episodeOf } from "../screens.js";
 import { BACK, LOFT } from "./layout.js";
 import { COLORS, pixelTexture, solid, glowing, place } from "./kit.js";
 
@@ -107,9 +107,12 @@ export function buildLoft(shared) {
   rocker.inner.add(mesh(kirbyTop));
   // The two screens, and their glow on him at night. The one on end shows his team's voice chat, his music,
   // the computer's stats or a guide to the game while he plays (`pc.side`).
+  // Her dramas are drawn finer, on a canvas of their own: the clips' own 168 x 96.
   const MON = [26, 15];
   const monitor = pixelTexture(...MON, () => {});
-  pcParts[1] = place(house, new THREE.Mesh(new THREE.PlaneGeometry(...MON), new THREE.MeshBasicMaterial({ map: monitor.tex })), [
+  const monitorHi = pixelTexture(168, 96, () => {});
+  const screen = new THREE.MeshBasicMaterial({ map: monitor.tex });
+  pcParts[1] = place(house, new THREE.Mesh(new THREE.PlaneGeometry(...MON), screen), [
     DESK[0] + 1.5,
     Y + 30,
     DESK[1] - 4.4,
@@ -158,15 +161,18 @@ export function buildLoft(shared) {
     g.fillStyle = c;
     g.fillRect(Math.round(x), Math.round(y), rw, rh);
   };
-  // `mode` "show" is a drama she streams (screens.js's DRAMAS), `pc.game` which.
+  // `mode` "show" is a drama she watches (screens.js's DRAMAS), `pc.game` which and `pc.ep` the episode.
   function drawMonitor(t) {
-    if (pc.mode === "show") drawPcDrama(monitor.g, ...MON, pc.game, t, t - pc.since, pc.ep);
-    else drawPcGame(monitor.g, ...MON, pc.mode, pc.game, t, t - pc.since, pc.ep);
-    monitor.tex.needsUpdate = true;
+    const on = pc.mode === "show" ? monitorHi : monitor;
+    screen.map = on.tex;
+    if (pc.mode === "show") drawClipShow(on.g, on.canvas.width, on.canvas.height, episodeOf(pc.game, pc.ep), t - pc.since, t - pc.since);
+    else drawPcGame(on.g, ...MON, pc.mode, pc.game, t, t - pc.since, pc.ep);
+    on.tex.needsUpdate = true;
   }
   function drawSideMonitor(t) {
     const [w, h] = SIDE_MON;
-    if (pc.mode !== "off" && pc.sitter?.name === "girl") drawSideShow(sideMonitor.g, w, h, pc.mode, pc.game, t - pc.since, pc.ep);
+    if (pc.mode === "show") drawClipSide(sideMonitor.g, w, h, pc.game, pc.ep, t - pc.since);
+    else if (pc.mode !== "off" && pc.sitter?.name === "girl") drawFarmSide(sideMonitor.g, w, h, t - pc.since, pc.ep);
     else if (pc.mode === "off") rectOn(sideMonitor.g)(0, 0, w, h, "#060608");
     else drawGameSide(sideMonitor.g, w, h, pc.side, pc.mode, pc.game, t, pc.talking);
     sideMonitor.tex.needsUpdate = true;
@@ -202,16 +208,18 @@ export function buildLoft(shared) {
     rocker.outer.rotation.z = 0.28 * kirbySway * Math.sin(t * 2.6);
   });
 
-  // A low bookshelf under the side window: books of all colours and heights on three shelves, a plant and
-  // a photo on top. One red book is the one the girl and the boy take down to read.
+  // A low bookshelf under the side window: books of every kind on three shelves, a plant and a photo on top.
+  // The books are drawn in half voxels, each its own: cloth-bound hardbacks with gold bands and a title, bright
+  // paperbacks with a white band and a little logo, thin ones, a boxed set of three, a few lying in a pile;
+  // their pages showing cream along the top. Six of them are the ones the girl and the boy take
+  // down to read (props.js's BOOKS).
   const SHELF = [-144, 27];
   const SHELF_YAW = Math.PI / 2;
   const shelf = part();
   box(shelf, [-14, 13], [0, 33], [-5, 5], "woodMid", [{ has: (x, y, z) => x >= -12 && x <= 11 && y >= 2 && y <= 31 && z >= -4 }]);
   box(shelf, [-12, 11], [2, 31], [-5, -5], "woodDeep");
   for (const y of [11, 22]) box(shelf, [-12, 11], [y, y], [-4, 5], "woodMid");
-  const BOOK_COLORS = ["bookA", "bookB", "bookC", "bookD", "bookE", "bookF", "bookG"];
-  // The reading books' places: [shelf, x, height].
+  // The reading books' places: [shelf, x, height] (in voxels).
   const READ_SLOTS = [
     [12, -1, 7],
     [2, -9, 6],
@@ -220,27 +228,110 @@ export function buildLoft(shared) {
     [23, 4, 6],
     [2, 3, 7],
   ];
+  // Half voxel u covers u / 2 - 1/2 to u / 2 (fine()), so voxel v is half voxels 2v and 2v + 1.
+  const palette = { ...COLORS };
+  const color = (hex) => ((palette[hex] = hex), hex);
+  const hsl = (h, s, l) => color(`#${new THREE.Color().setHSL(h, s, l).getHexString()}`);
+  const lighter = (hex, k) => color(`#${new THREE.Color(hex).lerp(new THREE.Color("#ffffff"), k).getHexString()}`);
+  const [GOLD, PAGE, INK] = [color("#d9b45a"), color("#f1e8d2"), color("#3a3330")];
+  // One book standing, its spine to the front at half voxel `front`: [x0, x0 + w) across, from `y0` up `h`,
+  // `d` deep; `body` a colour of `palette`.
+  function book(p, x0, y0, w, h, d, front, kind, body) {
+    const title = lighter(body, kind === "paper" ? 0.75 : 0.45);
+    for (let y = y0; y < y0 + h; y++) {
+      const dy = y - y0;
+      for (let x = x0; x < x0 + w; x++)
+        for (let z = front - d + 1; z <= front; z++) {
+          const edge = x === x0 || x === x0 + w - 1 || z === front - d + 1;
+          let c = body;
+          if (dy === h - 1 && !edge && z < front) c = PAGE; // the pages, along the top
+          else if (z === front && x > x0 && x < x0 + w - 1) {
+            // The spine.
+            if (kind === "cloth" && (dy === 2 || dy === h - 3)) c = GOLD;
+            else if (kind === "cloth" && (dy === h - 6 || dy === h - 7)) c = title;
+            else if (kind === "paper" && (dy === h - 3 || dy === h - 4)) c = title;
+            else if (kind === "paper" && dy === 1) c = INK;
+            else if (kind === "thin" && dy === h - 4) c = title;
+            else if (kind === "set" && (dy === h - 3 || dy === 3)) c = GOLD;
+          }
+          p.add(x, y, z, c);
+        }
+    }
+  }
+  const fine = (p) => {
+    const m = solid(p, palette);
+    m.scale.setScalar(0.5);
+    m.position.set(-0.25, -0.25, -0.25);
+    return m;
+  };
+  const shelfBookPart = part();
   for (const [base, seed] of [
     [2, 1],
     [12, 2],
     [23, 3],
   ]) {
-    let x = -12;
-    let n = 0;
-    while (x <= 9) {
-      const width = 2 + Math.floor(hash(x, seed, 9) * 2);
-      const height = 5 + Math.floor(hash(seed, x, 4) * 3);
-      const color = BOOK_COLORS[Math.floor(hash(x, seed, 2) * BOOK_COLORS.length)];
-      const gap = hash(seed, x, n) < 0.12;
-      const slot = READ_SLOTS.find(([b, x0]) => b === base && x + width > x0 - 1 && x < x0 + 3);
-      if (slot) {
-        x = slot[1] + 3; // a reading book's place
+    const [y0, room] = [2 * base, base === 12 ? 19 : 17]; // the floor of the shelf, and how tall a book can be
+    const slots = READ_SLOTS.filter(([b]) => b === base).map(([, x0]) => [2 * x0 - 1, 2 * x0 + 6]);
+    let x = -24;
+    for (let n = 0; x < 22; n++) {
+      const r = (k) => hash(n, seed, k); // this book's own dice
+      const slot = slots.find(([s0, s1]) => x + 14 > s0 && x < s1);
+      if (slot && x + 3 > slot[0]) {
+        x = slot[1]; // a reading book's place
         continue;
       }
-      if (!gap)
-        box(shelf, [x, Math.min(x + width - 1, 11)], [base, base + height], [-3, 3], (bx, by) => (by === base + height - 2 ? "frame" : color));
-      x += width + (gap ? 2 : 0);
-      n++;
+      const end = Math.min(22, slot ? slot[0] : 22); // room to the next reading book, or the end of the shelf
+      const front = 7 - (r(1) < 0.3 ? 1 : 0);
+      const roll = r(2);
+      if (roll < 0.14 && end - x >= 13) {
+        // A pile lying flat, the biggest at the bottom.
+        let y = y0;
+        for (let k = 0; k < 2 + Math.floor(r(3) * 2); k++) {
+          const [len, th] = [12 - k * 2 - Math.floor(r(4 + k) * 2), 2 + Math.floor(r(6 + k) * 2)];
+          const body = hsl(r(8 + k), 0.45, 0.42);
+          for (let bx = x; bx < x + len; bx++)
+            for (let by = y; by < y + th; by++)
+              for (let z = front - 13; z <= front; z++) {
+                const end1 = bx === x || bx === x + len - 1;
+                shelfBookPart.add(
+                  bx,
+                  by,
+                  z,
+                  end1 && z < front && by > y && by < y + th - 1
+                    ? PAGE
+                    : z === front && by === y + th - 1 && bx > x + 1 && bx < x + len - 2
+                      ? lighter(body, 0.4)
+                      : body
+                );
+              }
+          y += th;
+        }
+        x += 14;
+      } else if (roll < 0.24 && end - x >= 14) {
+        // A boxed set of three.
+        const body = hsl(r(3), 0.4, 0.33);
+        const h = room - 2 - Math.floor(r(4) * 2);
+        for (let k = 0; k < 3; k++) book(shelfBookPart, x + k * 4, y0, 4, h, 13, front, "set", body);
+        x += 13;
+      } else {
+        const kind = roll < 0.6 ? "cloth" : roll < 0.88 ? "paper" : "thin";
+        const w = kind === "thin" ? 2 : kind === "paper" ? 3 + Math.floor(r(3) * 2) : 4 + Math.floor(r(3) * 3);
+        if (x + w > end) {
+          x = end;
+          continue;
+        }
+        const h = kind === "paper" ? 11 + Math.floor(r(4) * 4) : room - 6 + Math.floor(r(4) * 6);
+        const body =
+          kind === "paper"
+            ? r(5) < 0.2
+              ? color("#efe9dd")
+              : hsl(r(6), 0.6, 0.6)
+            : kind === "thin"
+              ? hsl(r(6), 0.3, 0.55)
+              : hsl(r(6), 0.42, 0.28 + r(7) * 0.12);
+        book(shelfBookPart, x, y0, w, Math.min(h, room), kind === "paper" ? 11 : 13 + Math.floor(r(8) * 3), front, kind, body);
+        x += w + (r(9) < 0.08 ? 2 : 0);
+      }
     }
   }
   ellipsoid(shelf, [8, 36, 0], [2.4, 2.4, 2.4], "pot");
@@ -249,13 +340,13 @@ export function buildLoft(shared) {
     x === -10 || x === -5 || y === 34 || y === 39 ? "canvasFrame" : y < 37 ? "melon" : "photoSky"
   );
   const shelfGroup = place(house, new THREE.Group(), [SHELF[0], 0, SHELF[1]], SHELF_YAW);
-  shelfGroup.add(mesh(shelf));
-  // The books they take down to read (props.js's BOOKS), each in its place on a shelf; they take one they
-  // have not read lately each time, till all have been read, and put it back after.
+  shelfGroup.add(mesh(shelf), fine(shelfBookPart));
+  // The books they take down to read, each in its place on a shelf; they take one they have not read lately
+  // each time, till all have been read, and put it back after.
   const books = READ_SLOTS.map(([base, x0, height], i) => {
     const p = part();
-    box(p, [x0, x0 + 2], [base, base + height], [-3, 3], (x, y) => (y === base + height - 2 ? "frame" : y === base + 1 ? "bookBand" : `read${i}`));
-    return shelfGroup.add(mesh(p)).children.at(-1);
+    book(p, 2 * x0, 2 * base, 5, 2 * height + 1, 13, 7, "cloth", color(COLORS[`read${i}`]));
+    return shelfGroup.add(fine(p)).children.at(-1);
   });
   let unread = [];
   let lastBook = -1;
@@ -327,24 +418,26 @@ export function buildLoft(shared) {
   });
 
   // A nightstand by the bed with a little lamp on it, lit at night: a second warm light to the floor lamp's.
-  // The lamp stands towards the back, her plush moth in front of it.
+  // The lamp stands towards the back on the bed's side, her plush moth beside it on the other (it is taller
+  // than the lamp: in front of it, it would shade all the light below).
   const STAND = [98, -103];
-  const LAMP_Z = -2;
+  const [LAMP_X, LAMP_Z] = [2, -2];
   const stand = part();
   box(stand, [-4, 4], [0, 12], [-5, 5], (x, y, z) => (z === 5 && (y === 6 || y === 12 || Math.abs(x) === 4) ? "woodDark" : "wood"));
   stand.add(0, 9, 6, "brass"); // the drawer's knob
-  box(stand, [-2, 2], [13, 13], [LAMP_Z - 2, LAMP_Z + 2], "woodDark");
-  box(stand, [0, 0], [14, 17], [LAMP_Z, LAMP_Z], "brass");
+  box(stand, [LAMP_X - 2, LAMP_X + 2], [13, 13], [LAMP_Z - 2, LAMP_Z + 2], "woodDark");
+  box(stand, [LAMP_X, LAMP_X], [14, 17], [LAMP_Z, LAMP_Z], "brass");
   const standMesh = place(house, mesh(stand), [STAND[0], Y, STAND[1]]);
   const lampShade = part();
   for (let y = 18; y <= 23; y++)
-    ellipsoid(lampShade, [0, y, LAMP_Z], [4.6 - (y - 18) * 0.4, 0.5, 4.6 - (y - 18) * 0.4], y === 18 || y === 23 ? "shadeTrim" : "shade");
+    ellipsoid(lampShade, [LAMP_X, y, LAMP_Z], [4.6 - (y - 18) * 0.4, 0.5, 4.6 - (y - 18) * 0.4], y === 18 || y === 23 ? "shadeTrim" : "shade");
   const shadeDay = place(house, mesh(lampShade), [STAND[0], Y, STAND[1]]);
   const shadeLit = place(house, solid(lampShade, COLORS, glowing), [STAND[0], Y, STAND[1]]);
   // Its light, from the bulb in the shade: most of it down out of the open bottom, onto the nightstand and in
   // a ring round it on the floor, casting the only shadows in the house (of his desk and computer); a little
-  // through the shade all round. Both fall off with distance: a warm pool by the bed, darker past his computer.
-  const BULB = [STAND[0], Y + 20, STAND[1] + LAMP_Z];
+  // through the shade all round, enough that what is in a shadow is not black. Both fall off with distance: a
+  // warm pool by the bed, darker past his computer.
+  const BULB = [STAND[0] + LAMP_X, Y + 20, STAND[1] + LAMP_Z];
   const bedSpot = new THREE.SpotLight(0xffd29a, 0, 150, 1.45, 0.6, 1);
   bedSpot.position.set(...BULB);
   bedSpot.target.position.set(BULB[0], Y, BULB[2] + 4);
@@ -358,9 +451,11 @@ export function buildLoft(shared) {
   house.add(bedSpot, bedSpot.target, bedGlow);
   const bedLight = {
     on: false,
+    dirty: false, // its shadows to be drawn again (room.js)
     set(on) {
-      bedSpot.intensity = on ? 42 : 0;
-      bedGlow.intensity = on ? 8 : 0;
+      if (on && !this.on) this.dirty = true;
+      bedSpot.intensity = on ? 36 : 0;
+      bedGlow.intensity = on ? 13 : 0;
       this.on = on;
     },
   };
@@ -371,8 +466,9 @@ export function buildLoft(shared) {
   // it, a round black body as big as the head, thin grey felt arms held out and stubby legs, and big grey
   // wings with black seams spread behind. Built in half voxels (half voxel u covers u / 2 - 1/2 to u / 2
   // above what it sits on), its middle at x = z = 0. It sits on the bed against her pillow, turned a little
-  // to the room; whoever goes to bed first moves it to the nightstand in front of the lamp, and the last one
-  // up puts it back (acts/living.js). `by`: whoever has it in hand.
+  // to the room; whoever goes to bed first moves it to the nightstand beside the lamp, and the last one
+  // up puts it back (acts/living.js). `by`: whoever has it in hand. Set down, on the bed or in front of the
+  // lamp, it casts a shadow in the lamp's light (drawn again as it is put down or picked up); in hand, none.
   const mothPart = part();
   // Each wing a big rounded lobe over a smaller one; a seam just in from the edge, and one from the root
   // between the two lobes.
@@ -426,7 +522,7 @@ export function buildLoft(shared) {
     // Where it sits: [x, y, z] of the middle of its seat, and which way it faces.
     spots: {
       bed: { at: [BED[0] - 18, Y + 8.5, BED[1] - 6.5], yaw: 0.4 },
-      stand: { at: [STAND[0] + 0.5, Y + 12.5, STAND[1] + 3.5], yaw: 0.35 },
+      stand: { at: [STAND[0] - 2.5, Y + 12.5, STAND[1] + 1.5], yaw: 0.35 },
     },
     toy: mothToy,
     at: "bed",
@@ -436,12 +532,18 @@ export function buildLoft(shared) {
       Object.assign(moth, { at: where, by: null });
       mothToy.position.set(...at);
       mothToy.rotation.y = yaw;
+      casting(true);
     },
     // In `a`'s right hand, held by its middle, facing the way they do.
     take(a) {
       Object.assign(moth, { at: null, by: a });
+      casting(false);
     },
   };
+  function casting(on) {
+    mothToy.traverse((m) => (m.castShadow = on));
+    bedLight.dirty = true;
+  }
   moth.put("bed");
   updates.push(() => {
     const a = moth.by;

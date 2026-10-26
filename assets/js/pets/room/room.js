@@ -12,17 +12,18 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { clamp, rnd, wrap } from "../stage.js";
+import { clamp, rnd } from "../stage.js";
 import { buildingHouse, built, floorY, X0, X1, SIDE, BACK, FRONT, YARD } from "./house.js";
 import { makeWater, GRAVITY } from "./water.js";
 import { makeWeather } from "./weather.js";
 import { makePrints } from "./prints.js";
 import { part, ellipsoid } from "../models/voxels.js";
-import { makeView, VIEW_YAW, TURNED_YAW } from "./view.js";
+import { makeView } from "./view.js";
 import { makeMirror } from "./mirror.js";
 import { makeOutlooks } from "./outlook.js";
 import { makePeek } from "./peek.js";
 import { makeWildlife } from "./wildlife.js";
+import { SUN_LAYER } from "./house/yard.js";
 import { makeNav } from "./nav.js";
 import { makeActor } from "./actor.js";
 import { propsFor, buildBall, buildLaptop } from "./props.js";
@@ -41,7 +42,7 @@ const CAST = [
   ["girl", buildGirl, "human", [-20, -6], 1],
   ["boy", buildBoy, "human", [30, -10], 1],
   ["collie", buildCollie, "pet", [70, 30], 0.8],
-  ["cat", buildCat, "pet", [-10, 96], 1],
+  ["cat", buildCat, "pet", [-10, 96], 0.8],
 ];
 
 // `stage` is the element to draw into; it gets the canvas and, over it, the layer for hearts and bubbles.
@@ -58,15 +59,22 @@ export function* buildingRoom(stage) {
   const scene = new THREE.Scene();
   const sky = new THREE.HemisphereLight(0xffffff, 0x9a948a, 2.2);
   const sun = new THREE.DirectionalLight(0xffffff, 1.1);
-  // Where the sun shines from: in front of the house and a little to the left, lighting the sides that face
-  // the front; turned to the front garden, round behind the house the same way, lighting the back wall.
-  const SUN = { r: Math.hypot(60, 160), y: 120, at: [Math.atan2(-60, 160), Math.atan2(-60, -160)] };
-  const sunAt = (e) => {
-    const a = SUN.at[0] + e * wrap(SUN.at[1] - SUN.at[0]);
-    sun.position.set(SUN.r * Math.sin(a), SUN.y, SUN.r * Math.cos(a));
-  };
-  sunAt(0);
-  scene.add(sky, sun);
+  // Where the sun shines from: high overhead as at noon (72 degrees up, a little to the front and the east), so
+  // that out in the front garden each thing's shadow lies short, just under it. It stays put. Its shadow camera
+  // is on the garden and sees only what is out there (house/yard.js), so nothing indoors casts its shadow.
+  const NOON = { up: 1.26, bearing: 0.8, r: 300 };
+  sun.target.position.set(28, 0, -184);
+  sun.position
+    .set(Math.cos(NOON.up) * Math.sin(NOON.bearing), Math.sin(NOON.up), Math.cos(NOON.up) * Math.cos(NOON.bearing))
+    .multiplyScalar(NOON.r)
+    .add(sun.target.position);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -220, right: 220, top: 220, bottom: -220, near: 1, far: 1200 });
+  sun.shadow.camera.layers.set(SUN_LAYER);
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 0.5;
+  scene.add(sky, sun, sun.target);
   const light = { sky: 2.2, sun: 1.1 }; // as bright as it is by day or by night, before any rain
 
   // The water, its drops landing on the floor (or the soil in a bed, or the pond out the front), or falling off
@@ -145,8 +153,8 @@ export function* buildingRoom(stage) {
   home.laptopHome.rotation.y = 0.2;
   scene.add(home.laptopHome);
 
-  // Drops from the watering can's rose while it pours (`from`, the spout, or null to stop), gone into the
-  // soil at height `toY` (a plant pot's, say).
+  // Fine streams out of the watering can's rose while it pours (`from`, the spout, or null to stop), fanning
+  // out a little as they fall, gone into the soil at height `toY` (a plant pot's, say).
   const rose = new THREE.Vector3();
   let pouring = null;
   home.drops = {
@@ -156,7 +164,8 @@ export function* buildingRoom(stage) {
       pouring.from.getWorldPosition(rose);
       const fall = Math.max(0, rose.y - pouring.toY);
       const secs = (-12 + Math.sqrt(144 + 2 * GRAVITY * fall)) / GRAVITY; // down to the soil from 12 voxels/s
-      for (let k = Math.random() * 60 * dt; k > 0; k--) water.emit("drip", rose.x + rnd(-0.7, 0.7), rose.y, rose.z + rnd(-0.7, 0.7), 0, -12, 0, secs);
+      for (let k = Math.random() * 160 * dt; k > 0; k--)
+        water.emit("shower", rose.x + rnd(-0.7, 0.7), rose.y, rose.z + rnd(-0.7, 0.7), rnd(-3, 3), -12, rnd(-3, 3), secs);
     },
   };
 
@@ -165,7 +174,7 @@ export function* buildingRoom(stage) {
   // umbrella keeps dry. Drops landing in a bed water it.
   const REACH = { girl: [5.5, 44], boy: [5.5, 46], collie: [9, 30], cat: [5, 18] };
   water.hit = (x, y, z, kind) => {
-    if (kind === "drip") return false;
+    if (kind === "drip" || kind === "shower") return false;
     for (const a of home.actors) {
       if (!a.rig.group.visible) continue;
       const [r, h] = REACH[a.name];
@@ -238,20 +247,20 @@ export function* buildingRoom(stage) {
     setTimeout(() => el.remove(), 1300);
   };
 
-  // Who lives in the front garden: the ducks, the frog, the birds, butterflies, fireflies.
+  // Who lives in the front garden: the ducks, the frog, the birds, butterflies, moths.
   home.wildlife = makeWildlife(scene, house.yard, home);
   // What is seen through the windows, the real front garden through the one by the bed.
   const drawOutlooks = makeOutlooks(house.outlooks, view, scene, [house.yard.group, home.wildlife.group]);
   // The front gate swings open for anyone out there coming up to it.
   house.yard.gate.near = () => home.actors.some((a) => a.out && Math.hypot(a.x - house.yard.gate.at[0], a.z - house.yard.gate.at[1]) < 17);
 
-  // The bedside lamp's shadows (house.bedLight) are of things that never move, so they are drawn once, as it
-  // comes on.
-  let shadowsDrawn = false;
+  // The lamps' and the sun's shadows are of things that stay put, so they are drawn once: as a lamp comes on,
+  // or as something casting one moves, or the sun does (`dirty`).
+  const shadowLights = [...house.shadowLights, house.yard.sun];
   function shadows() {
-    const { on } = house.bedLight;
-    view.renderer.shadowMap.needsUpdate = on && !shadowsDrawn;
-    shadowsDrawn = on;
+    const lights = shadowLights;
+    view.renderer.shadowMap.needsUpdate = lights.some((l) => l.on) && lights.some((l) => l.dirty);
+    if (view.renderer.shadowMap.needsUpdate) lights.forEach((l) => (l.dirty = false));
   }
 
   const life = makeLife(home);
@@ -313,11 +322,30 @@ export function* buildingRoom(stage) {
     const first = raycaster.intersectObjects(parts, true).find(({ object }) => shown(object)); // not the remote while in a hand
     if (!first) return null;
     raycaster.far = first.distance - 0.5;
-    const hidden = raycaster
-      .intersectObject(scene, true)
-      .some(({ object }) => object.isMesh && (!object.material.transparent || peek.faded(object)) && shown(object) && !own(object));
+    const hidden = hides(own);
     raycaster.far = Infinity;
     return hidden ? null : first;
+  }
+  // Whether anything shown that hides (but `own`) is on the ray before raycaster.far. A mesh whose box the ray
+  // only reaches beyond that (the floor and the walls behind, say) is passed over without testing its
+  // triangles: the big ones would take the best part of a frame.
+  const box = new THREE.Box3();
+  const boxAt = new THREE.Vector3();
+  const hits = [];
+  function hides(own) {
+    let hidden = false;
+    scene.traverseVisible((o) => {
+      if (hidden || !o.isMesh || (o.material.transparent && !peek.faded(o)) || own(o)) return;
+      if (!o.isInstancedMesh) {
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        box.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
+        if (!raycaster.ray.intersectBox(box, boxAt) || raycaster.ray.origin.distanceTo(boxAt) > raycaster.far) return;
+      }
+      hits.length = 0;
+      o.raycast(raycaster, hits);
+      hidden = hits.length > 0;
+    });
+    return hidden;
   }
   const among = (parts) => (object) => {
     for (let o = object; o; o = o.parent) if (parts.includes(o)) return true;
@@ -409,11 +437,22 @@ export function* buildingRoom(stage) {
     layout: (width, maxHeight) => view.layout(width, maxHeight),
     // Gets the shaders ready to draw it all before the first frame: without holding up the page where the
     // browser can compile them in the background (three.js's compileAsync waits for ever without that, and
-    // it is given a few seconds at most anyway), or else all at once.
+    // it is given a few seconds at most anyway), or else all at once. Both for the screen and for the
+    // pictures in the mirror and the windows (drawn to textures, in linear colour: shaders of their own), so
+    // that nothing seen in those for the first time holds up a frame compiling one.
     warm() {
       const { renderer, camera } = view;
-      if (!renderer.extensions.has("KHR_parallel_shader_compile")) return Promise.resolve(renderer.compile(scene, camera));
-      return Promise.race([renderer.compileAsync(scene, camera), new Promise((done) => setTimeout(done, 4000))]);
+      const parallel = renderer.extensions.has("KHR_parallel_shader_compile");
+      const offscreen = new THREE.WebGLRenderTarget(1, 1);
+      renderer.setRenderTarget(offscreen);
+      renderer.render(new THREE.Scene(), camera); // (a frame sets up the view's clipping planes, which the shaders are made for)
+      const compiled = [offscreen, null].map((target) => {
+        renderer.setRenderTarget(target); // (what is compiled for is settled as it starts)
+        return parallel ? renderer.compileAsync(scene, camera) : renderer.compile(scene, camera);
+      });
+      offscreen.dispose();
+      if (!parallel) return Promise.resolve();
+      return Promise.race([Promise.all(compiled), new Promise((done) => setTimeout(done, 4000))]);
     },
     // Turn the view round to the front garden (true), or back to the house; `now`, all at once.
     turn: (out, now = false) => view.turnTo(out, now),
@@ -440,9 +479,8 @@ export function* buildingRoom(stage) {
     step(dt, draw = true) {
       clock.dt = dt;
       clock.t += dt;
-      // The view turning, and the sun turning with it (so that the side seen is the side lit); the back wall
-      // fading while the pointer is on it.
-      if (view.update(dt)) sunAt((view.yaw - VIEW_YAW) / (TURNED_YAW - VIEW_YAW));
+      // The view turning; the back wall fading while the pointer is on it.
+      view.update(dt);
       peek.want = pointer.mouse && pointer.onDoor && view.turn === 0 && !house.door.open;
       if (house.door.open) peek.until = -Infinity;
       peek.update(clock.t, dt);
@@ -458,11 +496,11 @@ export function* buildingRoom(stage) {
       dripping(dt);
       water.update(dt);
       prints.update();
-      // Rain greys the light and the view out, and sends the butterfly and the fireflies to shelter.
+      // Rain greys the light and the view out, and sends the butterfly, the bees and the fireflies to shelter.
       house.rain(weather.k, clock.t, weather.cloud, weather.sky);
       sky.intensity = light.sky * (1 - 0.3 * weather.k);
       sun.intensity = light.sun * (1 - Math.max(0.7 * weather.k, 0.35 * weather.cloud));
-      if (weather.k > 0.3) [house.garden.butterfly, ...house.garden.fireflies].forEach((m) => (m.visible = false));
+      if (weather.k > 0.3) [house.garden.butterfly, house.garden.bees, ...house.garden.fireflies].forEach((m) => (m.visible = false));
       const hovered = pointer.mouse ? hit(pointer.x, pointer.y) : null;
       home.actors.forEach((a) => a.update(dt, a === hovered));
       house.charger.plugged = home.laptopHome.visible;

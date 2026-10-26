@@ -22,7 +22,7 @@ import { buildingRoom } from "./pets/room/room.js";
 import { isDark } from "./pets/stage.js";
 import { buildGirl } from "./pets/models/girl.js";
 import { LOOKS, dressGirl } from "./pets/models/girl-outfits.js";
-import { DRAMAS, seriesOf, drawPoster, POSTER } from "./pets/room/screens.js";
+import { CLIP_SHOWS, DRAMAS, drawClipThumb, drawPoster, POSTER } from "./pets/room/screens.js";
 
 // A quarter turn to the left, round an arrow (the button turning the view). (Above start(): it runs before
 // the constants below it are set.)
@@ -337,14 +337,22 @@ function outfitPage(room) {
   };
 }
 
-// What she should watch on his computer: one of her dramas and then which episode, or a day of her farm game,
-// each with its poster (screens.js), what she has on (or is about to put on) marked. The note says when she
-// will not go at once: at night (she watches it in the morning), or while he is on his computer.
+// What she should watch on his computer: one of her dramas (a frame of it for its picture) and then which
+// episode, if it has more than one, or a day of her farm game (its poster: screens.js), what she has on (or is
+// about to put on) marked. The note says when she will not go at once: at night (she watches it in the
+// morning), or while he is on his computer.
 const POSTER_PIC = POSTER.map((px) => px * 2); // CSS px, 2 a pixel
+const SERIES = Object.keys(DRAMAS);
 
-function poster(show, ep = null) {
+function thumb(show) {
+  const canvas = Object.assign(document.createElement("canvas"), { width: 168, height: 96 });
+  drawClipThumb(canvas, show);
+  return canvas;
+}
+
+function farmPoster() {
   const canvas = Object.assign(document.createElement("canvas"), { width: POSTER[0], height: POSTER[1] });
-  drawPoster(canvas.getContext("2d"), show, ep);
+  drawPoster(canvas.getContext("2d"));
   return canvas;
 }
 
@@ -353,7 +361,7 @@ function watchPage(room) {
   const marked = () => watch.want ?? watch.on;
   const note = room.watchNote();
   const episodes = (drama) => {
-    const { title, episodes } = seriesOf(drama);
+    const { title, episodes } = DRAMAS[drama];
     return {
       key: "watch",
       label: `Choose an episode of ${title}`,
@@ -361,11 +369,7 @@ function watchPage(room) {
       note,
       pic: POSTER_PIC,
       back: shows,
-      choices: episodes.map((ep, k) => ({
-        name: `Episode ${k + 1}`,
-        sub: ep.title,
-        pic: () => poster(drama, k),
-      })),
+      choices: episodes.map((show) => ({ name: CLIP_SHOWS[show].ep, pic: () => thumb(show) })),
       marked: () => (marked()?.show === drama ? marked().ep : -1),
       pick: (k) => void room.chooseShow({ show: drama, ep: k }),
     };
@@ -377,17 +381,19 @@ function watchPage(room) {
     note,
     pic: POSTER_PIC,
     choices: [
-      ...DRAMAS.map((drama) => ({
-        name: seriesOf(drama).title,
-        pic: () => poster(drama),
-      })),
-      { name: "Stardew Valley", pic: () => poster("stardew") },
+      ...SERIES.map((drama) => ({ name: DRAMAS[drama].title, pic: () => thumb(DRAMAS[drama].episodes[0]) })),
+      { name: "Stardew Valley", pic: farmPoster },
     ],
     marked: () => {
       const m = marked();
-      return !m ? -1 : m.show === "stardew" ? DRAMAS.length : DRAMAS.indexOf(m.show);
+      return !m ? -1 : m.show === "stardew" ? SERIES.length : SERIES.indexOf(m.show);
     },
-    pick: (k) => (k < DRAMAS.length ? episodes(DRAMAS[k]) : void room.chooseShow({ show: "stardew", ep: null })),
+    pick: (k) =>
+      k === SERIES.length
+        ? void room.chooseShow({ show: "stardew", ep: null })
+        : DRAMAS[SERIES[k]].episodes.length > 1
+          ? episodes(SERIES[k])
+          : void room.chooseShow({ show: SERIES[k], ep: 0 }),
   };
   return shows;
 }

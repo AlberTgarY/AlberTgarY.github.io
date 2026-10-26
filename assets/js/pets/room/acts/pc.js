@@ -5,7 +5,7 @@
 
 import { rnd, pick } from "../../stage.js";
 import { HOLDS, MOVES } from "../props.js";
-import { GAMES, SIDES, DRAMAS, seriesOf, dramaMoment, stardewMoment, FARM_DAY } from "../screens.js";
+import { GAMES, SIDES, DRAMAS, episodeOf, clipLength, clipMoment, stardewMoment, FARM_DAY } from "../screens.js";
 import { V, TEAM_SAY } from "./common.js";
 
 // `c` is everything they share (common.js), and the activities of the other files.
@@ -159,27 +159,25 @@ export function pcActs(c) {
   }
 
   // The girl at his computer (his headphones stay on their stand): an episode of one of her dramas, the next
-  // one she has not seen, and on to the one after while she has the time (till the finale), or a day of her
-  // farm game, the next one; or what a visitor picked for her
-  // (home.watch.want, room.js), which she also switches over to if she is at it already. She goes with what
-  // happens on the screen (screens.js): a laugh at the funny bits, a gasp at a twist, a sigh over the couple,
-  // a tear at the sad parts, leaning in when it gets tense; on the farm, pleased with each harvest, catch, find
-  // and gift. He may come up and watch with her. Called away with a good part still to go (to eat, to feed a
-  // pet), she comes back to it after, if it is not long after and the computer is free, and watches on from
-  // where she was.
+  // one she has not seen, and on to the one after (till the last), or a day of her farm game, the next one; or what a visitor picked for her (home.watch.want, room.js), which she also
+  // switches over to if she is at it already. She goes with what happens on the screen (screens.js): a laugh
+  // at the funny bits, a gasp at a twist, a sigh over the couple, a tear at the sad parts, leaning in when it
+  // gets tense; on the farm, pleased with each harvest, catch, find and gift. He may come up and watch with
+  // her. Called away with a good part still to go (to eat, to feed a pet), she comes back to it after, if it
+  // is not long after and the computer is free, and watches on from where she was.
   const RESUME = 300; // s she would still come back to it
   const backTo = (a) => a.resume && t() < a.resume.by;
   const nextEp = {}; // each drama's next episode for her
   let farmDay = Math.floor(Math.random() * 56); // her farm's next day
-  const lengthOf = ({ show, ep }) => (show === "stardew" ? FARM_DAY : seriesOf(show).episodes[ep].secs);
+  const lengthOf = ({ show, ep }) => (show === "stardew" ? FARM_DAY : clipLength(episodeOf(show, ep)));
   function fresh() {
     if (Math.random() < 0.35) return { show: "stardew", ep: farmDay };
-    const show = pick(DRAMAS);
+    const show = pick(Object.keys(DRAMAS));
     return { show, ep: nextEp[show] ?? 0 };
   }
   function seenTo({ show, ep }) {
     if (show === "stardew") farmDay = ep + 1;
-    else nextEp[show] = (ep + 1) % seriesOf(show).episodes.length;
+    else nextEp[show] = (ep + 1) % DRAMAS[show].episodes.length;
   }
   // Back to it after what called her away, unless that took too long (a night's sleep).
   function* watchOn(a) {
@@ -229,7 +227,7 @@ export function pcActs(c) {
     else put(fresh());
     const moment = () => {
       const { show, ep } = on.what;
-      return show === "stardew" ? stardewMoment(into(), ep) : dramaMoment(show, ep, into());
+      return show === "stardew" ? stardewMoment(into(), ep) : clipMoment(episodeOf(show, ep), into());
     };
     let seen = moment().beat; // whatever was already on when she sat down
     const boy = byName.boy;
@@ -237,7 +235,6 @@ export function pcActs(c) {
       !back && boy && Math.random() < 0.3 && !holder("watchPc") && available(boy) ? event(a, "pc", { playing: true, round: 0, result: null }) : null;
     if (ev) invite(boy, act("watchPc", watchPc, ev));
     const watched = () => ev && (boy.event === ev || boy.pending?.ev === ev); // he is with her (or on his way)
-    const until = t() + rnd(90, 150); // how long she means to stay: episode after episode till then
     for (;;) {
       while (t() < end && !(a.interrupt && !watched())) {
         if (watch.want) {
@@ -256,10 +253,10 @@ export function pcActs(c) {
       }
       if (t() < end) break; // called away
       seenTo(on.what);
-      // On to the next episode, if there is one and time for it (her farm game: a day at a time).
+      // On to the next episode, if there is one (her farm game: a day at a time).
       const { show, ep } = on.what;
-      const next = show !== "stardew" && ep + 1 < seriesOf(show).episodes.length ? { show, ep: ep + 1 } : null;
-      if (!next || a.interrupt || t() + lengthOf(next) / 2 > until) {
+      const next = show !== "stardew" && ep + 1 < DRAMAS[show].episodes.length ? { show, ep: ep + 1 } : null;
+      if (!next || a.interrupt) {
         on = null; // all watched: nothing to come back to
         break;
       }

@@ -123,6 +123,18 @@ const LEANINGS = {
   cat: { play: ["chase", "climb", "perch", "tower"], lazy: ["nap", "rest", "fireside", "groom"], company: ["visit", "cuddle"] },
 };
 const LEAN = 2;
+// Where in the house each of their things is done (the rest: anywhere). For their first OPENING s what they do is
+// as likely to be in one part as any other: the sofa corner alone has most of what they like, and at the start
+// they would all make for it.
+const AREAS = {
+  sofa: ["tv", "read", "chat", "game", "nap", "fire", "laptop"],
+  kitchen: ["snack", "cook", "bake"],
+  loft: ["pc", "pcGirl", "watchPc", "dress", "sleep"],
+  garden: ["garden", "sprinkle"],
+  out: ["walk", "wander", "fetch"],
+};
+const OPENING = 90;
+const areaOf = (name) => Object.keys(AREAS).find((k) => AREAS[k].includes(name)) ?? "about";
 const MOOD_LASTS = [240, 420]; // s
 // Balance (the two of them): what they have not done for a while grows on them, and what they have just done
 // has lost its pull for now, so that nothing is left undone for long and nothing is done over and over:
@@ -323,6 +335,11 @@ export function makeLife(home) {
       if (todo && todo.can(a) && !resting(name))
         weights[name] =
           w * (home.night ? NIGHT[name] || 1 : 1) * (home.weather.raining ? RAIN[name] || 1 : 1) * (leans.includes(name) ? LEAN : 1) * need(a, name);
+    }
+    if (a.human && t() < OPENING) {
+      const sums = {};
+      for (const [name, w] of Object.entries(weights)) sums[areaOf(name)] = (sums[areaOf(name)] || 0) + w;
+      for (const name of Object.keys(weights)) weights[name] /= sums[areaOf(name)];
     }
     const name = a.picker.choose(weights);
     if (!name) return (a.nextAt = t() + 2);

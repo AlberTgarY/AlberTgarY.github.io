@@ -1,7 +1,7 @@
 /*******************************************************************************
  * The garden: the harvest into the basket and straight to the fridge (fruit
  * washed and eaten together), sowing a bed picked clean, watering, the
- * sprinkler and its pump, and running in from the rain.
+ * sprinkler and its tap, and running in from the rain.
  ******************************************************************************/
 
 import { rnd, pick, clamp, wrap } from "../../stage.js";
@@ -538,9 +538,9 @@ export function gardenActs(c) {
 
   /* ----- the sprinkler ----- */
 
-  // The sprinkler (by day, out of the rain): kneeling at the pump by the garden wall, its switch pressed,
-  // and a happy look at the jet going round over the beds as the pump hums. Now and then its head was left
-  // facing the pump, and the jet comes straight at them: up, hands over the head, they run over through it
+  // The sprinkler (by day, out of the rain): kneeling at the tap on the garden wall, its handle turned,
+  // and a happy look at the jet going round over the beds. Now and then its head was left
+  // facing the tap, and the jet comes straight at them: up, hands over the head, they run over through it
   // to turn the head round, then stand shaking the water off their hands, dripping (and leave wet footprints
   // indoors).
   function* sprinkle(a) {
@@ -586,7 +586,7 @@ export function gardenActs(c) {
     yield* walk(a, spots.gardenDoor.inside); // in, out of the way of the spray
   }
 
-  // Kneeling to the pump's switch (`tap`, looking at it at `at`), pressed, and `then()` as it clicks over.
+  // Kneeling to the tap (`tap`, looking at its handle at `at`), a turn of it, and `then()` as the water comes.
   function* pressSwitch(a, tap, at, then) {
     yield* turn(a, tap.yaw);
     a.lie = true;
@@ -600,7 +600,7 @@ export function gardenActs(c) {
     a.hold = null;
   }
 
-  // Off again at the pump, once it has run a while (life.js sends someone).
+  // Off again at the tap, once it has run a while (life.js sends someone).
   function* sprinklerOff(a) {
     if (!sprinkler.on || !claim(a, "sprinkler")) return;
     const { tap, tap3 } = sprinkler.spots;
@@ -621,6 +621,8 @@ export function gardenActs(c) {
   // hands, or the dog shaking herself nose to tail, dripping, and wet footprints after.
   function* shelter(a) {
     if (a.human) a.hold = MOVES.flail;
+    const path = spots.beds[0].at[0];
+    if (a.x > path + 2 && !a.out) yield* stepTo(a, [path, a.z], 1.8); // out from among the beds first, not across one
     yield* walk(a, spots.gardenDoor.inside, 1.8);
     a.hold = null;
     a.wet = Math.max(a.wet, 0.4);

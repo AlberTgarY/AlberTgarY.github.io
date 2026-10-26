@@ -5,7 +5,7 @@
  * to a white gate in the picket fence, and past it the lane. On the left, a
  * cherry tree in blossom with a rope swing and a bird box; on the right, a
  * pond with lily pads and reeds and a bench by it, and further on a picnic
- * blanket on the lawn by the bird bath and a wheelbarrow of flowers. Flowers grow along the
+ * blanket on the lawn by the bird bath, a hammock (with a parasol that opens over it in the rain) and a wheelbarrow of flowers. Flowers grow along the
  * wall and the fence, soft hedges close it in at the sides, tufts of grass
  * where the mower does not reach, and his bike leans by the door. Garden
  * lanterns stand on the gateposts and along the path, and a street lamp with
@@ -30,6 +30,15 @@ import { TURNED_YAW } from "../view.js";
 
 // The garden's own colours.
 const C = {
+  cushion: "#efe6d2",
+  cushionDark: "#ddd1b8",
+  pillowSage: "#9fb89a",
+  pillowMustard: "#e0b44e",
+  canvas: "#f3ead6",
+  canvasTeal: "#5fa8a0",
+  canvasCoral: "#e48a6e",
+  throwRose: "#d98c94",
+  throwRoseDark: "#c37780",
   hedge: "#4f8f3e",
   hedgeLight: "#62a24b",
   hedgeDark: "#3f7a32",
@@ -128,6 +137,7 @@ const SWING = { x: -82, z: -198, top: 56, seat: 8.5 }; // hung from a branch at 
 const POND = { x: 60, z: -192, rx: 30, rz: 15 };
 const BENCH = { x: -8, z: -148, half: 17, turn: TURNED_YAW - Math.PI }; // on the lawn by the path, facing the turned view and the pond
 const BATH = [150, -172];
+const HAMMOCK = { x: 124, z: -140, yaw: Math.PI / 2 }; // on the lawn by the wall, the head to the west (between the flower beds' sniffing spots)
 const PICNIC = { x: 118, z: -202 }; // the blanket out on the open lawn past the pond, by the bird bath
 // The lamps: a lantern on top of each gatepost, low lanterns on posts either side of the path, the street
 // lamp at the kerb out on the lane (a basket of flowers hanging off it) and the porch lantern by the door.
@@ -137,6 +147,7 @@ const STREET_LAMP = [80, YARD.z0 + 2];
 const STREET_Y = 32; // how high its lantern hangs
 const PORCH_LAMP = [DOOR.x - 17, 44, YARD.z1 - 2.5];
 const LANE = { z0: YARD.z0, z1: YARD.fence - 2 };
+export const SUN_LAYER = 2; // what casts a shadow in the sun (room.js): only what is out here
 
 // How wet everything out here looks after rain (`soak`): darker, and on what lies flat a faint sheen of the
 // sky; much less so under the cherry tree and the porch roof. Each material out here gets it (`wetten`).
@@ -184,6 +195,7 @@ export function buildYard(shared) {
   const obstacles = []; // [x0, x1, z0, z1] footprints, for finding the way round out here
   let night = false;
   const block = (x0, x1, z0, z1) => obstacles.push([x0, x1, z0, z1]);
+  const flat = new Set(); // the ground, and what is on the house's wall: they take shadows but cast none
 
   /* ---------- the ground: lawn, path, porch, lane ---------- */
 
@@ -198,6 +210,7 @@ export function buildYard(shared) {
     m.rotation.x = -Math.PI / 2;
     m.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
     group.add(m);
+    flat.add(m);
     return m;
   }
   // The lawn, freshly mown in broad stripes of two close greens: in each, blades a shade lighter or darker
@@ -337,6 +350,7 @@ export function buildYard(shared) {
   );
   turf.position.set((YARD.x0 + YARD.x1) / 2, -1.4, (YARD.z0 + YARD.z1) / 2);
   group.add(slab, turf);
+  flat.add(slab).add(turf);
 
   /* ---------- hedges, the fence and the gate ---------- */
 
@@ -676,23 +690,59 @@ export function buildYard(shared) {
   block(POND.x - POND.rx - 4, POND.x + POND.rx + 4, POND.z - POND.rz - 4, POND.z + POND.rz + 4);
   // The water, one texel a voxel: clear and pale over the pebbles by the edge, deepening to blue-green in the
   // middle (dithered from one shade to the next), a pale streak of sky across it; and over it, a few glints of
-  // sun drifting slowly and twinkling.
+  // sun drifting slowly and twinkling. It is never still: soft swells roll slowly across it, lighter along
+  // their crests, the sky's streak wavering with them, and rings spread wherever something touches it (the
+  // ducks paddling, a fish rising, the rain: `ripple`). Redrawn a dozen times a second while it can be seen.
   const [pw, ph] = [2 * (POND.rx + 1), 2 * (POND.rz + 1)];
   const WATER = ["#4a94b0", "#5aa6bd", "#6fb8c6", "#8ccbcb", "#a9dccf"]; // deep to shallow
-  const pool = pixelTexture(pw, ph, (g, w, h) => {
-    for (let y = 0; y < h; y++)
-      for (let x = 0; x < w; x++) {
-        const [u, v] = [((x + 0.5) / w) * 2 - 1, ((y + 0.5) / h) * 2 - 1];
-        const d = Math.hypot(u, v); // 0 in the middle, 1 at the edge
-        const q = hash(x, y, 54);
-        const shade = Math.min(WATER.length - 1, Math.floor((d ** 1.6 + (q - 0.5) * 0.12) * WATER.length));
-        let c = WATER[Math.max(0, shade)];
-        if (d > 0.8 && hash(Math.floor(x / 2), Math.floor(y / 2), 55) < 0.3) c = q < 0.5 ? "#93bfae" : "#b9ddcf"; // pebbles
-        if (Math.abs(u * 0.55 + v - 0.35) < 0.06 && d < 0.85 && q > 0.25) c = "#d6f0f0"; // the sky
-        g.fillStyle = c;
-        g.fillRect(x, y, 1, 1);
+  const rgb = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+  const [CREST, SKY, RING] = [rgb("#9fd6d6"), rgb("#d6f0f0"), rgb("#c4e8e4")];
+  const still = []; // per texel: the colour of the still water there, how far out it is (0 to 1), whether it is pebbles
+  for (let y = 0; y < ph; y++)
+    for (let x = 0; x < pw; x++) {
+      const [u, v] = [((x + 0.5) / pw) * 2 - 1, ((y + 0.5) / ph) * 2 - 1];
+      const d = Math.hypot(u, v); // 0 in the middle, 1 at the edge
+      const q = hash(x, y, 54);
+      const shade = Math.min(WATER.length - 1, Math.floor((d ** 1.6 + (q - 0.5) * 0.12) * WATER.length));
+      const pebble = d > 0.8 && hash(Math.floor(x / 2), Math.floor(y / 2), 55) < 0.3;
+      still.push({ c: rgb(pebble ? (q < 0.5 ? "#93bfae" : "#b9ddcf") : WATER[Math.max(0, shade)]), u, v, d, q, pebble });
+    }
+  const pool = pixelTexture(pw, ph, () => {});
+  const image = pool.g.createImageData(pw, ph);
+  const rings = []; // [x, y] on the texture, when, how big
+  function ripple(x, z, size = 1) {
+    if (rings.length < 40) rings.push([x - POND.x + POND.rx + 1, z - POND.z + POND.rz + 1, now, size]);
+  }
+  let now = 0;
+  let drawnAt = -1;
+  function drawWater(t) {
+    now = t;
+    if (t - drawnAt < 0.08 || !group.visible) return;
+    drawnAt = t;
+    for (let i = rings.length - 1; i >= 0; i--) if (t - rings[i][2] > 1.6 * rings[i][3]) rings.splice(i, 1);
+    still.forEach(({ c, u, v, d, q, pebble }, i) => {
+      let col = c;
+      if (!pebble && d < 0.9) {
+        // The swells, two sets crossing, and the streak of sky bent by them.
+        const swell = Math.sin(u * 9 + v * 4 - t * 1.3) + 0.6 * Math.sin(-u * 5 + v * 11 - t * 0.9);
+        if (swell > 1.25 && q > 0.2) col = CREST;
+        if (Math.abs(u * 0.55 + v - 0.35 + 0.05 * Math.sin(u * 7 - t * 1.6)) < 0.06 && d < 0.85 && q > 0.25) col = SKY;
+        const [x, y] = [i % pw, Math.floor(i / pw)];
+        for (const [rx, ry, t0, size] of rings) {
+          const r = (t - t0) * 7; // spreading
+          const off = Math.abs(Math.hypot(x + 0.5 - rx, y + 0.5 - ry) - r);
+          if (off < 0.6 && r < 9 * size && q > (r / (9 * size)) * 0.8) col = RING; // fading as it spreads
+        }
       }
-  });
+      image.data[i * 4] = col[0];
+      image.data[i * 4 + 1] = col[1];
+      image.data[i * 4 + 2] = col[2];
+      image.data[i * 4 + 3] = 255;
+    });
+    pool.g.putImageData(image, 0, 0);
+    pool.tex.needsUpdate = true;
+  }
+  drawWater(0);
   const water = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshLambertMaterial({ map: pool.tex }));
   water.rotation.x = -Math.PI / 2;
   water.scale.set(POND.rx + 1, POND.rz + 1, 1);
@@ -745,6 +795,73 @@ export function buildYard(shared) {
       block(cx - hx, cx + hx, cz - hz, cz + hz);
     }
   }
+  // A hammock on the lawn by the house wall: a wooden stand (a beam along the ground, its ends curving up to
+  // the hooks), ropes fanning out to a spreader bar at each end, and striped canvas sagging between them, its
+  // sides cupped up, a pillow at the head. Built along z (the head at -z), turned to HAMMOCK.yaw. Beside it, on
+  // the wall side, a cantilever parasol, furled, that opens out over the hammock in the rain.
+  const parasol = { k: 0, hub: turned([HAMMOCK.x, HAMMOCK.z], HAMMOCK.yaw, [-1, 0]), r: 18 };
+  {
+    const ham = part();
+    const END = 21; // the canvas, -END..END along it
+    const sag = (x, z) => Math.round(6 + 7 * Math.abs(z / END) ** 3 + 1.5 * (x / 8) ** 2);
+    box(ham, [-1, 1], [0, 1], [-20, 20], "benchDark"); // the beam
+    for (const s of [-1, 1]) {
+      box(ham, [-9, 9], [0, 1], [s * 20, s * 20], "benchDark"); // the feet
+      for (let y = 1; y <= 22; y++) {
+        const z = s * Math.round(19 + 9 * (y / 22) ** 2); // curving up and out to the hook
+        box(ham, [-1, 1], [y, y], [Math.min(z, z - s), Math.max(z, z - s)], y === 22 ? "benchDark" : "bench");
+      }
+      box(ham, [-8, 8], [13, 13], [s * END, s * END], "bench"); // the spreader bar
+      for (const x of [-7, -3, 1, 5]) {
+        // a rope from the hook down to the bar
+        for (let k = 0; k <= 8; k++) ham.add(Math.round(x * (k / 8)), 21 - k, s * Math.round(28 - (7 * k) / 8), "rope");
+      }
+    }
+    const stripe = (x) => ["canvas", "canvasTeal", "canvas", "canvasCoral"][Math.floor((x + 8) / 2) % 4];
+    for (let z = -END + 1; z <= END - 1; z++)
+      for (let x = -8; x <= 8; x++) {
+        const y = sag(x, z);
+        const below = Math.min(sag(x, z - Math.sign(z) || 0), y); // (no gaps where it climbs steeply)
+        for (let yy = below; yy <= y; yy++) ham.add(x, yy, z, stripe(x));
+      }
+    for (let z = -16; z <= -13; z++) for (let x = -5; x <= 5; x++) ham.add(x, sag(x, z) + 1, z, z === -13 ? "cushionDark" : "pillowSage"); // the pillow
+    const m = mesh(ham);
+    m.position.set(HAMMOCK.x, 0, HAMMOCK.z);
+    m.rotation.y = HAMMOCK.yaw;
+    group.add(m);
+    const [c, s] = [Math.abs(Math.cos(HAMMOCK.yaw)), Math.abs(Math.sin(HAMMOCK.yaw))];
+    const [hx, hz] = [9 * c + 29 * s, 9 * s + 29 * c];
+    block(HAMMOCK.x - hx, HAMMOCK.x + hx, HAMMOCK.z - hz, HAMMOCK.z + hz);
+
+    // The parasol: a pole on a square stone base, an arm out over the hammock and the canopy hung from its
+    // end, cream and teal panels with a coral scalloped edge. Furled, the canopy hangs down narrow under the
+    // arm; `parasol.k` opens it.
+    const TOP = 40;
+    const stand = part();
+    box(stand, [-2, 2], [0, 1], [-2, 2], "stoneDark");
+    box(stand, [0, 0], [2, TOP], [0, 0], "iron");
+    box(stand, [0, 11], [TOP, TOP], [0, 0], "iron");
+    const pole = turned([HAMMOCK.x, HAMMOCK.z], HAMMOCK.yaw, [-12, 0]);
+    const sm = mesh(stand);
+    sm.position.set(pole[0], 0, pole[1]);
+    sm.rotation.y = HAMMOCK.yaw; // (the arm along x, out over the hammock)
+    group.add(sm);
+    block(pole[0] - 3, pole[0] + 3, pole[1] - 3, pole[1] + 3);
+    const canopy = part();
+    for (let x = -parasol.r; x <= parasol.r; x++)
+      for (let z = -parasol.r; z <= parasol.r; z++) {
+        const r = Math.hypot(x, z);
+        if (r > parasol.r) continue;
+        const panel = Math.floor(((Math.atan2(z, x) + Math.PI) / (Math.PI * 2)) * 8) % 2 ? "canvasTeal" : "canvas";
+        const y = -Math.round(6 * (r / parasol.r) ** 1.3);
+        canopy.add(x, y, z, r > parasol.r - 1.2 ? "canvasCoral" : panel);
+        if (r > parasol.r - 1.2 && Math.round(Math.atan2(z, x) * 9) % 2 === 0) canopy.add(x, y - 1, z, "canvasCoral"); // the scallops
+      }
+    canopy.add(0, 1, 0, "iron"); // the finial
+    parasol.mesh = mesh(canopy);
+    parasol.mesh.position.set(parasol.hub[0], TOP - 1, parasol.hub[1]);
+    group.add(parasol.mesh);
+  }
   // The bird bath: a stone bowl on a pillar.
   {
     const [x, z] = BATH;
@@ -761,7 +878,7 @@ export function buildYard(shared) {
       }
   }
   block(BATH[0] - 6, BATH[0] + 6, BATH[1] - 6, BATH[1] + 6);
-  const bathWater = new THREE.Mesh(new THREE.CircleGeometry(4.8, 20), new THREE.MeshLambertMaterial({ color: WATER[3] }));
+  const bathWater = new THREE.Mesh(new THREE.CircleGeometry(4.8, 20), new THREE.MeshLambertMaterial({ color: "#8ccbcb" }));
   bathWater.rotation.x = -Math.PI / 2;
   bathWater.position.set(BATH[0], 15.2, BATH[1]);
   group.add(bathWater);
@@ -1103,18 +1220,30 @@ export function buildYard(shared) {
   }
   lantern(PORCH_LAMP, wall, porchPanes); // (with what else is on the wall, to fade with it: peek.js)
   lights.push([PORCH_LAMP, 11, 24]);
-  // A leafy garland along under the fascia, looping between hooks, little coloured bulbs in it lit at night
-  // (none over the bedroom window and its shutters).
+  // A leafy garland along under the fascia, looping between hooks, little coloured bulbs in it, glowing
+  // softly brighter and dimmer at night, each in its own time (none over the bedroom window and its shutters).
+  const bulbAt = [];
   for (let x = YARD.x0 + 6; x <= YARD.x1 - 6; x++) {
     if (x > 96 && x < 166) continue;
     const sag = Math.sin(((x - YARD.x0 - 6) / 26) * Math.PI) ** 2; // 0 at each hook, 1 halfway between
     const y = WALL_H - 4 - Math.round(sag * 4);
     wall.add(x, y, wz - 1, hash(x, 3, 65) < 0.5 ? "leaf" : "leafDark");
     if (hash(x, 4, 65) < 0.5) wall.add(x, y + 1, wz - 1, "leafDark");
-    if (x % 6 === 0) porchPanes.add(x, y - 1, wz - 2, ["lampLit", "pink", "blueLight", "lampLit", "lotus"][(((x / 6) % 5) + 5) % 5]);
+    if (x % 6 === 0) bulbAt.push([x, y - 1.2, wz - 2]);
   }
+  const BULB_COLORS = ["#ffd27a", "#ff9e8a", "#a8e6a0", "#9fd3ff"].map((c) => new THREE.Color(c));
+  const bulbs = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 2, 1.4), new THREE.MeshBasicMaterial(), bulbAt.length);
+  const bulbColor = new THREE.Color();
+  bulbAt.forEach((p, i) => bulbs.setMatrixAt(i, new THREE.Matrix4().makeTranslation(...p)));
+  updates.push((t) => {
+    bulbAt.forEach((_, i) =>
+      bulbs.setColorAt(i, bulbColor.copy(BULB_COLORS[i % 4]).multiplyScalar(night ? 0.75 + 0.25 * Math.sin(t * 2 + i * 1.7) : 0.45))
+    );
+    bulbs.instanceColor.needsUpdate = true;
+  });
   const paneMat = new THREE.MeshBasicMaterial({ vertexColors: true, color: 0xb9ad94 });
-  const onWall = [mesh(wall), solid(porchPanes, C, paneMat)];
+  const onWall = [mesh(wall), solid(porchPanes, C, paneMat), bulbs];
+  flat.add(onWall[0]); // (the house's wall casts no shadow out here, so neither does what hangs on it)
   group.add(mesh(lampPart), solid(panes, C, paneMat), ...onWall);
   // At night: under each lamp a pool of warm light, brightest beneath it and fading out smoothly, added over
   // what is there; and round its panes a soft glow. (Each one texture, drawn once, smooth rather than
@@ -1154,11 +1283,17 @@ export function buildYard(shared) {
     )
   );
   const poolShape = new THREE.PlaneGeometry(2, 2);
+  // The porch lamp's, by the wall: only the outer half, from the foot of the wall out (a whole one reaches in
+  // under the floor indoors, and shows through it where the depth is too coarse to tell them apart).
+  const halfPool = new THREE.PlaneGeometry(2, 1).translate(0, 0.5, 0);
+  const uv = halfPool.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, 0.5 + 0.5 * uv.getY(i));
   const nightGlows = lights.flatMap(([[x, y, z], halo, r]) => {
-    const m = new THREE.Mesh(poolShape, poolMat);
+    const porch = z === PORCH_LAMP[2];
+    const m = new THREE.Mesh(porch ? halfPool : poolShape, poolMat);
     m.rotation.x = -Math.PI / 2;
     m.scale.set(r, r, 1);
-    m.position.set(x, -0.1, z);
+    m.position.set(x, -0.1, porch ? YARD.z1 : z);
     const h = new THREE.Sprite(haloMat);
     h.scale.setScalar(halo * 2);
     h.position.set(x, y, z);
@@ -1177,8 +1312,19 @@ export function buildYard(shared) {
     const near = gate.near?.() ?? false;
     gate.k += ((near ? 1 : 0) - gate.k) * (1 - Math.exp(-5 * dt));
     gatePivot.outer.rotation.y = -1.35 * gate.k;
+    const k = Math.min(1, Math.max(0, parasol.k + (raining ? dt : -dt) / 1.5));
+    if (k !== parasol.k) sun.dirty = true;
+    parasol.k = k;
+    const open = parasol.k * parasol.k * (3 - 2 * parasol.k);
+    parasol.mesh.scale.set(0.08 + 0.92 * open, 2.6 - 1.6 * open, 0.08 + 0.92 * open);
     swingPivot.outer.rotation.x = swing.angle;
+    // Now and then a fish rising, by day; drops all over it in the rain.
     glints.tex.offset.x = (t * 0.01) % 1;
+    if (!night && Math.random() < dt / 6) ripple(POND.x + (Math.random() - 0.5) * POND.rx, POND.z + (Math.random() - 0.5) * POND.rz, 1.3);
+    if (raining)
+      for (let k = 0; k < 2; k++)
+        if (Math.random() < dt * 12) ripple(POND.x + (Math.random() - 0.5) * 1.7 * POND.rx, POND.z + (Math.random() - 0.5) * 1.7 * POND.rz, 0.35);
+    drawWater(t);
     glintMat.opacity = (night ? 0.15 : 0.45) + (night ? 0.05 : 0.25) * Math.sin(t * 1.7); // twinkling
   });
 
@@ -1193,6 +1339,7 @@ export function buildYard(shared) {
   /* ---------- where they go out here ---------- */
 
   const seat = (key, [x, z], yaw, front) => ({ key, x, z, yaw, front: turned([x, z], yaw, [0, front]) });
+  const byHammock = (l) => turned([HAMMOCK.x, HAMMOCK.z], HAMMOCK.yaw, l); // a point by the hammock: [across, along]
   const spots = {
     // Out of the front door onto the porch, and back.
     step: [DOOR.x, YARD.z1 - 14],
@@ -1214,9 +1361,25 @@ export function buildYard(shared) {
     pondMid: [POND.x, 1, POND.z],
     bench: [10, -10].map((lx, i) => seat(`bench${i}`, turned([BENCH.x, BENCH.z], BENCH.turn, [lx, 0]), BENCH.turn + Math.PI, 17)), // (left, right on screen)
     benchDog: turned([BENCH.x, BENCH.z], BENCH.turn, [0, -18]), // lying at their feet
+    // The hammock: lying in it (the hips), sitting on its edge to get in (facing out, the viewer's side), and
+    // standing beside it; where someone keeping her company kneels (at her head end), and where the dog lies.
+    hammock: {
+      key: "hammock",
+      x: byHammock([0, 2])[0],
+      z: byHammock([0, 2])[1],
+      y: 7,
+      yaw: HAMMOCK.yaw,
+      sitYaw: HAMMOCK.yaw + Math.PI / 2,
+      end: byHammock([7, 2]),
+      front: byHammock([19, 2]),
+      side: byHammock([7, -38]), // (past the head end of the stand, not in front of her)
+      dog: byHammock([8, 38]), // where the dog lies, off its lead; on it, by whoever holds it:
+      dogBySide: byHammock([16, -34]), // beside him at the head end
+      dogByHer: byHammock([16, 12]), // on the grass in front of her
+    },
     swing,
     swingWatch: [SWING.x + 26, SWING.z + 4],
-    bath: { at: [BATH[0] - 12, BATH[1] + 18], bowl: [BATH[0], 16, BATH[1]] },
+    bath: { at: [BATH[0] - 18, BATH[1] + 12], bowl: [BATH[0], 16, BATH[1]] }, // (clear of the hammock)
     tree: { at: [TREE[0] + 18, TREE[1] + 16], trunk: [TREE[0], 20, TREE[1]] },
     // The middle of the blanket, by the plate (they kneel either side of it, apart on screen), and where the
     // dog lies, off to one side.
@@ -1264,8 +1427,28 @@ export function buildYard(shared) {
     soaked = wet;
     raining = rain;
   };
-  // Under the tree's crown or the porch roof, where the rain mostly does not reach.
-  const sheltered = (x, z) => Math.hypot(x - TREE[0] + 2, z - TREE[1] + 2) < 30 || (Math.abs(x - DOOR.x) < 18 && z > YARD.z1 - 12);
+  // Under the tree's crown, the porch roof or the open parasol, where the rain mostly does not reach.
+  const sheltered = (x, z) =>
+    Math.hypot(x - TREE[0] + 2, z - TREE[1] + 2) < 30 ||
+    (Math.abs(x - DOOR.x) < 18 && z > YARD.z1 - 12) ||
+    (parasol.k > 0.6 && Math.hypot(x - parasol.hub[0], z - parasol.hub[1]) < parasol.r);
+
+  // In the sun, all that stands still out here casts a shadow (on SUN_LAYER, so that nothing indoors does)
+  // and takes them, drawn once and again only as the sun moves or the parasol opens (room.js): not what moves
+  // (the gate, the swing), nor what glows, nor the ground and the water (they only take them).
+  const sun = { on: true, dirty: true };
+  const moving = new Set([gatePivot.outer, swingPivot.outer]);
+  (function inTheSun(o) {
+    if (moving.has(o)) return;
+    if (o.isMesh && !o.isInstancedMesh && !o.material.isMeshBasicMaterial) {
+      o.receiveShadow = true;
+      if (!flat.has(o) && !(o.geometry instanceof THREE.PlaneGeometry)) {
+        o.castShadow = true;
+        o.layers.enable(SUN_LAYER);
+      }
+    }
+    o.children.forEach(inTheSun);
+  })(group);
 
   function dress(isNight) {
     night = isNight;
@@ -1283,7 +1466,10 @@ export function buildYard(shared) {
       spots,
       gate,
       swing,
+      parasol,
+      sun, // its shadows to be drawn again (`dirty`)
       pond: POND,
+      ripple, // rings on the pond from [x, z], `size` 1 for a duck paddling
       pads: PADS.map(([x, z]) => [x, z]), // the lily pads
       flowerBeds: [
         [YARD.x0 + 10, PORCH.x0 - 6, YARD.z1 - 10, YARD.z1 - 2],

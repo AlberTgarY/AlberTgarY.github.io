@@ -68,7 +68,7 @@ const SNAKE = [];
 });
 
 // His computer: `mode` "off", "menu" (the launcher, `game` about to be played), "game", "win" or "lose",
-// `game` (GAMES, or hers from GIRL_GAMES) while one is on, `e` how long since the mode changed.
+// `game` (GAMES, or her farm game "stardew") while one is on, `e` how long since the mode changed.
 export function drawPcGame(g, w, h, mode, game, t, e, day) {
   const { rect, px } = pen(g);
   if (mode === "off") return rect(0, 0, w, h, "#060608");

@@ -20,7 +20,7 @@
  * (rocking while the sun is up), steam off the stove, the oven's door and its
  * glow while it bakes, a dish on the dining table, the fire, the quilt when
  * someone gets into bed, the vegetables as they grow, a butterfly over the
- * garden, the clock, the clouds, a bird going by and the string lights; the
+ * garden, the clock, the clouds and a bird going by; the
  * lamps and the lights come on at night.
  *
  * World units are voxels: x to the right, y up, z towards the front. The floor
@@ -65,7 +65,7 @@ export function* buildingHouse(scene, water) {
   const obstacles = []; // [x0, x1, z0, z1] footprints on the floor, for finding the way round
   const updates = []; // (t, dt) each frame
   // What a visitor can click to switch or open (playground.js): the curtains, the fridge and freezer doors,
-  // the two lamps, the TV and its remote. Each is { parts, toggle() }; the people notice only what is done to
+  // the cupboard door and drawer under the counter, the two lamps, the TV and its remote. Each is { parts, toggle() }; the people notice only what is done to
   // the TV.
   const clickables = [];
 
@@ -151,7 +151,9 @@ export function* buildingHouse(scene, water) {
     ON_BED,
     beds,
     lamps,
+    underShelf,
     bedLight,
+    floorLight,
     moth,
     RAIL_Y,
     closet,
@@ -285,7 +287,7 @@ export function* buildingHouse(scene, water) {
     change: { at: [191, -61] },
     // The garden: through the door, the can by it, and each bed (from the path, facing it).
     gardenDoor: { inside: [134, GARDEN_DOOR.z], outside: [158, GARDEN_DOOR.z] },
-    can: { at: [158, 50], yaw: 0 },
+    can: { at: [164, 29], yaw: -Math.PI / 2 },
     // For each bed: on the path facing it (to water it), the middle of it, where to kneel to its marker,
     // behind each plant (facing it and the viewer) with the basket set down at the right hand, and where the
     // dog sits on the path to watch.
@@ -332,6 +334,7 @@ export function* buildingHouse(scene, water) {
     views.dress(shared.night);
     yard.dress(shared.night);
     lamps.forEach((l) => l.set(shared.night)); // whatever was switched, as it was, now it is day or night
+    underShelf.set(shared.night);
   }
   drawScreen(0);
   drawMonitor(0);
@@ -372,8 +375,8 @@ export function* buildingHouse(scene, water) {
     // The TV (house/living.js): what is on, who switched it, the remote and the controllers.
     tv: tvControls,
     pc: {
-      // `mode`: "off", "menu" (his launcher), "game", "win", "lose" or "show" (a drama she streams); `game` the
-      // one played or shown (screens.js's GAMES, GIRL_GAMES or DRAMAS); `side` what his side screen shows
+      // `mode`: "off", "menu" (his launcher), "game", "win", "lose" or "show" (a drama she watches); `game` the
+      // one played or shown (screens.js's GAMES, her farm game "stardew", or DRAMAS); `side` what his side screen shows
       // (screens.js's SIDES). `sitter`: who the chair turns with. Her shows: `ep` the episode (her farm game:
       // the day), `from` how many seconds into it (watching on after being called away). `parts`: what a click
       // on his computer can land on.
@@ -418,6 +421,7 @@ export function* buildingHouse(scene, water) {
     beds,
     moth, // her plush moth, on the bed or the nightstand (loft.js)
     bedLight, // the bedside lamp's light, which casts shadows (loft.js)
+    shadowLights: [bedLight, floorLight], // the lamps whose shadows are drawn once, when they need it (room.js)
     bird,
     outlooks, // the windows' glass and what is out there (outlook.js)
     books: shelfBooks,

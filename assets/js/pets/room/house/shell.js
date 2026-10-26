@@ -46,6 +46,7 @@ export function buildShell(shared) {
     const m = new THREE.Mesh(g, floorMat);
     m.rotation.x = -Math.PI / 2;
     m.position.set(cx, y, cz);
+    m.receiveShadow = true; // (of the floor lamp: living.js)
     house.add(m);
   }
   boards(X0, X1, BACK, FRONT, -0.5);

@@ -170,6 +170,7 @@ kramdown:
 # Includes & excludes
 include: ["_pages", "_scripts"]
 exclude:
+  - assets/js/mp4/ # the source videos of the playground's drama clips (not in the repo)
   - bin/
   - CONTRIBUTING.md
   - CUSTOMIZE.md

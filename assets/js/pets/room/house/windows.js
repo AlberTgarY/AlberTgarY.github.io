@@ -48,13 +48,17 @@ export function buildWindows(shared) {
   );
   updates.push((t, dt) => views.update(t, dt));
   // The glass of each window, `w` x `h` voxels at `at` (turned by `rotY`), showing what is out there as seen
-  // from in the room (outlook.js draws it each frame), the rain running down it in front. `out`: which way
+  // from in the room (outlook.js draws it each frame), the rain running down it in front, and in front of
+  // that the glass itself: one thin sheet with the faintest cool tint, clear but not nothing. `out`: which way
   // is out; `yard`: whether the real front garden is out there too.
   const outlooks = [];
+  const glassMat = new THREE.MeshBasicMaterial({ color: 0xcfe8ee, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide });
   function pane(w, h, at, rotY, out, scene, yard) {
     const glass = place(house, new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial()), at, rotY);
     const wet = place(house, new THREE.Mesh(new THREE.PlaneGeometry(w, h), rainMat), at, rotY);
     wet.translateZ(0.2);
+    const pane = place(house, new THREE.Mesh(new THREE.PlaneGeometry(w, h), glassMat), at, rotY);
+    pane.translateZ(0.4);
     outlooks.push({ glass, at, out, size: [w, h], scene, yard });
   }
   pane(
@@ -168,15 +172,13 @@ export function buildWindows(shared) {
     }
   });
 
-  // The window frames: white, with glazing bars and a sill; sage curtains tied back either side of the one
+  // The window frames: white, one clear pane each, and a sill; sage curtains tied back either side of the one
   // over the bed, and a succulent on its sill (where the cat likes to sit). Each is its own mesh (the one over
   // the bed fades with its wall: peek.js).
   const frameAround = ([a, b], [lo, hi], at) => {
     const win = part();
     for (let u = a - 2; u <= b + 2; u++)
       for (let y = lo - 2; y <= hi + 2; y++) if (u < a || u > b || y < lo || y > hi) win.add(...at(u, y, 0), "frame");
-    for (let y = lo; y <= hi; y++) win.add(...at(Math.round((a + b) / 2), y, -1), "frame");
-    for (let u = a; u <= b; u++) win.add(...at(u, Math.round((lo + hi) / 2), -1), "frame");
     for (let u = a - 3; u <= b + 3; u++) for (let d = 0; d <= 4; d++) win.add(...at(u, lo - 3, d), d === 4 ? "frameShade" : "frame");
     return win;
   };

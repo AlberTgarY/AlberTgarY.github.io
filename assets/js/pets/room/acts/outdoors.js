@@ -8,6 +8,9 @@
  *   the dog sits and watches them.
  * - The bench: a sit looking out over the pond (side by side, chatting), the
  *   dog lying at their feet; at night, looking up at the stars.
+ * - The hammock: she climbs in for a doze (at night, looking up at the
+ *   stars), he kneels by it keeping her company, the dog lying beside; rain
+ *   opens the parasol over it.
  * - The swing under the cherry tree: one swings, the other pushes; the dog
  *   watches it go to and fro.
  * - A picnic on the blanket, the two of them, strawberries and a bite for the
@@ -39,7 +42,7 @@ const SKY = [0, 260, -420]; // where to look, gazing up at the stars
 
 // `c` is everything they share (common.js), and the activities of the other files.
 export function outdoorsActs(c) {
-  const { home, clock, house, walk, turn, wait, until, sitOn, getUp, claim, release, onEnd, t } = c;
+  const { home, clock, house, walk, turn, wait, until, sitOn, getUp, intoBed, outOfBed, claim, release, onEnd, t } = c;
   const nav = home.yardNav;
   const yard = house.yard;
   const Y = yard.spots;
@@ -90,6 +93,8 @@ export function outdoorsActs(c) {
     if (a.ground) [a.x, a.z] = a.ground;
     Object.assign(a, {
       seated: false,
+      abed: false,
+      asleep: false,
       ground: null,
       lie: false,
       sit: false,
@@ -214,8 +219,9 @@ export function outdoorsActs(c) {
     }
     return best;
   }
-  // Keeping up with the host along the way: the dog ahead (stopping short of where they are going, then at
-  // their side), anyone else behind and beside, or just behind, waiting where they are till the host is a
+  // Keeping up with the host along the way: the dog ahead and a little to one side of the way, the side that
+  // keeps her further from them across the screen (not in front of them or behind them, on screen), stopping
+  // short of where they are going, then at their side; anyone else behind and beside, or just behind, waiting where they are till the host is a
   // few steps past them (setting off, or coming back along the way); the straight way there always on the
   // way, or just off it where that is clear, or round whatever is in the way.
   const ahead = (a, ev) => {
@@ -231,15 +237,24 @@ export function outdoorsActs(c) {
         let target;
         if (m.lead) {
           const [p, dir] = pointAt(ev.route, Math.min(ev.at + 18, ev.route.len - 12));
-          target = p;
+          const across = (q) => Math.abs((q[0] - host.x) * RIGHT[0] + (q[1] - host.z) * RIGHT[1]);
+          const widest = (qs) => qs.sort((q1, q2) => across(q2) - across(q1))[0];
+          target = widest([
+            p,
+            ...[-1, 1].map((k) => [p[0] - dir[1] * 8 * k, p[1] + dir[0] * 8 * k]).filter((q) => free(q) && nav.clearLine(...p, ...q)),
+          ]);
           if (there) {
-            // At their side, either side, or a step on ahead of them; or else where she stopped.
-            const by = [
-              [host.x - dir[1] * 12, host.z + dir[0] * 12],
-              [host.x + dir[1] * 12, host.z - dir[0] * 12],
-              [host.x + dir[0] * 12, host.z + dir[1] * 12],
-            ].find(
-              (q) => free(q) && nav.clearLine(a.x, a.z, ...q) && [...ev.places.values()].every((o) => !o || Math.hypot(o[0] - q[0], o[1] - q[1]) > 12)
+            // At their side, either side, or a step on ahead of them, whichever is furthest from them across
+            // the screen; or else where she stopped.
+            const by = widest(
+              [
+                [host.x - dir[1] * 12, host.z + dir[0] * 12],
+                [host.x + dir[1] * 12, host.z - dir[0] * 12],
+                [host.x + dir[0] * 12, host.z + dir[1] * 12],
+              ].filter(
+                (q) =>
+                  free(q) && nav.clearLine(a.x, a.z, ...q) && [...ev.places.values()].every((o) => !o || Math.hypot(o[0] - q[0], o[1] - q[1]) > 12)
+              )
             );
             if (by) target = by;
           }
@@ -260,6 +275,12 @@ export function outdoorsActs(c) {
             rethink = t() + 1.5;
           }
           target = places(side)[pick];
+          // Never back the way they came: a place behind them now (the one beside the way taken), they wait.
+          const [mine, off] = nearestOn(ev.route, [a.x, a.z]);
+          if (off < 20 && nearestOn(ev.route, target)[0] < mine - 2) {
+            target = [a.x, a.z];
+            a.faceTowards(host.x, host.z);
+          }
         }
         if (free(target) && !nav.clearLine(a.x, a.z, ...target)) {
           // Round what is in the way.
@@ -268,7 +289,7 @@ export function outdoorsActs(c) {
         }
         const d = Math.hypot(target[0] - a.x, target[1] - a.z);
         const step = Math.min(d, a.speed * (ev.hurry ? 2 : 1.4) * clock.dt);
-        a.walking = d > 0.8;
+        a.walking = step > clock.dt; // (moving at all: keeping pace just behind where they are going too)
         a.pace = clamp(step / (a.speed * clock.dt || 1), 0.6, 2);
         if (d > 0.01) {
           if (a.walking) a.faceTowards(...target);
@@ -388,6 +409,59 @@ export function outdoorsActs(c) {
     a.lie = true;
     yield* wait(a, secs);
     a.lie = false;
+  }
+
+  // The hammock on the lawn by the wall: she climbs in for a doze (at night, to look up at the stars), he
+  // kneeling on the grass by her a while, keeping her company, the dog lying beside it. Only with her
+  // there, and not in the rain (rain coming on while she is in it opens the parasol over her).
+  function* hammock(a, ev) {
+    const bed = Y.hammock;
+    const girl = people(ev).find((h) => h.name === "girl");
+    const dog = dogOf(ev);
+    const holder = people(ev).find((h) => h.leads); // (the dog lies within reach of its lead)
+    const dogAt = !holder ? bed.dog : holder === girl ? bed.dogByHer : bed.dogBySide;
+    yield* go(a, ev, girl === a ? bed.front : bed.side, (m) => (m.who === girl ? bed.front : m.who === dog ? dogAt : bed.side));
+    const secs = rnd(25, 40);
+    yield* together(
+      a,
+      ev,
+      (m) => (m.who === girl ? lieOn(girl, bed, secs) : m.who === dog ? lieDown(dog, secs) : keepCompany(m.who, girl, secs)),
+      secs + 15
+    );
+  }
+  function* lieOn(a, bed, secs) {
+    if (!claim(a, bed.key)) return;
+    try {
+      yield* intoBed(a, bed);
+      const end = t() + secs;
+      let starAt = t() + rnd(2, 4);
+      a.asleep = !home.night;
+      while (t() < end) {
+        if (home.night && t() > starAt) {
+          a.look = SKY;
+          a.pop("room-pop room-pop-star");
+          starAt = t() + rnd(4, 7);
+        }
+        yield;
+      }
+      a.asleep = false;
+      a.look = null;
+      yield* wait(a, 1.2); // awake, a look about
+      yield* outOfBed(a, bed);
+    } finally {
+      release(a, bed.key);
+    }
+  }
+  function* keepCompany(a, girl, secs) {
+    yield* until(() => girl.abed, 8);
+    a.faceTowards(girl.x, girl.z);
+    a.lie = true; // kneeling
+    a.look = girl;
+    yield* wait(a, 2);
+    a.pop();
+    yield* wait(a, Math.max(2, secs - 6));
+    a.lie = false;
+    a.look = null;
   }
 
   // The swing: she has it if she is there (he, if he is out on his own); the other pushes, the dog watches.
@@ -783,8 +857,18 @@ export function outdoorsActs(c) {
     const dog = dogOf(ev);
     const puddle = pick(home.weather.puddles.filter((p) => p[1] < yard.bounds[3] && free(p)));
     if (!dog || !puddle) return;
-    const watch = [puddle[0] + 16, puddle[1] + 6];
-    const places = around(ev, free(watch) ? watch : puddle, [[dog, puddle]]);
+    // Where to watch her from: beside the puddle, whichever side is clear (never in it, where she jumps).
+    const watch = [
+      [16, 6],
+      [-16, 6],
+      [16, -6],
+      [-16, -6],
+      [0, 16],
+    ]
+      .map(([dx, dz]) => [puddle[0] + dx, puddle[1] + dz])
+      .find((q) => free(q) && nav.clearLine(...puddle, ...q));
+    if (!watch) return;
+    const places = around(ev, watch, [[dog, puddle]]);
     yield* go(a, ev, places.get(a), (m) => (m.who === a ? null : places.get(m.who)));
     yield* together(
       a,
@@ -862,6 +946,7 @@ export function outdoorsActs(c) {
     { name: "pond", run: pond, w: 3, ok: () => true },
     { name: "bench", run: bench, w: 3, ok: () => !raining() },
     { name: "swing", run: swingStop, w: 3, ok: () => !raining() },
+    { name: "hammock", run: hammock, w: 3, ok: (ev) => people(ev).some((h) => h.name === "girl") && !raining() },
     { name: "picnic", run: picnic, w: 2.5, ok: (ev) => people(ev).length === 2 && !home.night && !raining() },
     { name: "flowers", run: flowers, w: 2.5, ok: () => true },
     { name: "birds", run: birds, w: 1.5, ok: () => !home.night && !raining() },

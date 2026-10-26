@@ -13,7 +13,7 @@ import { COLORS, pixelTexture, solid, glowing, place, turned } from "./kit.js";
 
 // `shared`: what the house so far has to share (house.js), with `night` and `overcast` as they are now.
 export function buildKitchen(shared) {
-  const { house, mesh, updates, clickables, footprint, turnedFootprint } = shared;
+  const { house, mesh, updates, clickables, footprint, turnedFootprint, water } = shared;
 
   // A rounded retro fridge in mint, no taller than they can reach: the fridge below and the freezer above,
   // each door swinging open towards the front on its own and the inside lit up. In the fridge, two glass
@@ -142,9 +142,17 @@ export function buildKitchen(shared) {
     pivot.inner.add(m);
     return Object.assign(pivot.outer, { part: m });
   });
-  const fridgeLight = new THREE.PointLight(0xeaf6ff, 0, 50, 0);
-  fridgeLight.position.set(0, 30, 14);
-  fridgeGroup.add(fridgeLight);
+  // The light inside each, out of its open door: the fridge's a bright warm white, the freezer's a dimmer
+  // icy blue.
+  const doorLights = [
+    [0xfff1dc, 0.9, 50, 24],
+    [0xbcd8ff, 0.55, 34, 52],
+  ].map(([color, most, reach, y]) => {
+    const l = Object.assign(new THREE.PointLight(color, 0, reach, 0), { most });
+    l.position.set(0, y, 14);
+    fridgeGroup.add(l);
+    return l;
+  });
   footprint(FRIDGE[0] - 16, FRIDGE[0] + 15, BACK, FRIDGE[1] + 12);
   // `openers` stand at the fridge with its door open, `freezers` at the freezer; `clicked` opens a door
   // too (a click on the fridge opens or shuts its door, on the freezer the freezer's), and whoever is at it
@@ -165,7 +173,7 @@ export function buildKitchen(shared) {
       insides[i].visible = fridge.k[i] > 0.02;
     });
     crisper.visible = insides[0].visible;
-    fridgeLight.intensity = 0.8 * Math.max(...fridge.k);
+    doorLights.forEach((l, i) => (l.intensity = l.most * fridge.k[i]));
   });
 
   // The counter: cupboards under a walnut top (the pets' food in one of them; in the middle one, behind its
@@ -195,17 +203,6 @@ export function buildKitchen(shared) {
   );
   for (const x of [-11, 10]) counter.add(x, 24, 9, "brass");
   box(counter, [-6, 5], [15, 15], [-8, 6], "cupboardInside"); // its shelf
-  // On the shelf two stacks of bowls, on the floor of it a stack of plates.
-  for (const cx of [-3, 2.5])
-    for (let k = 0; k < 3; k++) {
-      const y0 = 16 + k * 2;
-      for (let y = y0; y <= y0 + 1; y++)
-        ellipsoid(counter, [cx, y, 0], [y === y0 ? 1.8 : 2.6, 0.5, y === y0 ? 1.8 : 2.6], (vx, vy, vz) =>
-          (vx - cx) ** 2 + vz ** 2 > 5 ? "chinaBlue" : "china"
-        );
-    }
-  for (let y = 3; y <= 6; y++)
-    ellipsoid(counter, [-0.5, y, 0], [4, 0.5, 4], (vx, vy, vz) => ((vx + 0.5) ** 2 + vz ** 2 > 11 ? "chinaBlue" : "china"));
   box(counter, [-22, 21], [34, 35], [-11, 10], "counterTop");
   // What they cook with, along the back of the worktop, in half voxels for the detail (shown at half size,
   // half voxel u covering u / 2 - 1/2 to u / 2, so that they stand on it). Something round standing on it at
@@ -367,7 +364,8 @@ export function buildKitchen(shared) {
   const cupDoorPart = part();
   box(cupDoorPart, CUP.x, CUP.y, [8, 8], (x, y) => (y === CUP.y[0] || y === CUP.y[1] ? "cabinetLine" : "cabinet"));
   cupDoorPart.add(CUP.x[0] + 3, 24, 9, "brass"); // its knob
-  cupDoor.inner.add(mesh(cupDoorPart));
+  const cupDoorMesh = mesh(cupDoorPart);
+  cupDoor.inner.add(cupDoorMesh);
   const drawer = place(counterGroup, new THREE.Group(), [0, 0, 0]);
   const drawerPart = part();
   box(drawerPart, DRAWER.x, DRAWER.y, [8, 8], "cabinet");
@@ -375,27 +373,173 @@ export function buildKitchen(shared) {
   box(drawerPart, [-6, 5], [29, 29], [-7, 7], "cupboardInside"); // the drawer's bottom, sides and back
   for (const x of [-6, 5]) box(drawerPart, [x, x], [30, 31], [-7, 7], "cupboardInside");
   box(drawerPart, [-5, 4], [30, 31], [-7, -7], "cupboardInside");
-  for (const [x, c] of [
-    [-5, "woodDark"],
-    [-4, "woodDark"],
-    [-2, "woodDark"],
-    [-1, "woodDark"],
-    [1, "chinaBlue"],
-    [2, "chinaBlue"],
+  const drawerMesh = mesh(drawerPart);
+  drawer.add(drawerMesh);
+
+  // What is in the cupboard and the drawer, in quarter voxels for the detail (shown at a quarter size, quarter
+  // voxel u covering u / 4 - 1/4 to u / 4). A stack of `n` round things at (cx, cz), from height y0 up, each
+  // `h` high and nested `step` above the last; at each height dy of one, a ring from r0(dy) to r1(dy) about its
+  // axis (r0 0: a disc), coloured c(dy, d, r1, angle) by how far out it is.
+  const quarter = (m, parent) => {
+    m.scale.setScalar(0.25);
+    m.position.set(-0.125, -0.125, -0.125);
+    parent.add(m);
+  };
+  const stack = (q, cx, y0, cz, n, h, r0, r1, c, step = 2) => {
+    for (let k = 0; k < n; k++)
+      for (let dy = 0; dy < h; dy++) {
+        const [lo, hi] = [r0(dy), r1(dy)];
+        for (let x = Math.floor(cx - hi); x <= Math.ceil(cx + hi); x++)
+          for (let z = Math.floor(cz - hi); z <= Math.ceil(cz + hi); z++) {
+            const d = Math.hypot(x - cx, z - cz);
+            if (d <= hi && d >= lo) q.add(x, y0 + step * k + dy, z, c(dy, d, hi, Math.atan2(z - cz, x - cx), k === n - 1));
+          }
+      }
+  };
+  // A bowl `h` high and `r` across the rim: a foot ring, the bottom, then its wall flaring out to the rim.
+  const wall = (r, h) => (dy) => (dy < 2 ? r * 0.45 : r * (0.5 + 0.5 * ((dy - 1) / (h - 2)) ** 0.6));
+  const bowlIn = (r, h) => (dy) => (dy === 0 ? r * 0.45 - 1.2 : dy === 1 ? 0 : wall(r, h)(dy) - 1.3);
+  const crockery = part();
+  // White china with a blue rim, a blue band by the foot, blue sprigs round the side (`sprigs`) and, in the
+  // top one of a stack, a blue ring in the bottom.
+  const blueWhite = (h, r0, sprigs) => (dy, d, r, a, top) => {
+    if (dy === 1) return top && Math.abs(d - r0 * 0.22) < 0.6 ? "chinaBlue" : "china";
+    if (dy === h - 1 || dy === 2) return "chinaBlue";
+    if (!sprigs || d <= r - 0.8) return "china";
+    return dy === 5 && Math.floor(((a + Math.PI) * 5) / Math.PI) % 2 && hash(Math.round(a * 9), dy, 3) < 0.5 ? "chinaInk" : "china";
+  };
+  // On the shelf (its top at 15.5), at the front where they show: their rice bowls and the bigger celadon
+  // noodle bowls; behind them two stacks of little bowls.
+  const RICE = { r: 8, h: 9 };
+  stack(crockery, -12, 63, 12, 5, RICE.h, bowlIn(RICE.r, RICE.h), wall(RICE.r, RICE.h), blueWhite(RICE.h, RICE.r, true), 3);
+  const NOODLE = { r: 9, h: 11 };
+  stack(crockery, 11, 63, 12, 4, NOODLE.h, bowlIn(NOODLE.r, NOODLE.h), wall(NOODLE.r, NOODLE.h), (dy, d, r) =>
+    dy === NOODLE.h - 1 || (d > r - 0.8 && dy === 2) ? "celadonDark" : "celadon"
+  );
+  const SMALL = { r: 6, h: 7 };
+  for (const x of [-14, 8])
+    stack(crockery, x, 63, -20, 5, SMALL.h, bowlIn(SMALL.r, SMALL.h), wall(SMALL.r, SMALL.h), blueWhite(SMALL.h, SMALL.r, false), 3);
+  // On its floor (2.5), at the front: plates, a blue line round the rim and another round the well, and little
+  // sauce dishes; at the back the pans: a steel stock pot with its lid on and a handle each side, and a
+  // saucepan, its long black handle out to the front.
+  const PLATE = 13;
+  stack(
+    crockery,
+    -9,
+    11,
+    12,
+    6,
+    2,
+    (dy) => (dy === 0 ? 0 : PLATE * 0.62),
+    (dy) => (dy === 0 ? PLATE * 0.66 : PLATE),
+    (dy, d) => (dy === 1 && d > PLATE - 1 ? "chinaBlue" : Math.abs(d - PLATE * 0.64) < 0.5 ? "chinaBlue" : "china")
+  );
+  stack(
+    crockery,
+    15,
+    11,
+    15,
+    4,
+    2,
+    (dy) => (dy === 0 ? 0 : 3.2),
+    (dy) => (dy === 0 ? 3.4 : 4.6),
+    (dy) => (dy === 1 ? "celadonDark" : "celadon")
+  );
+  // A pan stored at (cx, cz) on the floor, `r` round and `h` high: its steel side catching the light down one edge,
+  // the rim and base darker; with a lid on (a little domed, a knob on top) if `lid`.
+  const stored = (cx, cz, r, h, lid) => {
+    stack(
+      crockery,
+      cx,
+      11,
+      cz,
+      1,
+      h,
+      (dy) => (dy === 0 ? 0 : r - 1.3),
+      () => r,
+      (dy, d, rr, a) => (dy === 0 || dy === h - 1 ? "steelDark" : Math.abs(a - 2.2) < 0.35 ? "chrome" : "steel")
+    );
+    if (!lid) return;
+    stack(
+      crockery,
+      cx,
+      11 + h,
+      cz,
+      1,
+      2,
+      () => 0,
+      (dy) => (dy === 0 ? r + 0.4 : r * 0.55),
+      (dy) => (dy === 0 ? "steel" : "chrome")
+    );
+    box(crockery, [cx - 1, cx + 1], [11 + h + 2, 11 + h + 3], [cz - 1, cz + 1], "hob"); // the knob
+  };
+  stored(-11, -19, 11, 28, true);
+  for (const side of [-1, 1])
+    box(
+      crockery,
+      [-11 + side * 12, -11 + side * 13].sort((m, n) => m - n),
+      [33, 35],
+      [-21, -17],
+      "steelDark"
+    ); // its handles
+  stored(12, -19, 7, 15, false);
+  for (let z = -12; z <= 1; z++)
+    box(crockery, [11, 13], [22 + Math.round((z + 12) / 5), 23 + Math.round((z + 12) / 5)], [z, z], z > -7 ? "hob" : "steelDark"); // its handle
+  quarter(mesh(crockery), counterGroup);
+
+  // In the drawer (its bottom at 29.5), a bamboo tray: their light wooden chopsticks in pairs, white china soup
+  // spoons with a blue rim and a blue flower in the bowl, steel spoons and a fork, and dark wooden chopsticks
+  // with brass ends.
+  const tray = part();
+  box(tray, [-21, 18], [119, 119], [-25, 30], "bamboo");
+  box(tray, [-21, 18], [120, 122], [-25, 30], "bambooDark", [{ has: (x, y, z) => x > -21 && x < 18 && z > -25 && z < 30 }]);
+  for (const x of [-11, -1, 8]) box(tray, [x, x], [120, 121], [-24, 29], "bambooDark");
+  const chopsticks = (x, body, end) => {
+    box(tray, [x, x], [120, 120], [-23, 28], (vx, vy, z) => (z < -16 ? end : body));
+    box(tray, [x, x], [121, 121], [-23, -17], end); // (square and thicker at the top)
+  };
+  for (const x of [-20, -19, -17, -16, -14, -13]) chopsticks(x, "woodDark", "woodDark");
+  for (const x of [10, 11, 13, 14, 16, 17]) chopsticks(x, "chopDark", "brass");
+  // A soup spoon at z0: a deep oval bowl, its rim raised, and the flat handle rising behind it.
+  const soupSpoon = (cx, z0) => {
+    for (let x = cx - 4; x <= cx + 4; x++)
+      for (let z = z0 - 6; z <= z0 + 6; z++) {
+        const e = ((x - cx) / 3.6) ** 2 + ((z - z0) / 5.6) ** 2;
+        if (e > 1) continue;
+        tray.add(x, 120, z, e < 0.12 ? "chinaInk" : "china");
+        if (e > 0.55) tray.add(x, 121, z, e > 0.8 ? "chinaBlue" : "china");
+      }
+    for (let z = z0 + 6; z <= z0 + 20; z++)
+      box(
+        tray,
+        [cx - 1, cx + (z < z0 + 12 ? 1 : 0)],
+        [z < z0 + 13 ? 121 : 122, z < z0 + 13 ? 121 : 122],
+        [z, z],
+        z === z0 + 20 ? "chinaBlue" : "china"
+      );
+  };
+  soupSpoon(-6, -17);
+  soupSpoon(-6, 9);
+  // A steel spoon (oval head, thin handle) and a fork (three tines).
+  for (let x = 0; x <= 4; x++) for (let z = -23; z <= -17; z++) if (((x - 2) / 1.8) ** 2 + ((z + 20) / 3.2) ** 2 <= 1) tray.add(x, 120, z, "chrome");
+  box(tray, [2, 2], [120, 120], [-16, 26], "chrome");
+  for (const x of [5, 6, 7]) box(tray, [x, x], [120, 120], [-23, -19], x === 6 ? "steel" : "chrome");
+  box(tray, [5, 7], [120, 120], [-18, -17], "chrome");
+  box(tray, [6, 6], [120, 120], [-16, 26], "chrome");
+  quarter(mesh(tray), drawer);
+  // Opened by someone getting the bowls out (acts/kitchen.js: `using`, who it is), or clicked open or shut by
+  // a visitor (`clicked`) while nobody is using it: the drawer and the door, each easing open or shut.
+  const cupboard = { door: false, drawer: false, kd: 0, kr: 0, clicked: { door: false, drawer: false }, using: null };
+  for (const [key, m] of [
+    ["door", cupDoorMesh],
+    ["drawer", drawerMesh],
   ])
-    box(drawerPart, [x, x], [30, 30], [-6, 5], c); // chopsticks, in pairs
-  for (const z of [-5, -1, 3]) {
-    box(drawerPart, [4, 4], [30, 30], [z, z + 2], "chrome"); // spoons
-    drawerPart.add(4, 30, z + 3, "chrome");
-  }
-  drawer.add(mesh(drawerPart));
-  // Opened by someone getting the bowls out (acts.js): the drawer and the door, each easing open or shut.
-  const cupboard = { door: false, drawer: false, kd: 0, kr: 0 };
+    clickables.push({ parts: [m], toggle: () => !cupboard.using && (cupboard.clicked[key] = !cupboard.clicked[key]) });
   updates.push((t, dt) => {
-    cupboard.kd += ((cupboard.door ? 1 : 0) - cupboard.kd) * (1 - Math.exp(-6 * dt));
-    cupboard.kr += ((cupboard.drawer ? 1 : 0) - cupboard.kr) * (1 - Math.exp(-7 * dt));
+    cupboard.kd += ((cupboard.door || cupboard.clicked.door ? 1 : 0) - cupboard.kd) * (1 - Math.exp(-6 * dt));
+    cupboard.kr += ((cupboard.drawer || cupboard.clicked.drawer ? 1 : 0) - cupboard.kr) * (1 - Math.exp(-7 * dt));
     cupDoor.outer.rotation.y = 2.3 * cupboard.kd; // (well back, not to hide what is inside)
-    drawer.position.z = 9 * cupboard.kr;
+    drawer.position.z = 13 * cupboard.kr; // (all but its back out, what is in it in full view)
   });
   // The house keys lying in front: a pink heart fob, a brass ring and two keys. Whoever leads a walk takes
   // them (acts.js), and they are back after.
@@ -431,6 +575,20 @@ export function buildKitchen(shared) {
   ellipsoid(shelfOnWall, [12, 67, BACK + 3.5], [3, 2.6, 2.4], (x, y, z) => (hash(x, y, z) < 0.3 ? "plantLight" : "plant"));
   for (let y = 58; y <= 62; y++) shelfOnWall.add(14, y, BACK + 5, "plant"); // a trailing stem
   place(house, mesh(shelfOnWall), [COUNTER[0], 0, 0]);
+  // A light strip hidden under the front of the shelf, lit at night: a soft warm light down over the worktop
+  // and what stands on it.
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(34, 0.3, 0.6), new THREE.MeshBasicMaterial());
+  strip.position.set(COUNTER[0], 59.8, BACK + 5);
+  const stripSpot = new THREE.SpotLight(0xffd6a6, 0, 70, 1.25, 1, 1);
+  stripSpot.position.set(COUNTER[0], 59.5, BACK + 5);
+  stripSpot.target.position.set(COUNTER[0], 35, BACK + 9);
+  house.add(strip, stripSpot, stripSpot.target);
+  const underShelf = {
+    set(on) {
+      stripSpot.intensity = on ? 22 : 0;
+      strip.material.color.set(on ? 0xffe2b8 : 0xd8ccb8);
+    },
+  };
 
   // An umbrella rack on the wall between the door and the foot of the stairs, out of everyone's way: a
   // little wooden board with two brass hooks, her pink umbrella and his navy one hanging from them by their
@@ -555,13 +713,26 @@ export function buildKitchen(shared) {
   // The tap, arching over the sink.
   box(stovePart, [10, 11], [36, 41], [-8, -8], "chrome");
   box(stovePart, [10, 11], [41, 41], [-7, -4], "chrome");
-  // Water running from the tap while something is rinsed, and the fruit in the sink being washed.
+  // Water running from the tap while something is rinsed: a clear column, narrowing as it falls faster,
+  // lighter streaks running down it, splashing where it lands in the sink; and the fruit in the sink being washed.
+  const streaks = pixelTexture(8, 32, (g, w, h) => {
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        g.fillStyle = hash(x, Math.floor(y / 11), 71) < 0.3 ? "#ffffff" : hash(x, Math.floor(y / 5), 72) < 0.5 ? "#cdeefa" : "#a9dcf2";
+        g.fillRect(x, y, 1, 1);
+      }
+  });
+  streaks.tex.wrapT = THREE.RepeatWrapping;
   const stream = place(
     stoveGroup,
-    new THREE.Mesh(new THREE.BoxGeometry(1.2, 10, 1.2), new THREE.MeshBasicMaterial({ color: "#bfe6f6", transparent: true, opacity: 0.7 })),
+    new THREE.Mesh(
+      new THREE.CylinderGeometry(0.65, 0.4, 10, 8, 1, true),
+      new THREE.MeshBasicMaterial({ map: streaks.tex, transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide })
+    ),
     [10.5, 35.5, -4]
   );
   stream.visible = false;
+  const splashAt = new THREE.Vector3();
   const inSinkFruit = place(stoveGroup, new THREE.Group(), [10.5, 30.5, -0.5]);
   const sinkFruit = Object.fromEntries(
     FRUIT_DISHES.map((kind) => {
@@ -607,7 +778,16 @@ export function buildKitchen(shared) {
     fairy.rotation.z = -1.1 * sink.tip; // its top over towards the sink
     fairy.position.y = 36 + 3 * sink.tip; // lifted off the worktop
     stream.visible = sink.running;
-    stream.scale.x = stream.scale.z = 0.85 + 0.15 * Math.sin(t * 40);
+    if (sink.running) {
+      streaks.tex.offset.y = (t * 3) % 1; // (running down)
+      stream.scale.x = stream.scale.z = 0.92 + 0.08 * Math.sin(t * 37);
+      // A few drops thrown up where it lands, gone before they fall back (the sink's floor is not the ground).
+      stream.localToWorld(splashAt.set(0, -5, 0));
+      for (let k = Math.random() * 90 * dt; k > 0; k--) {
+        const a = Math.random() * Math.PI * 2;
+        water.emit("splash", splashAt.x, splashAt.y + 0.3, splashAt.z, Math.cos(a) * 9, 14 + Math.random() * 10, Math.sin(a) * 9, 0.2);
+      }
+    }
     Object.entries(sinkFruit).forEach(([kind, m]) => (m.visible = sink.fruit === kind));
   });
   // Wall cupboards with green doors glazed in clear glass, four side by side, each with a shelf: through the
@@ -913,6 +1093,7 @@ export function buildKitchen(shared) {
   }
 
   return {
+    underShelf,
     FRIDGE,
     store,
     restockCrisper,

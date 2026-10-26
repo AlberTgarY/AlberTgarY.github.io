@@ -128,12 +128,13 @@ export function petsActs(c) {
     a.props.only("bag");
     a.hold = HOLDS.carry;
     if (!p.hungry) return;
-    // Kneel on whichever side of the pet is clear (not on the other pet's bowl either).
-    const gap = p.name === "collie" ? 34 : 30;
-    const at = (s) => toward([p.x, p.z], s * gap, 4);
-    const clearOf = ([x, z]) => home.actors.reduce((d, o) => (o === a || o === p ? d : Math.min(d, Math.hypot(o.x - x, o.z - z))), Infinity);
-    const offBowls = ([x, z]) => Object.values(spots.bowls).every(({ bowl }) => Math.hypot(bowl[0] - x, bowl[1] - z) > 14);
-    const side = [-1, 1].filter((s) => nav.free(...at(s)) && offBowls(at(s))).sort((s1, s2) => clearOf(at(s2)) - clearOf(at(s1)))[0] || 1;
+    // Kneel close beside the pet, on its side away from the other pet's bowl (so no bowl is between them),
+    // or on the other side if that is blocked.
+    const otherBowl = Object.entries(spots.bowls).find(([name]) => name !== p.name)[1].bowl;
+    const at = (s) => toward([p.x, p.z], s * (p.name === "collie" ? 18 : 15), 2);
+    const away = (s) => Math.hypot(at(s)[0] - otherBowl[0], at(s)[1] - otherBowl[1]);
+    const sides = [-1, 1].sort((s1, s2) => away(s2) - away(s1));
+    const side = sides.find((s) => nav.free(...at(s))) ?? sides[0];
     yield* walk(a, at(side));
     if (!p.hungry) return;
     a.props.only();

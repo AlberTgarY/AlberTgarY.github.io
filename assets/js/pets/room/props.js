@@ -21,7 +21,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { part, ellipsoid, box, pivotGroup, cells, hash } from "../models/voxels.js";
 import { PROP_COLORS, foodBag } from "../models/girl-props.js";
-import { VEG, KINDS, VEG_COLORS, basketPart, fillBasket, extent, empty } from "./veg.js";
+import { VEG, KINDS, VEG_COLORS, basketPart, fillBasket, extent, empty, canPart, CAN_ROSE } from "./veg.js";
 
 const COLORS = {
   ...PROP_COLORS,
@@ -58,8 +58,6 @@ const COLORS = {
   scoopTop: "#fbd1e0",
   juiceBox: "#7cc46a",
   juiceLabel: "#f6cf4a",
-  canBody: "#9cc9ec",
-  canDark: "#6fa6d6",
   ball: "#d6e04a",
   ballSeam: "#f7f7ea",
   log: "#8a5a34",
@@ -97,10 +95,10 @@ export const HOLDS = {
   reach: [[-2.6, -0.3, 0.1, 0, 0], null], // up to a shelf
   pick: [[-0.95, -0.25, 0.15, 0, 0], null], // down to a table or the floor
   treat: [[-1.05, -0.15, 0.25, 0, 0], null], // a treat held out low to the dog
-  read: [
-    [-0.72, -1.0, 0.2, 0, 0],
-    [-0.72, -1.0, -0.2, 0, 0],
-  ],
+  lap: [
+    [-0.3, -1.2, 0.2, 0, 0],
+    [-0.3, -1.2, -0.2, 0, 0],
+  ], // an open book sunk to the lap
   water: [null, [-1.15, -0.15, -0.15, 0, 0]],
   throwBack: [[2.5, -0.5, 0, -0.25, 0], null],
   throwOut: [[-1.75, -0.15, 0.1, 0, 0], null],
@@ -326,23 +324,12 @@ export function propsFor(rig, who) {
   juiceP.add(1, 5, 0, "straw");
   const juice = at(right, juiceP.mesh(COLORS), [0, -1, 1.5]);
 
-  // A small watering can in the left hand, and the drops falling from its rose (placed by the activity).
-  const canP = part();
-  box(canP, [-2, 2], [-3, 0], [-1, 1], (x, y) => (y === -3 ? "canDark" : "canBody"));
-  [
-    [0, 1],
-    [1, 1],
-    [-1, 1],
-  ].forEach(([x, y]) => canP.add(x, y, 0, "canBody"));
-  [
-    [0, -1, 2],
-    [0, -1, 3],
-    [0, 0, 4],
-    [0, 0, 5],
-  ].forEach(([x, y, z]) => canP.add(x, y, z, "canDark"));
-  const can = at(rig.hands[1], canP.mesh(COLORS), [0, -1, 0]);
+  // The watering can (veg.js), smaller, in the left hand by its handle, and the drops falling from its rose
+  // (placed by the activity).
+  const can = at(rig.hands[1], canPart(part()).mesh(COLORS), [0, -5, 0]);
+  can.scale.setScalar(0.6);
   const spout = new THREE.Object3D();
-  spout.position.set(0, 0, 5.5);
+  spout.position.set(...CAN_ROSE);
   can.add(spout);
 
   // The bag of pet food carried from the counter (the one held out to pour is the model's own), and a
