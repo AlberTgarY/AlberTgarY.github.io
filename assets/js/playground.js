@@ -10,30 +10,74 @@
  * clicking the fridge opens it, clicking a lamp switches it on or off, clicking
  * the TV switches it on or off, and clicking the remote on the coffee table
  * turns to another channel (whoever is watching notices).
+ * The button in the corner turns the view a quarter round to the front garden
+ * out of the front door, where they go for their walks, and back; without
+ * turning, the pointer on the front door (or a tap on it) fades the back wall
+ * to see out.
  * Styles are in _sass/_playground.scss.
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { makeRoom } from "./pets/room/room.js";
+import { buildingRoom } from "./pets/room/room.js";
 import { isDark } from "./pets/stage.js";
 import { buildGirl } from "./pets/models/girl.js";
 import { LOOKS, dressGirl } from "./pets/models/girl-outfits.js";
 import { DRAMAS, seriesOf, drawPoster, POSTER } from "./pets/room/screens.js";
 
+// A quarter turn to the left, round an arrow (the button turning the view). (Above start(): it runs before
+// the constants below it are set.)
+const TURN_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3.5 6.5A5 5 0 1 1 4 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M1.5 3.5 3.6 7 7 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 const host = document.querySelector(".playground");
 if (host) start();
 
-function start() {
+// Until the next frame has been painted. (A declaration: start() runs before any constant down here is set.)
+function painted() {
+  return new Promise((done) => requestAnimationFrame(() => setTimeout(done)));
+}
+
+async function start() {
   const stage = host.querySelector(".playground-stage");
+  // The home is built a part at a time, the loading bar (playground.md) moving on after each, and only shown
+  // once it is all there, its shaders ready and its first frame drawn.
+  const loading = host.querySelector(".playground-loading");
   let room;
   try {
-    room = makeRoom(stage);
-  } catch {
+    const steps = buildingRoom(stage);
+    for (;;) {
+      const { done, value } = steps.next();
+      if (done) {
+        room = value;
+        break;
+      }
+      loading.show(0.45 + 0.4 * value);
+      await painted();
+    }
+  } catch (err) {
     host.classList.add("playground-off"); // no WebGL: the note below the room says so
+    console.error(err);
     return;
   }
   const { view, pointer } = room;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Turning round to the front garden, and back.
+  const turner = Object.assign(document.createElement("button"), { type: "button", className: "playground-turn" });
+  let out = false;
+  function label() {
+    turner.setAttribute("aria-pressed", String(out));
+    turner.setAttribute("aria-label", out ? "Turn back to the house" : "Turn round to the front garden");
+    turner.innerHTML = `${TURN_ICON}<span>${out ? "Back inside" : "Out the front"}</span>`;
+  }
+  label();
+  turner.addEventListener("click", () => {
+    out = !out;
+    room.turn(out, reducedMotion);
+    label();
+    if (reducedMotion) room.step(0);
+  });
+  host.append(turner);
 
   // The canvas spans the whole width of the window, out past the page's margins, and the house is fitted
   // into it and into the height of the window.
@@ -51,29 +95,45 @@ function start() {
     return [e.clientX - r.left, e.clientY - r.top];
   };
   let overThing = false; // the mouse over the dressing corner, his computer or something to switch
+  let onCanvas = false;
+  let moved = false; // since what is under the mouse was last looked at (once a frame: frame() below)
   window.addEventListener("pointermove", (e) => {
     [pointer.x, pointer.y] = toCanvas(e);
     pointer.seen = true;
     pointer.mouse = e.pointerType === "mouse";
     pointer.movedAt = room.home.clock.t;
-    overThing =
-      pointer.mouse &&
-      e.target === view.canvas &&
-      (room.onCloset(pointer.x, pointer.y) || room.onPc(pointer.x, pointer.y) || !!room.thingAt(pointer.x, pointer.y));
+    onCanvas = pointer.mouse && e.target === view.canvas;
+    moved = true;
   });
+  function underMouse() {
+    moved = false;
+    overThing = onCanvas && (room.onCloset(pointer.x, pointer.y) || room.onPc(pointer.x, pointer.y) || !!room.thingAt(pointer.x, pointer.y));
+    pointer.onDoor = onCanvas && room.onDoor(pointer.x, pointer.y); // (fading the back wall while it is there)
+  }
+  document.documentElement.addEventListener("pointerleave", () => {
+    onCanvas = false;
+    moved = true;
+  });
+  let touched = false; // the last press a finger or a pen's
+  view.canvas.addEventListener("pointerdown", (e) => (touched = e.pointerType !== "mouse"));
   // Clicking the dressing corner or his computer opens the picker for it, or closes it again if it is open;
   // clicking someone in front of them says hi instead.
   const pickerAt = (x, y) => !room.hit(x, y) && (room.onCloset(x, y) || room.onPc(x, y));
   const choices = picker(stage, view, (e) => e.target === view.canvas && pickerAt(...toCanvas(e)));
-  // Clicking someone says hi; the dressing corner asks what she should wear, his computer what she should
-  // watch; the curtains, the fridge, the lamps, the TV and its remote open, shut or switch.
+  // Clicking someone says hi (him, he changes his clothes too); the dressing corner asks what she should
+  // wear, his computer what she should watch; the curtains, the fridge, the lamps, the TV and its remote
+  // open, shut or switch.
+  // A tap on the front door (with no pointer to rest on it) fades the back wall for a few seconds.
   view.canvas.addEventListener("click", (e) => {
     const [x, y] = toCanvas(e);
     const who = room.hit(x, y);
-    if (who) who.cheer();
+    const thing = !who && room.thingAt(x, y);
+    if (who && who.name === "boy") room.changeBoy();
+    else if (who) who.cheer();
     else if (room.onCloset(x, y)) choices.toggle(x, y, outfitPage(room));
     else if (room.onPc(x, y)) choices.toggle(x, y, watchPage(room));
-    else room.thingAt(x, y)?.toggle();
+    else if (thing) thing.toggle();
+    else if (touched && !reducedMotion && room.onDoor(x, y)) room.peekFor(5); // (it fades, frame by frame)
   });
 
   let onScreen = true;
@@ -86,15 +146,25 @@ function start() {
 
   room.dress(isDark());
   layout();
+  loading.show(0.9); // built; the shaders next
+  await painted();
+  await room.warm();
+  room.step(0);
+  loading.show(1);
+  await painted();
   stage.classList.add("ready");
-  if (reducedMotion) return room.step(0);
+  host.classList.add("loaded");
+  if (reducedMotion) return;
 
+  // About 60 frames a second at most: on a faster screen (120 Hz, say), every other one.
   let last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
+    if (now - last < 11) return;
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     if (document.hidden || !onScreen) return;
+    if (moved) underMouse();
     const hovered = room.step(dt);
     document.documentElement.classList.toggle("pet-hover", !!hovered || overThing);
   }
