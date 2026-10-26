@@ -204,7 +204,7 @@ export function buildLoft(shared) {
     rocker.outer.rotation.z = 0.28 * kirbySway * Math.sin(t * 2.6);
   });
 
-  // A low bookshelf under the side window: books of every kind on three shelves, a plant and a photo on top.
+  // A low bookshelf under the side window: books of every kind on three shelves, a plant and a printer on top.
   // The books are drawn in half voxels, each its own: cloth-bound hardbacks with gold bands and a title, bright
   // paperbacks with a white band and a little logo, thin ones, a boxed set of three, a few lying in a pile;
   // their pages showing cream along the top. Six of them are the ones the girl and the boy take
@@ -330,13 +330,52 @@ export function buildLoft(shared) {
       }
     }
   }
-  ellipsoid(shelf, [8, 36, 0], [2.4, 2.4, 2.4], "pot");
-  ellipsoid(shelf, [8, 39, 0], [3.2, 2.4, 2.8], (x, y, z) => (hash(x, y, z) < 0.3 ? "plantLight" : "plant"));
-  box(shelf, [-10, -5], [34, 39], [-1, -1], (x, y) =>
-    x === -10 || x === -5 || y === 34 || y === 39 ? "canvasFrame" : y < 37 ? "melon" : "photoSky"
-  );
+  ellipsoid(shelf, [6, 36, 0], [2.4, 2.4, 2.4], "pot");
+  ellipsoid(shelf, [6, 39, 0], [3.2, 2.4, 2.8], (x, y, z) => (hash(x, y, z) < 0.3 ? "plantLight" : "plant"));
   const shelfGroup = place(house, new THREE.Group(), [SHELF[0], 0, SHELF[1]], SHELF_YAW);
   shelfGroup.add(mesh(shelf), fine(shelfBookPart));
+  // On top, beside the plant, a little white printer (in half voxels, the front to the room):
+  // the document feeder on top with the logo, the control strip along the front at the right, a grey side,
+  // and a page just printed lying on the tray out of the slot in front.
+  const printer = part();
+  const [WHITE, SHADE, GREY, DARK] = ["#f3f3f1", "#dcddda", "#85888d", "#36383d"].map(color);
+  const SLOT = { has: (x, y, z) => x >= -6 && x <= 3 && y >= 69 && y <= 70 && z >= 1 };
+  box(printer, [-10, 7], [68, 73], [-8, 2], (x, y) => (y === 68 ? SHADE : WHITE), [SLOT]); // the body
+  box(printer, [-6, 3], [69, 70], [0, 0], DARK); // the slot
+  box(printer, [-6, 3], [69, 69], [1, 7], color("#cfd1d4")); // the tray
+  const ink = { "-3,4": "#f2899b", "0,4": "#a48ad8", "-3,6": "#f5a25a", "0,6": "#71c46b" }; // the page's pictures
+  box(printer, [-5, 2], [70, 70], [3, 7], (x, y, z) => color(ink[`${x},${z}`] ?? "#fbfbf7"));
+  box(printer, [7, 7], [70, 72], [-3, 2], GREY); // the side
+  box(printer, [1, 7], [73, 73], [1, 2], (x, y, z) => (z === 2 && (x === 3 || x === 4) ? DARK : z === 2 && x === 6 ? color("#7fd0ff") : GREY)); // the control strip
+  box(printer, [-10, 1], [74, 75], [-7, 1], (x, y) => (y === 74 ? SHADE : WHITE)); // the document feeder
+  box(printer, [-9, 0], [76, 76], [-7, -3], SHADE); // its paper rest
+  box(printer, [-8, -7], [75, 75], [-1, 0], GREY); // the logo
+  box(printer, [2, 7], [74, 74], [-7, 0], SHADE); // the scanner lid
+  const printerMesh = fine(printer);
+  printerMesh.position.x -= 2; // (off the plant, towards the TV)
+  shelfGroup.add(printerMesh);
+  // Its lead, from the back off the end of the shelf towards the TV: sagging down between the shelf and the
+  // chimney, up onto the mantel, along the back of it behind the candles, and in behind the TV.
+  const printerLead = new THREE.CatmullRomCurve3(
+    [
+      [-148.6, 35.2, 33.7],
+      [-149.2, 33.7, 35.1],
+      [-149.3, 33.7, 36],
+      [-149.3, 33.7, 40],
+      [-149.4, 33.3, 41.9],
+      [-149.5, 31.6, 43.4],
+      [-149.6, 30.9, 44.5],
+      [-149.6, 33.6, 45.8],
+      [-149.6, 37.8, 46.9],
+      [-149.6, 37.8, 48.6],
+      [-149.6, 38.6, 50.4],
+      [-149.6, 41.5, 51],
+      [-149.6, 46, 51.2],
+    ].map((v) => new THREE.Vector3(...v)),
+    false,
+    "centripetal"
+  );
+  house.add(new THREE.Mesh(new THREE.TubeGeometry(printerLead, 120, 0.26, 6), new THREE.MeshLambertMaterial({ color: "#4a4c52" })));
   // The books they take down to read, each in its place on a shelf; they take one they have not read lately
   // each time, till all have been read, and put it back after.
   const books = READ_SLOTS.map(([base, x0, height], i) => {

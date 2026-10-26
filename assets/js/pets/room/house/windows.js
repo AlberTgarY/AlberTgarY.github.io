@@ -46,7 +46,10 @@ export function buildWindows(shared) {
     cloudMat,
     streetGlow
   );
-  updates.push((t, dt) => views.update(t, dt));
+  updates.push((t, dt) => {
+    views.update(t, dt);
+    streetGlow.intensity *= 1 - 0.8 * curtains[1].k; // (the curtains drawn across the left window keep most of it out)
+  });
   // The glass of each window, `w` x `h` voxels at `at` (turned by `rotY`), showing what is out there as seen
   // from in the room (outlook.js draws it each frame), the rain running down it in front, and in front of
   // that the glass itself: one thin sheet with the faintest cool tint, clear but not nothing. `out`: which way

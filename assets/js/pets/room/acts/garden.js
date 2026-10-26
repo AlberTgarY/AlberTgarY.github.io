@@ -27,6 +27,8 @@ export function gardenActs(c) {
     claim,
     holder,
     release,
+    act,
+    later,
     onEnd,
     t,
     ground,
@@ -57,11 +59,14 @@ export function gardenActs(c) {
   // in turn while they pick it clean, the dog maybe sitting on the path to watch; then in through the door
   // with it, straight to the fridge, the empty basket back out by the door, and the bed sown again. Fruit is
   // washed and eaten together instead, the basket left by the sink. Cut short, the basket is left where it
-  // is, or put down where they stand, for whoever comes for it next.
+  // is, or put down where they stand; either way, they put it back once they are free (basketBack).
   function* harvest(a, i) {
     const { basket } = house.garden;
     if (!claim(a, "basket")) return;
-    onEnd(a, () => basket.carrier === a && basket.setDown(atHand(a, 6), a.yaw, [a.x, a.z]));
+    onEnd(a, () => {
+      if (basket.carrier === a) basket.setDown(atHand(a, 6), a.yaw, [a.x, a.z]);
+      if (basket.out()) later(a, act("basketBack", basketBack));
+    });
     yield* takeBasket(a);
     if (i !== null) yield* pickBed(a, i);
     release(a, "garden");
@@ -70,7 +75,17 @@ export function gardenActs(c) {
     const fruit = a.interrupt ? null : basket.bunches.find((b) => VEG[b.kind].fruit)?.kind ?? null;
     if (basket.bunches.some((b) => b.kind !== fruit)) yield* toFridge(a, fruit);
     if (fruit) return yield* fruitTime(a, fruit); // and that is enough for now: the basket waits by the sink
-    if (a.interrupt) return; // asked to wrap up: the empty basket waits where it is, for next time
+    if (a.interrupt) return; // asked to wrap up: the basket is put back after
+    yield* basketHome(a);
+    // Back out in the garden with the basket: on to sow a bed picked clean (the one just picked, if it was).
+    const g = house.garden;
+    const next = i !== null && g.spent(i) ? i : [0, 1, 2, 3].find(g.spent);
+    if (next !== undefined && !gardenWet() && !a.interrupt && claim(a, "garden")) yield* sow(a, next); // asked to wrap up: next time
+  }
+
+  // The basket (taken up from wherever it is, if they have not got it) back by the garden door.
+  function* basketHome(a) {
+    const { basket } = house.garden;
     if (basket.carrier !== a) yield* takeBasket(a);
     yield* walk(a, basket.homeStand);
     yield* bend(a, basket.homeAt, () => {
@@ -79,10 +94,18 @@ export function gardenActs(c) {
     });
     a.hold = null;
     release(a, "basket");
-    // Back out in the garden with the basket: on to sow a bed picked clean (the one just picked, if it was).
-    const g = house.garden;
-    const next = i !== null && g.spent(i) ? i : [0, 1, 2, 3].find(g.spent);
-    if (next !== undefined && !gardenWet() && !a.interrupt && claim(a, "garden")) yield* sow(a, next); // asked to wrap up: next time
+  }
+
+  // The basket left out by a harvest (cut short, or by the sink after the fruit): put back by whoever left
+  // it, what is still in it into the fridge first; not out in the garden in the rain (the next harvest
+  // fetches it then), and not if someone else has it. Cut short again, it waits for the next harvest.
+  function* basketBack(a) {
+    const { basket } = house.garden;
+    if (!basket.out() || (basket.at[0] > X1 && gardenWet()) || !claim(a, "basket")) return;
+    onEnd(a, () => basket.carrier === a && basket.setDown(atHand(a, 6), a.yaw, [a.x, a.z]));
+    yield* takeBasket(a);
+    if (basket.bunches.length) yield* toFridge(a);
+    yield* basketHome(a);
   }
 
   // A point `d` to the right of `a` (the hand things are set down with), or at its feet if that is no place.

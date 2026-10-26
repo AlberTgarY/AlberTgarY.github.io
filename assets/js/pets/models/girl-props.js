@@ -290,9 +290,12 @@ export function garden(pose, palette) {
 }
 
 // A cosy corner that pops up for her to sit in: a caramel sofa with cushions and a mustard knitted throw
-// over one arm, a floor lamp with a warm glowing shade at one end and a potted plant at the other. The
-// pets sit on either side of her, at `seats` (cat then dog, as the runtime fills them).
-export function sofaCorner(group, palette) {
+// over one arm, a floor lamp with a warm glowing shade at one end (`lampSide`: -1 the left, 1 the right)
+// and a potted plant at the other. The pets sit on either side of her, at `seats` (cat then dog, as the
+// runtime fills them).
+export function sofaCorner(group, palette, lampSide = -1) {
+  const m = -lampSide; // (the lamp and the plant are laid out for the lamp on the left, and mirrored)
+  const span = (a, b) => [Math.min(m * a, m * b), Math.max(m * a, m * b)];
   const seats = [
     [-17, 9.5, 2],
     [19, 9.5, 2],
@@ -310,14 +313,14 @@ export function sofaCorner(group, palette) {
   box(sofaPart, [-31, -24], [15, 15], [-3, 6], (x) => (x % 2 ? "throw" : "throwRow"));
   box(sofaPart, [-31, -31], [7, 14], [-3, 6], (x, y) => (y % 2 ? "throw" : "throwRow"));
   const lampPart = part();
-  box(lampPart, [-40, -36], [0, 0], [-8, -4], "brass");
-  box(lampPart, [-38, -38], [1, 24], [-6, -6], "brass");
+  box(lampPart, span(-40, -36), [0, 0], [-8, -4], "brass");
+  box(lampPart, span(-38, -38), [1, 24], [-6, -6], "brass");
   const shadePart = part();
   for (let y = 23; y <= 30; y++)
-    ellipsoid(shadePart, [-38, y, -6], [5 - (y - 23) * 0.35, 0.5, 5 - (y - 23) * 0.35], y === 23 || y === 30 ? "shadeTrim" : "shade");
+    ellipsoid(shadePart, [m * -38, y, -6], [5 - (y - 23) * 0.35, 0.5, 5 - (y - 23) * 0.35], y === 23 || y === 30 ? "shadeTrim" : "shade");
   const plantPart = part();
-  ellipsoid(plantPart, [39, 3, -5], [3, 3.5, 3], "pot", [{ has: (x, y) => y < 0 }], 3);
-  ellipsoid(plantPart, [39, 6, -5], [2.6, 0.5, 2.6], "soil");
+  ellipsoid(plantPart, [m * 39, 3, -5], [3, 3.5, 3], "pot", [{ has: (x, y) => y < 0 }], 3);
+  ellipsoid(plantPart, [m * 39, 6, -5], [2.6, 0.5, 2.6], "soil");
   [
     [36, 10, -4, 3, 1.2, 2.5],
     [42, 12, -5, 3, 1.2, 2.5],
@@ -325,13 +328,13 @@ export function sofaCorner(group, palette) {
     [41, 17, -4, 2.6, 1.2, 2.2],
     [39, 20, -5, 2.2, 1.2, 2],
   ].forEach(([x, y, z, rx, ry, rz]) =>
-    ellipsoid(plantPart, [x, y, z], [rx, ry, rz], (vx, vy, vz) => (hash(vx, vy, vz) < 0.3 ? "plantLight" : "plant"))
+    ellipsoid(plantPart, [m * x, y, z], [rx, ry, rz], (vx, vy, vz) => (hash(vx, vy, vz) < 0.3 ? "plantLight" : "plant"))
   );
-  for (let y = 7; y <= 19; y++) plantPart.add(39, y, -5, "plant"); // the stem
+  for (let y = 7; y <= 19; y++) plantPart.add(m * 39, y, -5, "plant"); // the stem
   const shade = shadePart.mesh(palette);
   shade.material = new THREE.MeshBasicMaterial({ vertexColors: true }); // it glows: unlit
   const lampLight = new THREE.PointLight(0xffc27a, 1.1, 70, 0); // warms the sofa and her
-  lampLight.position.set(-36, 22, 0);
+  lampLight.position.set(m * -36, 22, 0);
   const sofa = pivotGroup(group, [0, 0, 0]);
   sofa.inner.add(sofaPart.mesh(palette), lampPart.mesh(palette), shade, plantPart.mesh(palette), lampLight);
   sofa.outer.visible = false;

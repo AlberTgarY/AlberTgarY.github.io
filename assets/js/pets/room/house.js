@@ -256,7 +256,7 @@ export function* buildingHouse(scene, water) {
     // The remote, from the right end of the coffee table; the controllers, from their stand on the mantel.
     remote: { at: [TABLE[0] + 29, TABLE[1] - 2], yaw: -Math.PI / 2 },
     dock: { at: [-131, 65], yaw: -Math.PI / 2 },
-    plant: { at: [SOFA[0] + 53, SOFA[1] - 8], yaw: -Math.PI / 2, pot: [SOFA[0] + 39, 6, SOFA[1] - 5] },
+    plant: { at: [SOFA[0] - 53, SOFA[1] - 8], yaw: Math.PI / 2, pot: [SOFA[0] - 39, 6, SOFA[1] - 5] },
     tree: {
       at: [TREE[0] + 5, TREE[1] + 23],
       hops: [

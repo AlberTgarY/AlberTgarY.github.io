@@ -178,7 +178,7 @@ export function buildShell(shared) {
   // Holes are given in voxel cells, the walls cut along their edges.
   const hole = ([a, b], [lo, hi]) => [a - 0.5, b + 0.5, lo - 0.5, hi + 0.5];
   const WIN_BACK = { x: [111, 151], y: [54, 91] }; // over the bed
-  const WIN_LEFT = { z: [-4, 33], y: [40, 84] }; // the kitchen window, between the stove and the fireplace
+  const WIN_LEFT = { z: [-4, 33], y: [43, 87] }; // the kitchen window, between the stove and the fireplace
   const DOOR_X = [DOOR.x - DOOR.half, DOOR.x + DOOR.half - 1];
   wall([X0 - WALL_T, SIDE], [hole(DOOR_X, [0, DOOR.height - 1]), hole(WIN_BACK.x, WIN_BACK.y)], true);
   wall([BACK, FRONT], [hole(WIN_LEFT.z, WIN_LEFT.y)], false);

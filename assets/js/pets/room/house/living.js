@@ -22,7 +22,7 @@ export function buildLiving(shared) {
   // The sofa corner (the girl's): the sofa, a floor lamp at one end and a plant at the other.
   const SOFA = [-45, 30];
   const sofaHolder = place(house, new THREE.Group(), [SOFA[0], 0, SOFA[1]]);
-  const corner = sofaCorner(sofaHolder, COLORS);
+  const corner = sofaCorner(sofaHolder, COLORS, 1); // (the lamp at the right end)
   corner.update(1);
   const lamp = corner.lamp;
   const shadeGlow = lamp.shade.material; // unlit: it glows
@@ -32,10 +32,10 @@ export function buildLiving(shared) {
   // the floor round the end of the sofa, falling off with distance, with the shadows of the sofa, the plant
   // and the coffee table (drawn once as it comes on: room.js); and through the shade a soft warm light all
   // round, over most of the room, fading out towards its edge.
-  const BULB = [SOFA[0] - 38, 26, SOFA[1] - 6];
+  const BULB = [SOFA[0] + 38, 26, SOFA[1] - 6];
   const floorSpot = new THREE.SpotLight(0xffc27a, 0, 160, 1.3, 0.7, 1);
   floorSpot.position.set(...BULB);
-  floorSpot.target.position.set(BULB[0] + 4, 0, BULB[2] + 6);
+  floorSpot.target.position.set(BULB[0] - 4, 0, BULB[2] + 6);
   floorSpot.castShadow = true;
   floorSpot.shadow.mapSize.set(1024, 1024);
   floorSpot.shadow.camera.near = 2;
@@ -76,8 +76,8 @@ export function buildLiving(shared) {
   clickables.push({ parts: [lamp.shade], toggle: () => lamps[0].set(!lamps[0].on) });
   clickables.push({ parts: [shadeDay, shadeLit], toggle: () => lamps[1].set(!lamps[1].on) });
   footprint(SOFA[0] - 31, SOFA[0] + 31, SOFA[1] - 9, SOFA[1] + 10);
-  footprint(SOFA[0] - 41, SOFA[0] - 35, SOFA[1] - 9, SOFA[1] - 3, false);
-  footprint(SOFA[0] + 35, SOFA[0] + 43, SOFA[1] - 9, SOFA[1] - 1, false);
+  footprint(SOFA[0] + 35, SOFA[0] + 41, SOFA[1] - 9, SOFA[1] - 3, false); // the lamp
+  footprint(SOFA[0] - 43, SOFA[0] - 35, SOFA[1] - 9, SOFA[1] - 1, false); // the plant
 
   const ARMCHAIR = [40, 50];
   const armchair = part();
@@ -243,12 +243,12 @@ export function buildLiving(shared) {
   logs.list().forEach(([x, y, z, c]) => !emberList.some((e) => e[0] === x && e[1] === y && e[2] === z) && hearth.add(x, y, z, c));
   // On the mantel: a photo of the two of them, the PlayStation 5 lying down and the controllers' charging
   // stand (below), and two candles.
-  box(hearth, [-23, -17], [38, 44], [2, 2], (x, y) =>
+  box(hearth, [-23, -17], [38, 44], [3, 3], (x, y) =>
     x === -23 || x === -17 || y === 38 || y === 44 ? "canvasFrame" : y < 41 ? "melon" : "photoSky"
   );
   const CANDLES = [16, 20];
   for (const x of CANDLES) box(hearth, [x, x + 1], [38, 41 + (x % 3)], [4, 5], "cream");
-  tvGroup.add(mesh(hearth));
+  const hearthMesh = tvGroup.add(mesh(hearth)).children.at(-1);
   // The PlayStation 5, lying down (in half voxels): the white top and bottom panels, wide at the ends and
   // swept back in the middle to show the black body between them, with two USB ports in front; and its
   // light along the edge of the top panel, blue while it is on.
@@ -546,6 +546,15 @@ export function buildLiving(shared) {
   // Clicked: the TV (its frame or its screen), and the remote while it lies on the table.
   clickables.push({ parts: [tvMesh, glass], toggle: () => tvControls.power(now) });
   clickables.push({ parts: [remote], toggle: () => remote.visible && tvControls.flick(now) });
+  // The fireplace (or the fire in it): lit, it burns as long as one they light (acts/living.js lightFire);
+  // burning, it goes out, and the pets lying by it get up.
+  clickables.push({
+    parts: [hearthMesh, ...flames, embers],
+    toggle: () => {
+      fire.lit = !fire.lit;
+      fire.until = now + 200 + Math.random() * 120;
+    },
+  });
   let screenAt = -1;
   updates.push((t) => {
     // Redraw at about 12 frames a second: plenty for pixel art on a small screen.

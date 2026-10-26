@@ -704,11 +704,16 @@ export function livingActs(c) {
     house.fire.lit = true;
     house.fire.until = t() + rnd(200, 320);
     home.popAt(spots.hearth.fire, "room-pop room-pop-sparkle");
-    yield* wait(a, 1);
-    a.hold = HOLDS.warm;
-    a.happy = true;
-    for (const p of home.pets) if (Math.random() < 0.6) invite(p, act("fireside", fireside));
-    yield* wait(a, 2.5);
+    // (A visitor may light it before they get there: then they just put their log on. One putting it out
+    // while they are at it leaves them puzzled, and they get up.)
+    const out = () => !house.fire.lit;
+    if (!(yield* until(out, 1))) {
+      a.hold = HOLDS.warm;
+      a.happy = true;
+      for (const p of home.pets) if (Math.random() < 0.6) invite(p, act("fireside", fireside));
+      yield* until(out, 2.5);
+    }
+    if (out()) a.pop("room-pop room-pop-question");
   }
 
   // A pet curled up by the fire while it burns, dozing off in the warmth.
