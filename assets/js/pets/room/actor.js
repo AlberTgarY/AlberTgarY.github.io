@@ -15,7 +15,6 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 import { VOX, clamp, approach, rnd, pick, wrap, spring, stepSpring } from "../stage.js";
 import { smoothstep } from "../models/voxels.js";
 import { HIP_PIVOT } from "../models/chibi.js";
-import { VIEW_YAW } from "./view.js";
 
 const FACE_AWAY = 0.8; // how far a person's face turns from the viewer at most, while turned towards the room
 const BOW = 0.3; // how far a pet tips forward in a play bow
@@ -92,7 +91,8 @@ export function makeActor(name, rig, kind, home, size = 1) {
     pending: null, // the next activity, when invited
     event: null, // what it is doing with others
     nextAt: 0,
-    out: false, // out on a walk
+    out: false, // out of the house (on a walk), in the front garden or out of the gate
+    pitch: 0, // tipped forward (positive) or back about its feet, as on the swing
     hungry: false,
     // Water (room.js, prints.js): how soaked it is (0 to 1, dripping), how many wet footprints it has
     // still to leave indoors, until when it shakes itself dry (a pet), and whether it wears its raincoat.
@@ -138,9 +138,11 @@ export function makeActor(name, rig, kind, home, size = 1) {
     const [x, y, z] = a.facePoint();
     return view.project(x, y + 14, z);
   };
-  // Whether canvas px (px, py) is over it: an ellipse round its body, as on the profile page.
+  // Whether canvas px (px, py) is over it: an ellipse round its body, as on the profile page. Out the front, it
+  // is only there to click while what is out there can be seen.
+  const seen = () => group.visible && (!a.out || home.outSeen());
   a.over = (px, py) => {
-    if (!group.visible) return false;
+    if (!seen()) return false;
     const k = view.pxPerUnit(a.x, a.y, a.z) * size;
     const [cx, cy] = view.project(...(a.abed ? a.facePoint() : [a.x, a.y + rig.hit[0] * size, a.z]));
     const dx = (px - cx) / (rig.hit[1] * k);
@@ -169,13 +171,16 @@ export function makeActor(name, rig, kind, home, size = 1) {
     const channels = Object.keys(badges);
     if (!channels.length) return;
     const [hx, hy] = a.overHead();
+    const hide = !seen();
     channels.forEach((c) => {
+      badges[c].style.visibility = hide ? "hidden" : "";
       badges[c].style.left = `${(hx - OFFSETS[c][0]).toFixed(1)}px`;
       badges[c].style.top = `${(hy - OFFSETS[c][1]).toFixed(1)}px`;
     });
   }
-  // A heart pops up over its head, or a little icon when something comes to mind.
+  // A heart pops up over its head, or a little icon when something comes to mind (unseen out the front, not).
   a.pop = (className = "pet-heart") => {
+    if (!seen()) return;
     const [hx, hy] = a.overHead();
     const el = document.createElement("span");
     el.className = className;
@@ -190,8 +195,9 @@ export function makeActor(name, rig, kind, home, size = 1) {
   let happyUntil = -1;
   let hopStart = -1;
   let happyTilt = 0;
-  // Clicked: a hop and a heart, and happy for a moment; a sleeper wakes up instead.
-  a.cheer = () => {
+  // Clicked: a hop and a heart (or what `className` pops), and happy for a moment; a sleeper wakes up
+  // instead.
+  a.cheer = (className) => {
     if (a.asleep) {
       a.interrupt = true;
       return;
@@ -199,7 +205,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
     hopStart = clock.t;
     happyUntil = clock.t + 1.8;
     happyTilt = Math.random() < 0.5 ? -0.16 : 0.16;
-    a.pop();
+    a.pop(className);
   };
   a.beHappy = (secs) => (happyUntil = Math.max(happyUntil, clock.t + secs));
   a.hop = () => (hopStart = clock.t);
@@ -235,7 +241,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
   let hand = 1;
   // The hand on the side turned towards the viewer (it only changes once the other side clearly is).
   function nearerHand() {
-    const towards = Math.sin(VIEW_YAW - turn.x);
+    const towards = Math.sin(view.yaw - turn.x);
     if (Math.abs(towards) > 0.3) hand = towards > 0 ? 1 : 0;
     return hand;
   }
@@ -253,7 +259,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
     const t = clock.t;
     group.position.set(a.x, a.y, a.z);
     const yaw = stepSpring(turn, yawTarget, dt);
-    group.rotation.y = yaw;
+    group.rotation.set(a.pitch, yaw, 0, "YXZ");
     const walking = a.walking;
     const sleeping = a.asleep;
     const scolded = a.state === "messy" && a.partner?.state === "react";
@@ -267,13 +273,13 @@ export function makeActor(name, rig, kind, home, size = 1) {
     else if (pointer.seen && t - pointer.movedAt < 3) {
       const [fx, fy] = view.project(...a.facePoint());
       const reach = view.W * 0.3;
-      target = [VIEW_YAW + 0.9 * clamp((pointer.x - fx) / reach, -1, 1), clamp((pointer.y - fy) / reach, -1, 1)];
+      target = [view.yaw + 0.9 * clamp((pointer.x - fx) / reach, -1, 1), clamp((pointer.y - fy) / reach, -1, 1)];
       glance.at = t + 2;
     } else if (!walking) {
       if (t > glance.at) {
-        const others = home.actors.filter((o) => o !== a && !o.out);
+        const others = home.actors.filter((o) => o !== a && o.out === a.out); // (on the same side of the wall)
         glance.who = others.length && Math.random() < 0.35 ? pick(others) : null;
-        glance.yaw = VIEW_YAW + rnd(-0.7, 0.7);
+        glance.yaw = view.yaw + rnd(-0.7, 0.7);
         glance.y = rnd(-0.4, 0.4);
         glance.at = t + rnd(1.5, 4);
         glance.tilt = Math.random() < 0.25 ? rnd(-0.2, 0.2) : 0;
@@ -283,8 +289,8 @@ export function makeActor(name, rig, kind, home, size = 1) {
     if (sleeping) target = [yaw, a.seated ? 0.2 : a.abed ? 0 : 1]; // dozing sitting up, the head only nods a little
     // A person turned towards the room keeps the face turned towards the viewer, looking aside with it only
     // so far (the TV over to one side, say).
-    if (target && a.human && Math.abs(wrap(yaw - VIEW_YAW)) < Math.PI / 2)
-      target[0] = VIEW_YAW + clamp(wrap(target[0] - VIEW_YAW), -FACE_AWAY, FACE_AWAY);
+    if (target && a.human && Math.abs(wrap(yaw - view.yaw)) < Math.PI / 2)
+      target[0] = view.yaw + clamp(wrap(target[0] - view.yaw), -FACE_AWAY, FACE_AWAY);
     const ahead = walking && !a.look;
     if (target) {
       gaze.yaw += wrap(target[0] - gaze.yaw) * (1 - Math.exp(-7 * dt));

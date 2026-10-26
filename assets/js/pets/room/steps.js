@@ -3,12 +3,14 @@
  * somewhere (up and down the stairs too, or a few steps along a garden bed),
  * turning, waiting, hopping up or down, sitting down and getting up, and
  * getting into bed and out again. Each is a generator that yields once a frame until it is done, and none can take
- * forever: a walk that gets stuck arrives anyway, and a wait has an end.
+ * forever: a walk that gets stuck arrives anyway, and a wait has an end. Out in the front garden (out of the
+ * front door, through the back wall), a walk finds its way with the garden's own floor plan.
  ******************************************************************************/
 
 import { clamp, pick, rnd } from "../stage.js";
 import { smoothstep } from "../models/voxels.js";
 import { HOLDS, MOVES } from "./props.js";
+import { BACK } from "./house.js";
 
 const HOP_TIME = 0.45; // s for a hop up onto something, or down
 const BED_TIME = 1.1; // s to lie back into bed from sitting on the end of it, or to sit up again
@@ -18,16 +20,21 @@ const BED_TIME = 1.1; // s to lie back into bed from sitting on the end of it, o
 const GET_UP = ["plain", "push", "stretch"];
 
 export function makeSteps(home) {
-  const { clock, nav } = home;
+  const { clock } = home;
   const { floorY } = home.house;
   let lastGetUp = null;
+  // The floor plan of the side of the back wall `a` is on: the house, or the front garden.
+  const indoors = { nav: home.nav, bounds: home.house.bounds, obstacles: home.house.obstacles };
+  const outdoors = { nav: home.yardNav, bounds: home.house.yard.bounds, obstacles: home.house.yard.obstacles };
+  const planOf = (a) => (a.z < BACK ? outdoors : indoors);
 
   // Walk to [x, z] round the furniture (as found by nav.js), at `pace` times the usual speed, on whatever
   // floor is underfoot; never off the floor. Close behind someone going the same way, it falls in behind
   // them rather than walking through them; stepped so far aside to pass someone that the way on would cut
   // through the furniture, it finds the way again from there.
   function* walk(a, [x, z], pace = 1) {
-    const [x0, x1, z0, z1] = home.house.bounds;
+    const { nav, bounds } = planOf(a);
+    const [x0, x1, z0, z1] = bounds;
     [x, z] = [clamp(x, x0, x1), clamp(z, z0, z1)];
     let end = -Infinity;
     const route = () => {
@@ -107,7 +114,7 @@ export function makeSteps(home) {
   function following(a, dx, dz) {
     const i = home.actors.indexOf(a);
     return home.actors.some((o, j) => {
-      if (o === a || o.out || !o.walking || Math.abs(o.y - a.y) > 5) return false;
+      if (o === a || o.out !== a.out || !o.walking || Math.abs(o.y - a.y) > 5) return false;
       const [ox, oz] = [o.x - a.x, o.z - a.z];
       const dist = Math.hypot(ox, oz);
       if (dist > 10 || !o.heading) return false;
@@ -121,9 +128,10 @@ export function makeSteps(home) {
   // The way to step along (dx, dz), bending round anyone close ahead so they pass each other rather than
   // through; straight on where that would mean stepping into the furniture or off the edge of a floor.
   function aside(a, dx, dz) {
+    const { nav, obstacles } = planOf(a);
     let [sx, sz] = [dx, dz];
     for (const o of home.actors) {
-      if (o === a || o.out || Math.abs(o.y - a.y) > 5) continue;
+      if (o === a || o.out !== a.out || Math.abs(o.y - a.y) > 5) continue;
       const [ox, oz] = [o.x - a.x, o.z - a.z];
       const dist = Math.hypot(ox, oz);
       const ahead = dist > 0.01 ? (ox * dx + oz * dz) / dist : 0;
@@ -137,8 +145,7 @@ export function makeSteps(home) {
     // Already in the margin round the furniture (as a path round a corner may be), the step aside need only
     // keep out of the furniture itself and off a floor's edge.
     const [x, z] = [a.x + sx * 4, a.z + sz * 4];
-    const solid =
-      home.house.obstacles.some(([x0, x1, z0, z1]) => x > x0 && x < x1 && z > z0 && z < z1) || Math.abs(floorY(x, z) - floorY(a.x, a.z)) > 2;
+    const solid = obstacles.some(([x0, x1, z0, z1]) => x > x0 && x < x1 && z > z0 && z < z1) || Math.abs(floorY(x, z) - floorY(a.x, a.z)) > 2;
     return nav.free(x, z) || (!nav.free(a.x, a.z) && !solid) ? [sx, sz] : [dx, dz];
   }
 

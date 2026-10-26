@@ -1,22 +1,28 @@
 /*******************************************************************************
  * The playground's home, put together: the house (house.js), the view
  * (view.js), the four of them (actor.js) and what they pick up (props.js), the
- * girl's other clothes (girl-outfits.js), the ball, the water (water.js: the
- * sprinkler, the rain, the watering can, drips off anyone soaked), the weather
- * (weather.js), wet footprints (prints.js), the dog's lead and her raincoat, the
- * reflection in her mirror (mirror.js), and their lives (life.js, acts.js). `step(dt)` moves it all on by dt seconds and
- * draws it.
+ * girl's and the boy's other clothes (girl-outfits.js, boy-outfits.js), the
+ * ball, the water (water.js: the sprinkler, the rain, the watering can, drips
+ * off anyone soaked), the weather (weather.js), wet footprints (prints.js), the
+ * dog's lead and her raincoat, the reflection in her mirror (mirror.js), the
+ * front garden out of the front door (house/yard.js) and who lives in it
+ * (wildlife.js), the view turning round to it (view.js) or the back wall
+ * fading to show it (peek.js), and their lives (life.js, acts.js). `step(dt)`
+ * moves it all on by dt seconds and draws it.
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { clamp, rnd } from "../stage.js";
-import { buildHouse, floorY, X0, X1, SIDE, BACK, FRONT } from "./house.js";
+import { clamp, rnd, wrap } from "../stage.js";
+import { buildingHouse, built, floorY, X0, X1, SIDE, BACK, FRONT, YARD } from "./house.js";
 import { makeWater, GRAVITY } from "./water.js";
 import { makeWeather } from "./weather.js";
 import { makePrints } from "./prints.js";
 import { part, ellipsoid } from "../models/voxels.js";
-import { makeView } from "./view.js";
+import { makeView, VIEW_YAW, TURNED_YAW } from "./view.js";
 import { makeMirror } from "./mirror.js";
+import { makeOutlooks } from "./outlook.js";
+import { makePeek } from "./peek.js";
+import { makeWildlife } from "./wildlife.js";
 import { makeNav } from "./nav.js";
 import { makeActor } from "./actor.js";
 import { propsFor, buildBall, buildLaptop } from "./props.js";
@@ -25,6 +31,7 @@ import { makeActs } from "./acts.js";
 import { buildGirl } from "../models/girl.js";
 import { dressGirl } from "../models/girl-outfits.js";
 import { buildBoy } from "../models/boy.js";
+import { dressBoy } from "../models/boy-outfits.js";
 import { buildCollie } from "../models/collie.js";
 import { buildCat } from "../models/cat.js";
 
@@ -38,7 +45,11 @@ const CAST = [
 ];
 
 // `stage` is the element to draw into; it gets the canvas and, over it, the layer for hearts and bubbles.
-export function makeRoom(stage) {
+export const makeRoom = (stage) => built(buildingRoom(stage));
+
+// The same, a part at a time: it yields how far it has got (0 to 1) as it goes (the page shows it), and
+// returns the room.
+export function* buildingRoom(stage) {
   const view = makeView(); // throws without WebGL
   const overlay = document.createElement("div");
   overlay.className = "playground-overlay";
@@ -47,20 +58,34 @@ export function makeRoom(stage) {
   const scene = new THREE.Scene();
   const sky = new THREE.HemisphereLight(0xffffff, 0x9a948a, 2.2);
   const sun = new THREE.DirectionalLight(0xffffff, 1.1);
-  sun.position.set(-60, 120, 160);
+  // Where the sun shines from: in front of the house and a little to the left, lighting the sides that face
+  // the front; turned to the front garden, round behind the house the same way, lighting the back wall.
+  const SUN = { r: Math.hypot(60, 160), y: 120, at: [Math.atan2(-60, 160), Math.atan2(-60, -160)] };
+  const sunAt = (e) => {
+    const a = SUN.at[0] + e * wrap(SUN.at[1] - SUN.at[0]);
+    sun.position.set(SUN.r * Math.sin(a), SUN.y, SUN.r * Math.cos(a));
+  };
+  sunAt(0);
   scene.add(sky, sun);
   const light = { sky: 2.2, sun: 1.1 }; // as bright as it is by day or by night, before any rain
 
-  // The water, its drops landing on the floor (or the soil in a bed), or falling off the edge of it.
+  // The water, its drops landing on the floor (or the soil in a bed, or the pond out the front), or falling off
+  // the edge of it.
   let house = null;
   const bedAt = (x, z) => (x > 169.5 && x < 202.5 ? house.garden.beds.find((b) => z > b.z[0] + 0.5 && z < b.z[1] - 0.5) : null);
+  const inPond = (x, z) => {
+    const p = house.yard.pond;
+    return ((x - p.x) / p.rx) ** 2 + ((z - p.z) / p.rz) ** 2 < 1;
+  };
   const water = makeWater(scene, (x, z) => {
     if (bedAt(x, z)) return 3;
-    if (x < X0 || x > SIDE || z < BACK || z > FRONT) return -Infinity;
+    if (x < YARD.x0 || x > SIDE || z < YARD.z0 || z > FRONT || (x < X0 && z > BACK)) return -Infinity;
+    if (z < BACK) return inPond(x, z) ? 0.5 : -0.5;
     return floorY(x, z) - 0.5;
   });
-  house = buildHouse(scene, water);
+  house = yield* within(buildingHouse(scene, water), 0, 0.8);
   const drawReflection = makeMirror(house.closet.glass, view, scene);
+  const peek = makePeek(house);
 
   const clock = { t: 0, dt: 0 };
   const pointer = { x: 0, y: 0, seen: false, mouse: false, movedAt: -Infinity };
@@ -72,6 +97,9 @@ export function makeRoom(stage) {
     pointer,
     house,
     nav: makeNav(house.bounds, house.obstacles, floorY),
+    yardNav: makeNav(house.yard.bounds, house.yard.obstacles, floorY), // out in the front garden
+    // Whether what is out the front can be seen just now: the view turned to it, or the back wall faded.
+    outSeen: () => view.turn > 0.5 || peek.k > 0.5,
     actors: [],
     humans: [],
     pets: [],
@@ -85,6 +113,7 @@ export function makeRoom(stage) {
     home.actors.push(a);
     (a.human ? home.humans : home.pets).push(a);
     home.byName[name] = a;
+    yield 0.8 + 0.03 * home.actors.length;
   }
 
   // Her clothes: the look she has on, and the one a visitor picked for her to change into (life.js sends
@@ -99,13 +128,18 @@ export function makeRoom(stage) {
     },
     wear: (k) => wardrobe.wear(k),
   };
+  // His day clothes: the blue T-shirt, or the puffer (changeBoy() below).
+  home.boyOutfit = dressBoy(home.byName.boy.rig);
   // What she has on at his computer ({ show, ep }: screens.js's DRAMAS and an episode, or "stardew" and the
   // day), and what a visitor picked for her to put on next (life.js sends her to it; ep null for the farm:
   // its next day).
   home.watch = { want: null, on: null };
 
-  // The things they share: the ball, and the laptop on the coffee table.
+  // The things they share: the ball, the laptop on the coffee table, and the ball that goes out in a pocket
+  // for fetch in the front garden (out of sight but in a hand or on the lawn).
   home.ball = buildBall(scene, house.spots.ballHome);
+  home.yardBall = buildBall(scene, house.yard.spots.step);
+  home.yardBall.mesh.visible = false;
   home.laptopHome = buildLaptop();
   home.laptopHome.position.set(...house.spots.laptopHome);
   home.laptopHome.rotation.y = 0.2;
@@ -133,7 +167,7 @@ export function makeRoom(stage) {
   water.hit = (x, y, z, kind) => {
     if (kind === "drip") return false;
     for (const a of home.actors) {
-      if (a.out || !a.rig.group.visible) continue;
+      if (!a.rig.group.visible) continue;
       const [r, h] = REACH[a.name];
       if (y < a.y - 0.5 || y > a.y + h || Math.hypot(x - a.x, z - a.z) > r) continue;
       if (!(a.umbrella === "open" && kind === "rain")) a.wet = Math.min(1, a.wet + (kind === "jet" ? 0.04 : 0.008));
@@ -158,7 +192,7 @@ export function makeRoom(stage) {
         a.wetFeet = Math.max(a.wetFeet, 8);
       }
       if (a.wet < 0.1) soaked.delete(a);
-      if (a.out || !a.rig.group.visible) continue;
+      if (!a.rig.group.visible) continue;
       const [r, h] = REACH[a.name];
       if (Math.random() < a.wet * 8 * dt) {
         const angle = Math.random() * Math.PI * 2;
@@ -181,6 +215,7 @@ export function makeRoom(stage) {
 
   // The weather: rain comes when it will (life.js sends in whoever it catches in the garden).
   home.weather = makeWeather(scene, water);
+  home.weather.sheltered = house.yard.sheltered;
 
   // The collie's yellow raincoat, over her back (her body is an ellipsoid at [0, 17, 0], radii [10, 9, 15],
   // models/collie.js): a shell round it from the shoulders back, with a reflective band.
@@ -202,6 +237,22 @@ export function makeRoom(stage) {
     overlay.appendChild(el);
     setTimeout(() => el.remove(), 1300);
   };
+
+  // Who lives in the front garden: the ducks, the frog, the birds, butterflies, fireflies.
+  home.wildlife = makeWildlife(scene, house.yard, home);
+  // What is seen through the windows, the real front garden through the one by the bed.
+  const drawOutlooks = makeOutlooks(house.outlooks, view, scene, [house.yard.group, home.wildlife.group]);
+  // The front gate swings open for anyone out there coming up to it.
+  house.yard.gate.near = () => home.actors.some((a) => a.out && Math.hypot(a.x - house.yard.gate.at[0], a.z - house.yard.gate.at[1]) < 17);
+
+  // The bedside lamp's shadows (house.bedLight) are of things that never move, so they are drawn once, as it
+  // comes on.
+  let shadowsDrawn = false;
+  function shadows() {
+    const { on } = house.bedLight;
+    view.renderer.shadowMap.needsUpdate = on && !shadowsDrawn;
+    shadowsDrawn = on;
+  }
 
   const life = makeLife(home);
   home.acts = makeActs(home, life);
@@ -240,48 +291,51 @@ export function makeRoom(stage) {
     if (leads.instanceColor) leads.instanceColor.needsUpdate = true;
   }
 
-  // The one nearest the viewer under canvas px (x, y), if anyone.
+  // The one nearest the viewer under canvas px (x, y), if anyone (a.over() leaves out anyone out the front
+  // while that cannot be seen).
   const hit = (x, y) =>
     home.actors
       .filter((a) => a.over(x, y))
       .sort((p, q) => view.depth(p.x, p.y, p.z) - view.depth(q.x, q.y, q.z))
       .at(0) || null;
-  // Whether canvas px (x, y) is on the dressing corner: its rail and clothes, the mirror or the screen.
+  // The first of `parts` under canvas px (x, y), if it is the first thing seen there: not behind the bed or
+  // the sofa, or the outside of a wall (glass and the like do not hide it; anything faded by peek.js does, as
+  // it would unfaded). `own(object)`: what does not hide it (its own parts, say).
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
-  const onCloset = (x, y) => {
+  const shown = (object) => {
+    for (let o = object; o; o = o.parent) if (!o.visible) return false;
+    return true;
+  };
+  function firstSeen(x, y, parts, own) {
     ndc.set((x / view.W) * 2 - 1, 1 - (y / view.H) * 2);
     raycaster.setFromCamera(ndc, view.camera);
-    return raycaster.intersectObjects(house.closet.parts, true).length > 0;
+    const first = raycaster.intersectObjects(parts, true).find(({ object }) => shown(object)); // not the remote while in a hand
+    if (!first) return null;
+    raycaster.far = first.distance - 0.5;
+    const hidden = raycaster
+      .intersectObject(scene, true)
+      .some(({ object }) => object.isMesh && (!object.material.transparent || peek.faded(object)) && shown(object) && !own(object));
+    raycaster.far = Infinity;
+    return hidden ? null : first;
+  }
+  const among = (parts) => (object) => {
+    for (let o = object; o; o = o.parent) if (parts.includes(o)) return true;
+    return false;
   };
-  // Whether canvas px (x, y) is on his computer: the desk and what is on it, or the screens.
-  const onPc = (x, y) => {
-    ndc.set((x / view.W) * 2 - 1, 1 - (y / view.H) * 2);
-    raycaster.setFromCamera(ndc, view.camera);
-    return raycaster.intersectObjects(house.pc.parts, true).length > 0;
-  };
-  // What at canvas px (x, y) can be clicked to switch or open (house.js's clickables), if it is the first
-  // thing seen there: not behind the bed or the sofa, say (glass and the like do not hide it).
+  // Whether canvas px (x, y) is on the dressing corner (its rail and clothes, the mirror or the screen), or on
+  // his computer (the desk and what is on it, or the screens).
+  const onCloset = (x, y) => !!firstSeen(x, y, house.closet.parts, among(house.closet.parts));
+  const onPc = (x, y) => !!firstSeen(x, y, house.pc.parts, among(house.pc.parts));
+  // What at canvas px (x, y) can be clicked to switch or open (house.js's clickables), if anything.
   const owners = new Map(house.clickables.flatMap((c) => c.parts.map((p) => [p, c])));
   const ownerOf = (object) => {
     for (let o = object; o; o = o.parent) if (owners.has(o)) return owners.get(o);
     return null;
   };
-  const shown = (object) => {
-    for (let o = object; o; o = o.parent) if (!o.visible) return false;
-    return true;
-  };
   const thingAt = (x, y) => {
-    ndc.set((x / view.W) * 2 - 1, 1 - (y / view.H) * 2);
-    raycaster.setFromCamera(ndc, view.camera);
-    const first = raycaster.intersectObjects([...owners.keys()], true).find(({ object }) => shown(object)); // not the remote while in a hand
-    if (!first) return null;
-    raycaster.far = first.distance - 0.5;
-    const hidden = raycaster
-      .intersectObject(scene, true)
-      .some(({ object }) => object.isMesh && !object.material.transparent && shown(object) && !ownerOf(object));
-    raycaster.far = Infinity;
-    return hidden ? null : ownerOf(first.object);
+    const first = firstSeen(x, y, [...owners.keys()], ownerOf);
+    return first ? ownerOf(first.object) : null;
   };
 
   // A visitor's pick of the other kind given up (`kind` "outfit" or "watch", acted on by `act`): no longer
@@ -303,6 +357,13 @@ export function makeRoom(stage) {
     onCloset,
     onPc,
     thingAt,
+    // A click on him: a hop, and into his other day clothes (the blue T-shirt and the puffer in turn) with a
+    // sparkle; at night, in his pyjamas, a heart, and they are what he puts on in the morning.
+    changeBoy() {
+      const { boyOutfit } = home;
+      boyOutfit.wear((boyOutfit.current + 1) % boyOutfit.count);
+      home.byName.boy.cheer(home.night ? undefined : "room-pop room-pop-sparkle");
+    },
     // A visitor's pick of what she should wear (girl-outfits.js's LOOKS): she drops what she is doing and goes
     // to change into it (life.js), by day (at night, in the morning); a new pick while she is on her way to change, she follows,
     // and one while she is changing is for next time. Picking what she has on (or is changing into) calls off
@@ -346,6 +407,25 @@ export function makeRoom(stage) {
       return at && at !== home.byName.girl ? "He'll finish his round and let her on." : null;
     },
     layout: (width, maxHeight) => view.layout(width, maxHeight),
+    // Gets the shaders ready to draw it all before the first frame: without holding up the page where the
+    // browser can compile them in the background (three.js's compileAsync waits for ever without that, and
+    // it is given a few seconds at most anyway), or else all at once.
+    warm() {
+      const { renderer, camera } = view;
+      if (!renderer.extensions.has("KHR_parallel_shader_compile")) return Promise.resolve(renderer.compile(scene, camera));
+      return Promise.race([renderer.compileAsync(scene, camera), new Promise((done) => setTimeout(done, 4000))]);
+    },
+    // Turn the view round to the front garden (true), or back to the house; `now`, all at once.
+    turn: (out, now = false) => view.turnTo(out, now),
+    // Whether canvas px (x, y) is on the front door, shut, from the front, with nothing in front of it (to fade
+    // the back wall while the pointer is there; an open door shows the way out already), and a tap on it,
+    // fading it for a few seconds.
+    onDoor: (x, y) =>
+      view.turn === 0 &&
+      house.door.k < 0.02 &&
+      !home.actors.some((a) => !a.out && a.over(x, y)) && // (not anyone out behind it, seen only while it is faded)
+      !!firstSeen(x, y, house.doorParts, among(house.doorParts)),
+    peekFor: (secs) => (peek.until = clock.t + secs),
     dress(night) {
       home.night = night;
       house.dress(night);
@@ -360,11 +440,20 @@ export function makeRoom(stage) {
     step(dt, draw = true) {
       clock.dt = dt;
       clock.t += dt;
+      // The view turning, and the sun turning with it (so that the side seen is the side lit); the back wall
+      // fading while the pointer is on it.
+      if (view.update(dt)) sunAt((view.yaw - VIEW_YAW) / (TURNED_YAW - VIEW_YAW));
+      peek.want = pointer.mouse && pointer.onDoor && view.turn === 0 && !house.door.open;
+      if (house.door.open) peek.until = -Infinity;
+      peek.update(clock.t, dt);
       life.step();
       home.ball.update(clock.t);
+      home.yardBall.update(clock.t);
+      home.wildlife.update(clock.t, dt);
       house.update(clock.t, dt);
       const { weather } = home;
       weather.update(clock.t, dt);
+      house.yard.soak(weather.wet, weather.k > 0.3);
       home.drops.update(dt);
       dripping(dt);
       water.update(dt);
@@ -378,11 +467,26 @@ export function makeRoom(stage) {
       home.actors.forEach((a) => a.update(dt, a === hovered));
       house.charger.plugged = home.laptopHome.visible;
       if (draw) {
+        // The front garden, and who lives in it, only drawn while it can be seen at all: the view turned to it,
+        // the back wall faded or the front door open (from the front, the back wall hides all the rest).
+        house.yard.group.visible = home.wildlife.group.visible = view.turn > 0 || peek.k > 0 || house.door.k > 0.002;
         drawLeads();
+        shadows(); // (drawn by the first view drawn this frame)
+        drawOutlooks(pointer);
         drawReflection();
         view.render(scene);
       }
       return hovered;
     },
   };
+}
+
+// Runs a building generator `steps`, yielding how far it has got scaled to between `from` and `to`; what it
+// returns.
+function* within(steps, from, to) {
+  for (;;) {
+    const { done, value } = steps.next();
+    if (done) return value;
+    yield from + (to - from) * value;
+  }
 }

@@ -121,9 +121,12 @@ export function buildLoft(shared) {
     Y + 33,
     DESK[1] - 4.4,
   ]);
-  const monLight = new THREE.PointLight(0xa8c8ff, 0, 60, 0);
-  monLight.position.set(DESK[0], Y + 30, DESK[1] + 14);
-  house.add(monLight);
+  const monLight = new THREE.PointLight(0xa8c8ff, 0, 70, 2);
+  monLight.position.set(DESK[0], Y + 30, DESK[1] + 2);
+  // The fans' glow, at night, on the floor in front of the computer and the side of the nightstand.
+  const rgbLight = new THREE.PointLight(0xffffff, 0, 40, 2);
+  rgbLight.position.set(DESK[0] + 33, Y + 12, DESK[1] + 8);
+  house.add(monLight, rgbLight);
 
   // The gaming chair: black with white panels, on a five-star base. Its seat and back turn with whoever
   // sits in it. To watch her shows she rolls it back from the desk and to the left (LOUNGE), so as not to sit
@@ -177,8 +180,10 @@ export function buildLoft(shared) {
       drawSideMonitor(t);
       monitorAt = t;
     }
-    monLight.intensity = pc.mode === "off" ? 0 : shared.night ? 0.6 : 0.25;
+    monLight.intensity = pc.mode === "off" ? 0 : shared.night ? 150 : 50;
     rgb.material.color.copy(hue.setHSL((t * 0.08) % 1, 0.8, 0.6));
+    rgbLight.color.copy(hue);
+    rgbLight.intensity = shared.night ? 30 : 0;
     power.material.color.set(pc.mode === "off" ? "#3b3d47" : "#ffffff");
     // The chair turns with whoever sits in it, and back to the desk after; it rolls to where it is wanted
     // (`pc.rolled`, or the desk), and back in once whoever sat in it is up (called away while sitting).
@@ -199,7 +204,7 @@ export function buildLoft(shared) {
 
   // A low bookshelf under the side window: books of all colours and heights on three shelves, a plant and
   // a photo on top. One red book is the one the girl and the boy take down to read.
-  const SHELF = [-144, 15];
+  const SHELF = [-144, 27];
   const SHELF_YAW = Math.PI / 2;
   const shelf = part();
   box(shelf, [-14, 13], [0, 33], [-5, 5], "woodMid", [{ has: (x, y, z) => x >= -12 && x <= 11 && y >= 2 && y <= 31 && z >= -4 }]);
@@ -295,7 +300,7 @@ export function buildLoft(shared) {
   };
   box(bed, [-24, 24], [9, 9], [1, 24], (x, y, z) => quiltColor(x, z));
   box(bed, [-24, 24], [5, 9], [25, 25], (x, y) => (y === 9 ? quiltColor(x, 25) : "quiltPink")); // hanging over the foot
-  place(house, mesh(bed), [BED[0], Y, BED[1]]);
+  const bedMesh = place(house, mesh(bed), [BED[0], Y, BED[1]]);
   footprint(BED[0] - 25, BED[0] + 25, BACK, BED[1] + 25);
   const MATTRESS = Y + 9.5; // the top of the quilt, made
   const ON_BED = MATTRESS + 0.5; // where a pet on it stands
@@ -322,23 +327,130 @@ export function buildLoft(shared) {
   });
 
   // A nightstand by the bed with a little lamp on it, lit at night: a second warm light to the floor lamp's.
+  // The lamp stands towards the back, her plush moth in front of it.
   const STAND = [98, -103];
+  const LAMP_Z = -2;
   const stand = part();
   box(stand, [-4, 4], [0, 12], [-5, 5], (x, y, z) => (z === 5 && (y === 6 || y === 12 || Math.abs(x) === 4) ? "woodDark" : "wood"));
   stand.add(0, 9, 6, "brass"); // the drawer's knob
-  box(stand, [-2, 2], [13, 13], [-2, 2], "woodDark");
-  box(stand, [0, 0], [14, 17], [0, 0], "brass");
-  place(house, mesh(stand), [STAND[0], Y, STAND[1]]);
+  box(stand, [-2, 2], [13, 13], [LAMP_Z - 2, LAMP_Z + 2], "woodDark");
+  box(stand, [0, 0], [14, 17], [LAMP_Z, LAMP_Z], "brass");
+  const standMesh = place(house, mesh(stand), [STAND[0], Y, STAND[1]]);
   const lampShade = part();
   for (let y = 18; y <= 23; y++)
-    ellipsoid(lampShade, [0, y, 0], [4.6 - (y - 18) * 0.4, 0.5, 4.6 - (y - 18) * 0.4], y === 18 || y === 23 ? "shadeTrim" : "shade");
+    ellipsoid(lampShade, [0, y, LAMP_Z], [4.6 - (y - 18) * 0.4, 0.5, 4.6 - (y - 18) * 0.4], y === 18 || y === 23 ? "shadeTrim" : "shade");
   const shadeDay = place(house, mesh(lampShade), [STAND[0], Y, STAND[1]]);
   const shadeLit = place(house, solid(lampShade, COLORS, glowing), [STAND[0], Y, STAND[1]]);
-  const bedLamp = new THREE.PointLight(0xffd29a, 0, 95, 0);
-  bedLamp.position.set(STAND[0] + 4, Y + 21, STAND[1] + 8);
-  house.add(bedLamp);
+  // Its light, from the bulb in the shade: most of it down out of the open bottom, onto the nightstand and in
+  // a ring round it on the floor, casting the only shadows in the house (of his desk and computer); a little
+  // through the shade all round. Both fall off with distance: a warm pool by the bed, darker past his computer.
+  const BULB = [STAND[0], Y + 20, STAND[1] + LAMP_Z];
+  const bedSpot = new THREE.SpotLight(0xffd29a, 0, 150, 1.45, 0.6, 1);
+  bedSpot.position.set(...BULB);
+  bedSpot.target.position.set(BULB[0], Y, BULB[2] + 4);
+  bedSpot.castShadow = true;
+  bedSpot.shadow.mapSize.set(1024, 1024);
+  bedSpot.shadow.camera.near = 2;
+  bedSpot.shadow.bias = -0.0005;
+  bedSpot.shadow.normalBias = 0.3;
+  const bedGlow = new THREE.PointLight(0xffc98a, 0, 100, 1);
+  bedGlow.position.set(...BULB);
+  house.add(bedSpot, bedSpot.target, bedGlow);
+  const bedLight = {
+    on: false,
+    set(on) {
+      bedSpot.intensity = on ? 42 : 0;
+      bedGlow.intensity = on ? 8 : 0;
+      this.on = on;
+    },
+  };
   const lamps = [];
   footprint(STAND[0] - 5, STAND[0] + 5, BACK, STAND[1] + 6);
+  // Her plush moth: a big ball of pale grey fur for a head, two small dark eyes set wide in it and a darker
+  // parting down its brow, two tall black corduroy antennae like a rabbit's ears, a shaggy black ruff under
+  // it, a round black body as big as the head, thin grey felt arms held out and stubby legs, and big grey
+  // wings with black seams spread behind. Built in half voxels (half voxel u covers u / 2 - 1/2 to u / 2
+  // above what it sits on), its middle at x = z = 0. It sits on the bed against her pillow, turned a little
+  // to the room; whoever goes to bed first moves it to the nightstand in front of the lamp, and the last one
+  // up puts it back (acts/living.js). `by`: whoever has it in hand.
+  const mothPart = part();
+  // Each wing a big rounded lobe over a smaller one; a seam just in from the edge, and one from the root
+  // between the two lobes.
+  const inWing = (x, y) => {
+    const dx = Math.abs(x);
+    return y >= 0 && (((dx - 6.5) / 4.3) ** 2 + ((y - 11.5) / 5) ** 2 <= 1 || ((dx - 6.5) / 4) ** 2 + ((y - 5.2) / 3.4) ** 2 <= 1);
+  };
+  const nearEdge = (x, y, r) => {
+    for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) if (!inWing(x + a, y + b)) return true;
+    return false;
+  };
+  const seam = (x, y) => {
+    if (nearEdge(x, y, 1)) return "plushWing";
+    const [u, v] = [Math.abs(x) - 2, y - 8];
+    const a = Math.atan2(v, u);
+    if (u < 3) return "plushWing"; // (the inner edge, behind the head and the body)
+    return nearEdge(x, y, 2) || (Math.hypot(u, v) > 4 && Math.abs(a + 0.15) < 0.06) ? "plushVein" : "plushWing";
+  };
+  for (let x = -11; x <= 11; x++)
+    for (let y = 0; y <= 17; y++) if (inWing(x, y)) for (const z of [-3, -2]) mothPart.add(x, y, z, z === -2 ? seam(x, y) : "plushWing");
+  ellipsoid(mothPart, [0, 4.8, 0.5], [5, 4.8, 4.2], "plushBlack");
+  // The ruff, with tufts sticking out of it; the head on it, its fur flecked and fluffed out a little.
+  const shag = (x, y, z) => (hash(x, y, z) < 0.4 ? "plushShag" : "plushBlack");
+  ellipsoid(mothPart, [0, 10, 0.8], [5.6, 1.8, 4.6], shag);
+  ellipsoid(mothPart, [0, 10, 0.8], [6.6, 2.4, 5.4], shag, [mothPart, { has: (x, y, z) => hash(z, x, y) >= 0.3 }]);
+  const fur = (x, y, z) => (hash(x, y, z) < 0.15 ? "plushSpeck" : y >= 17 ? "plushFurLight" : "plushFur");
+  ellipsoid(mothPart, [0, 14.3, 1], [5, 5, 4.5], fur);
+  ellipsoid(mothPart, [0, 14.3, 1], [5.6, 5.6, 5], fur, [mothPart, { has: (x, y, z) => y <= 12 || hash(y, z, x) >= 0.2 }]);
+  for (let y = 15; y <= 18; y++) mothPart.front(0, y)[3] = "plushSpeck"; // the parting
+  const across = (side, a, b) => (side > 0 ? [a, b] : [-b, -a]); // x from a to b out from the middle, on that side
+  for (const side of [-1, 1]) {
+    // An eye, two by two, wide apart and a little below the middle of the head.
+    for (const x of [2, 3]) for (const y of [13, 14]) mothPart.front(side * x, y)[3] = "plushEye";
+    // An arm, held out from under the ruff and drooping a little, with a round paw; a stubby leg in front.
+    for (let d = 5; d <= 8; d++) box(mothPart, [side * d, side * d], [d > 6 ? 7 : 8, d > 6 ? 7 : 8], [1, 2], "plushFelt");
+    box(mothPart, across(side, 9, 10), [6, 7], [1, 2], "plushFelt");
+    box(mothPart, across(side, 1, 3), [0, 1], [3, 6], "plushFelt");
+    // An antenna, a little longer than the head is high: leaf-shaped, widest low down, pointed, leaning out,
+    // its corduroy ribs in rows down the front, plain black behind.
+    for (let y = 18; y <= 29; y++) {
+      const t = (y - 18) / 11;
+      const [mid, half] = [side * (3 + 3.6 * t), 0.4 + 2.6 * Math.sin(Math.PI * t ** 0.7)];
+      for (let x = Math.ceil(mid - half); x <= mid + half; x++)
+        for (const z of [0, 1]) mothPart.add(x, y, z, z === 1 && y % 2 ? "plushRib" : "plushBlack");
+    }
+  }
+  const mothToy = place(house, new THREE.Group(), [0, 0, 0]);
+  place(mothToy, mesh(mothPart), [0, 0.25, 0]).scale.setScalar(0.5);
+  const handPoint = new THREE.Vector3();
+  const moth = {
+    // Where it sits: [x, y, z] of the middle of its seat, and which way it faces.
+    spots: {
+      bed: { at: [BED[0] - 18, Y + 8.5, BED[1] - 6.5], yaw: 0.4 },
+      stand: { at: [STAND[0] + 0.5, Y + 12.5, STAND[1] + 3.5], yaw: 0.35 },
+    },
+    toy: mothToy,
+    at: "bed",
+    by: null,
+    put(where) {
+      const { at, yaw } = moth.spots[where];
+      Object.assign(moth, { at: where, by: null });
+      mothToy.position.set(...at);
+      mothToy.rotation.y = yaw;
+    },
+    // In `a`'s right hand, held by its middle, facing the way they do.
+    take(a) {
+      Object.assign(moth, { at: null, by: a });
+    },
+  };
+  moth.put("bed");
+  updates.push(() => {
+    const a = moth.by;
+    if (!a) return;
+    a.rig.hands[0].updateWorldMatrix(true, false);
+    a.rig.hands[0].localToWorld(handPoint.set(0, -2, 1.5));
+    mothToy.position.set(handPoint.x, handPoint.y - 3, handPoint.z);
+    mothToy.rotation.y = a.yaw;
+  });
 
   // The girl's dressing corner, past a low shoe cabinet: her outfits on a rail along the wall (the one she
   // has on missing from its hanger), a shelf over it with her straw hat and boxes, a long mirror leaning on
@@ -424,19 +536,24 @@ export function buildLoft(shared) {
   rug2.rotation.x = -Math.PI / 2;
   place(house, rug2, [184, Y - 0.47, -78]);
   footprint(162, 206, BACK, -100);
-  // The folding screen: three panels zigzagging, a cloth with little flowers in a wooden frame.
+  // The folding screen: three panels zigzagging across in front of her, and a fourth folded back along the
+  // open side of the loft, so that she is behind it seen from the side too (the view turned: view.js), a cloth
+  // with little flowers in a wooden frame.
   const screenPart = part();
+  const cloth = (u, y, edge) => (edge || y <= 1 || y === 47 ? "woodDark" : hash(u, y, 5) < 0.06 ? "heart" : "screenCloth");
   [
     [178, 186, -46],
     [187, 195, -48],
     [196, 204, -46],
-  ].forEach(([xa, xb, z]) =>
-    box(screenPart, [xa, xb], [0, 47], [z, z], (x, y) =>
-      x === xa || x === xb || y <= 1 || y === 47 ? "woodDark" : hash(x, y, 5) < 0.06 ? "heart" : "screenCloth"
-    )
-  );
+  ].forEach(([xa, xb, z]) => box(screenPart, [xa, xb], [0, 47], [z, z], (x, y) => cloth(x, y, x === xa || x === xb)));
+  [
+    [-58, -48, 205],
+    [-70, -59, 206],
+    [-84, -71, 205],
+  ].forEach(([za, zb, x]) => box(screenPart, [x, x], [0, 47], [za, zb], (x, y, z) => cloth(z, y, z === za || z === zb)));
   closetParts.push(place(house, mesh(screenPart), [0, Y, 0]));
   footprint(177, 205, -49, -45);
+  footprint(204, 207, -85, -46);
   const closet = {
     parts: closetParts,
     glass,
@@ -448,6 +565,12 @@ export function buildLoft(shared) {
     },
   };
   closet.hang([0]);
+
+  // The bedside lamp's shadows: cast only by what never moves (his desk and computer, the nightstand; the floor
+  // too: shell.js), so that they are drawn once (room.js); taken by those and by the rest up here.
+  for (const o of [...pcParts, rgb, standMesh]) o.castShadow = true;
+  for (const o of [...pcParts, rgb, kirby, phonesOnStand, base, chair, standMesh, mothToy, bedMesh, ...quilts])
+    o.traverse((m) => (m.receiveShadow = true));
 
   return {
     Y,
@@ -466,8 +589,9 @@ export function buildLoft(shared) {
     beds,
     shadeDay,
     shadeLit,
-    bedLamp,
+    bedLight,
     lamps,
+    moth,
     RAIL_Y,
     closet,
     pcParts,

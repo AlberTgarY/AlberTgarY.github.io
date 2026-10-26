@@ -8,7 +8,9 @@
  * bookshelf under the window, and the fireplace with the TV over it. In the
  * middle, the girl's sofa (girl-props.js), the coffee table on a rug and an
  * armchair; at the front right, the dining table for two, the collie's bed and
- * the cat's tree, and the garden door out to the vegetable beds.
+ * the cat's tree, and the garden door out to the vegetable beds. Out of the
+ * front door, behind the back wall, is the front garden (house/yard.js), with
+ * its own floor plan (`yard`).
  *
  * Some things move: the fridge's two doors, the bin's lid and the front door,
  * the TV (switched with its remote) and the two computer screens (screens.js
@@ -26,8 +28,8 @@
  * and floorY(x, z) says how high the floor is anywhere.
  *
  * It is built in house/, a part at a time in this order: shell.js, windows.js,
- * kitchen.js, loft.js, living.js, garden.js and decor.js, made with kit.js and
- * laid out by layout.js.
+ * kitchen.js, loft.js, living.js, garden.js, decor.js and yard.js, made with
+ * kit.js and laid out by layout.js.
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -40,11 +42,23 @@ import { buildLoft } from "./house/loft.js";
 import { buildLiving } from "./house/living.js";
 import { buildGarden } from "./house/garden.js";
 import { buildDecor } from "./house/decor.js";
+import { buildYard } from "./house/yard.js";
 
-export { X0, X1, SIDE, BACK, FRONT, WALL_H, LOFT, DOOR, floorY } from "./house/layout.js";
+export { X0, X1, SIDE, BACK, FRONT, WALL_H, LOFT, DOOR, YARD, floorY } from "./house/layout.js";
+
+// Runs a building generator (buildingHouse, room.js's buildingRoom) through all at once; what it returns.
+export function built(steps) {
+  for (;;) {
+    const { done, value } = steps.next();
+    if (done) return value;
+  }
+}
 
 // `water` (water.js) flies the sprinkler's drops.
-export function buildHouse(scene, water) {
+export const buildHouse = (scene, water) => built(buildingHouse(scene, water));
+
+// The same, a part at a time: after each it yields how far it has got (0 to 1), for the page to show.
+export function* buildingHouse(scene, water) {
   const house = new THREE.Group();
   scene.add(house);
   const mesh = (p) => solid(p);
@@ -83,19 +97,22 @@ export function buildHouse(scene, water) {
 
   // What the parts share as they are built (each adds what the later ones need); `night` and `overcast`
   // change with the time of day and the weather (dress() and rain() below).
-  const shared = { water, house, mesh, updates, clickables, footprint, turnedFootprint, floorShadow, night: false, overcast: false };
-  for (const build of [buildShell, buildWindows, buildKitchen, buildLoft, buildLiving, buildGarden, buildDecor]) Object.assign(shared, build(shared));
+  const shared = { scene, water, house, mesh, updates, clickables, footprint, turnedFootprint, floorShadow, night: false, overcast: false };
+  const parts = [buildShell, buildWindows, buildKitchen, buildLoft, buildLiving, buildGarden, buildDecor, buildYard];
+  for (const [k, build] of parts.entries()) {
+    Object.assign(shared, build(shared));
+    yield (k + 1) / parts.length;
+  }
   const {
     WIN_BACK,
     cloudMat,
     rainVeil,
     rainMat,
     views,
+    outlooks,
     drawSky,
     drawClouds,
     bird,
-    doorRain,
-    doorRainMat,
     frontDoor,
     FRIDGE,
     fridge,
@@ -109,8 +126,12 @@ export function buildHouse(scene, water) {
     STOVE,
     STOVE_YAW,
     sink,
+    dishwasher,
+    cupboard,
     oven,
+    OVEN,
     potTop,
+    panTop,
     stove,
     BOWLS,
     bowls,
@@ -130,6 +151,8 @@ export function buildHouse(scene, water) {
     ON_BED,
     beds,
     lamps,
+    bedLight,
+    moth,
     RAIL_Y,
     closet,
     SOFA,
@@ -149,14 +172,21 @@ export function buildHouse(scene, water) {
     DOGBED,
     PLANT_X,
     garden,
+    yard,
+    doorLeaf,
+    doorFrame,
   } = shared;
 
   /* ---------- where things are, for the people and the pets ---------- */
 
   const facing = (from, to) => Math.atan2(to[0] - from[0], to[1] - from[1]);
-  const ovenSide = turned(STOVE, STOVE_YAW, [5, 20]);
-  const ovenMid = turned(STOVE, STOVE_YAW, [-10.5, 9]);
+  const MOTH_AT = [98, -86];
+  const ovenSide = turned(STOVE, STOVE_YAW, [OVEN.x[1] + 8, 20]);
+  const ovenMid = turned(STOVE, STOVE_YAW, [(OVEN.x[0] + OVEN.x[1]) / 2, 9]);
   const sinkMid = turned(STOVE, STOVE_YAW, [10.5, -0.5]);
+  const washerSide = turned(STOVE, STOVE_YAW, [27, 16]);
+  const cupboardSide = [COUNTER[0] - 13, -80]; // (where the fridge is opened from too: acts claim both)
+  const washerMid = turned(STOVE, STOVE_YAW, [10.5, 14]);
   // Seats: where to sit (x, z) facing `yaw`, the spot in front to sit down from, and for a pet where to
   // lie on it and which way.
   const seat = (key, [x, z], yaw, front, pet, petYaw = yaw) => ({ key, x, z, yaw, front: turned([x, z], yaw, [0, front]), pet, petYaw });
@@ -197,12 +227,28 @@ export function buildHouse(scene, water) {
     // The pets' food in the cupboard under the counter, and the keys on it.
     foodBag: { at: [COUNTER[0] + 14, -78], yaw: Math.PI },
     keys: { at: [COUNTER[0] + 14, -78], yaw: Math.PI, on: [COUNTER[0] + 15, 36, COUNTER[1] + 4] },
-    stove: { at: [-126, potTop[1]], yaw: -Math.PI / 2, pot: stove.pot },
+    // At the hob: to the right of the pot, of the frying pan (the left hand on its handle), or between the
+    // two, turned to it; not in front of it, so the viewer sees into the pan.
+    stove: {
+      pot: [-125, potTop[1] - 7],
+      pan: [-125, panTop[1] - 6],
+      both: [-125, potTop[1] - 7],
+      yaw: { pot: facing([-125, potTop[1] - 7], potTop), pan: facing([-125, panTop[1] - 6], panTop) },
+      look: { pot: stove.pot, pan: stove.pan },
+    },
     // The oven: beside its door (which comes down in front of it), and the middle of it.
     oven: { at: ovenSide, yaw: facing(ovenSide, ovenMid), door: [ovenMid[0], 14, ovenMid[1]] },
     sink: { at: turned(STOVE, STOVE_YAW, [10.5, 17]), yaw: -Math.PI / 2, basin: [sinkMid[0], 34, sinkMid[1]] },
+    // The dishwasher under it: beside its door (which comes down in front of it, out of the way of anyone
+    // waiting for the sink), and its rack; and the cupboard under the counter with the bowls in it, the
+    // chopsticks in the drawer over it (from its left, so as not to stand between it and the viewer).
+    dishwasher: { at: washerSide, yaw: facing(washerSide, washerMid), rack: [washerMid[0], 8, washerMid[1]] },
+    cupboard: { at: cupboardSide, yaw: facing(cupboardSide, [COUNTER[0] - 0.5, COUNTER[1] + 4]), inside: [COUNTER[0] - 0.5, 18, COUNTER[1] + 4] },
     bowls: Object.fromEntries(Object.entries(BOWLS).map(([name, bowl]) => [name, { bowl }])),
     shelf: { at: [SHELF[0] + 20, SHELF[1]], yaw: -Math.PI / 2 },
+    // In front of the nightstand, beside the bed: where the plush moth is moved from and to, turned to
+    // where it sits.
+    moth: { at: MOTH_AT, yaw: Object.fromEntries(Object.entries(moth.spots).map(([k, { at }]) => [k, facing(MOTH_AT, [at[0], at[2]])])) },
     laptop: { at: [TABLE[0] + 8, TABLE[1] + 22], yaw: Math.PI },
     laptopHome: [TABLE[0] + 8, 12, TABLE[1] - 1],
     // The remote, from the right end of the coffee table; the controllers, from their stand on the mantel.
@@ -236,7 +282,7 @@ export function buildHouse(scene, water) {
     // The dressing corner: the rail, the mirror, and behind the screen.
     closet: { at: [184, -88], yaw: Math.PI, rail: [184, RAIL_Y - 12, -104] },
     mirror: { at: [176, -86], yaw: -Math.PI / 2, glass: [161, Y + 30, -88] },
-    change: { at: [191, -60] },
+    change: { at: [191, -61] },
     // The garden: through the door, the can by it, and each bed (from the path, facing it).
     gardenDoor: { inside: [134, GARDEN_DOOR.z], outside: [158, GARDEN_DOOR.z] },
     can: { at: [158, 50], yaw: 0 },
@@ -253,7 +299,13 @@ export function buildHouse(scene, water) {
     })),
     sunny: [177, 31], // a patch of grass between the beds, by the sprinkler, out of the way of the beds' work
     watchPc: { at: [CHAIR[0] - 30, CHAIR[1] + 16] }, // beside his chair, not in front of him or the headphones
-    dining: { beg: [DINING[0] - 40, DINE_Z + 2], dish: [DINING[0], 16, DINING[1] + 1] }, // where the dog sits hoping for a bite, and the dish
+    // Where the dog sits hoping for a bite, the dish, and where to stand to set a dish down (at the left end
+    // of the table, out of the way of the chairs).
+    dining: {
+      beg: [DINING[0] - 40, DINE_Z + 2],
+      dish: [DINING[0], 16, DINING[1] + 1],
+      serve: { at: [DINING[0] - 33, DINING[1] - 2], yaw: Math.PI / 2 },
+    },
     rug: [
       [TABLE[0] - 50, TABLE[1] - 14],
       [TABLE[0] + 50, TABLE[1] - 14],
@@ -266,8 +318,8 @@ export function buildHouse(scene, water) {
     window: [BED[0], (WIN_BACK.y[0] + WIN_BACK.y[1]) / 2, BACK],
     // Where to take an umbrella off the rack, or hang it back.
     umbrellas: { at: [BROLLY_RACK[0], BACK + 13], yaw: Math.PI },
-    // The front door: where to wait inside it, and out on the path.
-    door: { x: DOOR.x, inside: BACK + 14, outside: BACK - 30 },
+    // The front door: where to wait inside it, and out on the porch (the front garden: yard.spots).
+    door: { x: DOOR.x, inside: BACK + 14, outside: yard.spots.step[1] },
   };
 
   // Paths keep to the house and the garden.
@@ -278,15 +330,15 @@ export function buildHouse(scene, water) {
     drawSky();
     drawClouds();
     views.dress(shared.night);
+    yard.dress(shared.night);
     lamps.forEach((l) => l.set(shared.night)); // whatever was switched, as it was, now it is day or night
-    if (shared.night) bird.visible = false;
   }
   drawScreen(0);
   drawMonitor(0);
   drawSideMonitor(0);
 
-  // How hard it is raining (0 to 1, weather.js): the veil over the windows and the open door, streaks
-  // running down it, and the clouds gone grey.
+  // How hard it is raining (0 to 1, weather.js): the veil over the windows, streaks running down it, and the
+  // clouds gone grey.
   const grey = new THREE.Color("#8d97a3");
   // How cloudy it is (0 to 1) and what the forecast says (weather.js's sky), too.
   function rain(k, t, cloud, sky) {
@@ -297,9 +349,8 @@ export function buildHouse(scene, water) {
     }
     tvControls.sky = sky;
     views.rain(k);
-    rainMat.opacity = doorRainMat.opacity = k;
+    rainMat.opacity = k;
     rainVeil.tex.offset.set(0.02 * t, (t * 1.6) % 1);
-    doorRain.tex.offset.set(0.02 * t, (t * 1.2) % 1);
     cloudMat.color.setRGB(1, 1, 1).lerp(grey, Math.max(k, 0.45 * cloud));
   }
 
@@ -365,14 +416,21 @@ export function buildHouse(scene, water) {
     stove,
     fire,
     beds,
+    moth, // her plush moth, on the bed or the nightstand (loft.js)
+    bedLight, // the bedside lamp's light, which casts shadows (loft.js)
     bird,
+    outlooks, // the windows' glass and what is out there (outlook.js)
     books: shelfBooks,
     bowls,
     closet,
     sink,
+    dishwasher, // under the sink (kitchen.js)
+    cupboard, // the bowls and chopsticks, under the counter
     keys,
     charger,
     clickables,
+    doorParts: [doorLeaf, doorFrame], // the front door and its frame (the pointer on them fades the back wall: peek.js)
     garden,
+    yard,
   };
 }

@@ -56,39 +56,42 @@ export function buildDecor(shared) {
   place(house, mesh(picture), [-15, 66, BACK + 0.6]);
 
   // Fairy lights on a fine wire, hung in loose swags from tacks near the tops of both walls (clear of the
-  // windows and the clock), glowing at night.
-  const wireSpots = [];
-  const bulbList = [];
-  const swags = (tacks, at) => {
+  // windows and the clock), glowing at night. Each wall's are their own (the back wall's fade with it: peek.js).
+  const BULB_COLORS = ["#ffd27a", "#ff9e8a", "#a8e6a0", "#9fd3ff"].map((c) => new THREE.Color(c));
+  const tmp = new THREE.Matrix4();
+  const lit = new THREE.Color();
+  let counted = 0; // bulbs so far, for the colours to run on from one wall to the next
+  function swags(tacks, at) {
+    const wireSpots = [];
+    const bulbList = [];
     for (let s = 0; s + 1 < tacks.length; s++) {
       const [a, b] = [tacks[s], tacks[s + 1]];
       const y = (u) => WALL_H - 4 - 8 * Math.sin((Math.PI * (u - a)) / (b - a));
       for (let u = a; u <= b; u += 0.5) wireSpots.push(at(u, y(u)));
       for (let u = a + 4; u < b - 2; u += 8) bulbList.push(at(u, y(u) - 1));
     }
-  };
+    const wire = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.6, 0.6, 0.6),
+      new THREE.MeshLambertMaterial({ color: COLORS.bulbWire }),
+      wireSpots.length
+    );
+    wireSpots.forEach((p, i) => wire.setMatrixAt(i, tmp.makeTranslation(...p)));
+    const bulbs = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 2, 1.4), new THREE.MeshBasicMaterial(), bulbList.length);
+    bulbList.forEach((p, i) => bulbs.setMatrixAt(i, tmp.makeTranslation(...p)));
+    house.add(wire, bulbs);
+    const first = counted;
+    counted += bulbList.length;
+    updates.push((t) => {
+      bulbList.forEach((_, i) => {
+        const k = first + i;
+        const glowing = shared.night ? 0.75 + 0.25 * Math.sin(t * 2 + k * 1.7) : 0.45;
+        bulbs.setColorAt(i, lit.copy(BULB_COLORS[k % 4]).multiplyScalar(glowing));
+      });
+      bulbs.instanceColor.needsUpdate = true;
+    });
+  }
   swags([X0 + 4, -50, 30, 106], (u, y) => [u, y, BACK + 0.8]);
   swags([BACK + 6, -45, 15, 75, FRONT - 4], (u, y) => [X0 + 0.8, y, u]);
-  const tmp = new THREE.Matrix4();
-  const wire = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(0.6, 0.6, 0.6),
-    new THREE.MeshLambertMaterial({ color: COLORS.bulbWire }),
-    wireSpots.length
-  );
-  wireSpots.forEach((p, i) => wire.setMatrixAt(i, tmp.makeTranslation(...p)));
-  house.add(wire);
-  const bulbs = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 2, 1.4), new THREE.MeshBasicMaterial(), bulbList.length);
-  const BULB_COLORS = ["#ffd27a", "#ff9e8a", "#a8e6a0", "#9fd3ff"].map((c) => new THREE.Color(c));
-  bulbList.forEach((p, i) => bulbs.setMatrixAt(i, tmp.makeTranslation(...p)));
-  house.add(bulbs);
-  const lit = new THREE.Color();
-  updates.push((t) => {
-    bulbList.forEach((_, i) => {
-      const glowing = shared.night ? 0.75 + 0.25 * Math.sin(t * 2 + i * 1.7) : 0.45;
-      bulbs.setColorAt(i, lit.copy(BULB_COLORS[i % 4]).multiplyScalar(glowing));
-    });
-    bulbs.instanceColor.needsUpdate = true;
-  });
 
   return {};
 }

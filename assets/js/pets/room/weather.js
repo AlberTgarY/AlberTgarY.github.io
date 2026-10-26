@@ -1,11 +1,11 @@
 /*******************************************************************************
  * The weather in the playground: now and then it clouds over for a while,
  * and now and then, by day or by night, it rains for a minute or two (the TV
- * forecast says which, screens.js). The windows and the open door show it (house.js), the
- * light goes grey (room.js), and over the garden the rain comes down in
- * streaks (water.js), splashing on the grass and the beds, watering them, and
- * filling little puddles on the stepping stones, rings spreading on them, that
- * dry up again after. Anyone going out takes an umbrella, the dog wears her
+ * forecast says which, screens.js). The windows show it (house.js), the light
+ * goes grey (room.js), and over the garden and the front garden the rain comes
+ * down in streaks (water.js), splashing on the grass, the beds and the pond,
+ * watering the beds, and filling little puddles on the stepping stones, the
+ * path and the lane, rings spreading on them, that dry up again after. Anyone going out takes an umbrella, the dog wears her
  * raincoat (acts.js), and they come back in with wet feet (prints.js).
  *
  * It rains when it will, whoever is out: anyone caught in the garden runs in,
@@ -15,8 +15,10 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { rnd } from "../stage.js";
+import { YARD } from "./house.js";
 
 const GARDEN = { x: [151, 209], z: [-27, 109] }; // where the rain falls (the rest is under the roof)
+const FRONT_GARDEN = { x: [YARD.x0, YARD.x1], z: [YARD.z0, YARD.z1] }; // and out of the front door
 const PUDDLES = [
   [161, -12, 3.2],
   [161, 20, 2.6],
@@ -25,7 +27,13 @@ const PUDDLES = [
   [182, 48, 4.2],
   [192, 79, 3],
   [180, 112 - 8, 2.6],
-]; // x, z and size (on the stepping stones and in dips in the lawn)
+  [-50, -126, 2.6],
+  [-49, -158, 3.2],
+  [-51, -204, 3.6],
+  [-24, -246, 4],
+  [62, -250, 3.4],
+  [150, -244, 3],
+]; // x, z and size (on the stepping stones and in dips in the lawn; on the porch, the path and the lane)
 
 export function makeWeather(scene, water) {
   const w = {
@@ -42,6 +50,8 @@ export function makeWeather(scene, water) {
     },
     until: 0,
     nextAt: rnd(150, 300),
+    puddles: PUDDLES.map(([x, z]) => [x, z]), // where they are
+    sheltered: null, // (x, z) => whether that is under cover out the front (room.js)
     // Rain now for `secs` (or stop with 0); for trying it out.
     rain(t, secs) {
       w.raining = secs > 0;
@@ -72,6 +82,7 @@ export function makeWeather(scene, water) {
   });
 
   let rainDebt = 0;
+  let yardDebt = 0;
   w.update = (t, dt) => {
     if (!w.raining && t > w.nextAt) {
       if (Math.random() < 0.4) w.rain(t, rnd(90, 200));
@@ -97,6 +108,13 @@ export function makeWeather(scene, water) {
       const x = rnd(...GARDEN.x) - 4;
       const z = rnd(...GARDEN.z);
       water.emit("rain", x, rnd(30, 48), z, 14, -240, 0, 1.2);
+    }
+    // Out the front, nothing overhead: from higher up, and (spread over a much bigger garden) a little thinner.
+    yardDebt += 1100 * w.k * dt;
+    for (; yardDebt >= 1; yardDebt--) {
+      const [x, z] = [rnd(...FRONT_GARDEN.x), rnd(...FRONT_GARDEN.z)];
+      if (w.sheltered?.(x, z) && Math.random() < 0.8) continue; // (under the cherry tree or the porch roof)
+      water.emit("rain", x - 6, rnd(60, 110), z, 14, -240, 0, 1.2);
     }
 
     // The puddles fill as the ground soaks, and a ring spreads on one now and then while it rains.

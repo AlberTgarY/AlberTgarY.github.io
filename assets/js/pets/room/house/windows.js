@@ -14,9 +14,9 @@ export function buildWindows(shared) {
   const { house, mesh, updates, clickables, WIN_BACK, WIN_LEFT, DOOR_X } = shared;
 
   // The sky outside: blue with drifting clouds and the odd bird by day, deep blue with stars and the moon
-  // by night. Each window shows its own patch of it, the sun or the moon only in the one over the bed, and
-  // its own view in front of the clouds (views.js): rolling hills with a cottage beyond the bed, the street
-  // past the kitchen. On a cloudy day more clouds come over, greyer, hiding the sun.
+  // by night, far off behind what each window looks out on (views.js): the hills beyond the bed (the sun or
+  // the moon in that one only), the street past the kitchen. On a cloudy day more clouds come over, greyer,
+  // hiding the sun.
   const SKY = [44, 46];
   const skies = [0, 1].map(() => pixelTexture(...SKY, () => {})); // the back window's, the left one's
   const clouds = pixelTexture(SKY[0] * 2, SKY[1], () => {});
@@ -42,41 +42,38 @@ export function buildWindows(shared) {
   streetGlow.position.set(X0 + 8, (WIN_LEFT.y[0] + WIN_LEFT.y[1]) / 2, (WIN_LEFT.z[0] + WIN_LEFT.z[1]) / 2);
   house.add(streetGlow);
   const views = makeViews(
-    [
-      [WIN_BACK.x[1] - WIN_BACK.x[0] + 1, WIN_BACK.y[1] - WIN_BACK.y[0] + 1],
-      [WIN_LEFT.z[1] - WIN_LEFT.z[0] + 1, WIN_LEFT.y[1] - WIN_LEFT.y[0] + 1],
-    ],
-    SKY,
+    skies.map((sky) => sky.tex),
+    cloudMat,
     streetGlow
   );
   updates.push((t, dt) => views.update(t, dt));
-  // A pane of sky `w` x `h` voxels, showing that much of it, and of `view` in front of it.
-  function skyPane(sky, view, w, h, at, rotY) {
-    for (const [mat, lift] of [
-      [new THREE.MeshBasicMaterial({ map: sky.tex }), 0],
-      [cloudMat, 0.1],
-      [new THREE.MeshBasicMaterial({ map: view, transparent: true, depthWrite: false }), 0.15],
-      [rainMat, 0.2],
-    ]) {
-      const g = new THREE.PlaneGeometry(w, h);
-      const uv = g.attributes.uv;
-      for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / SKY[0], 1 - ((1 - uv.getY(i)) * h) / SKY[1]);
-      const m = place(house, new THREE.Mesh(g, mat), at, rotY);
-      m.translateZ(lift);
-    }
+  // The glass of each window, `w` x `h` voxels at `at` (turned by `rotY`), showing what is out there as seen
+  // from in the room (outlook.js draws it each frame), the rain running down it in front. `out`: which way
+  // is out; `yard`: whether the real front garden is out there too.
+  const outlooks = [];
+  function pane(w, h, at, rotY, out, scene, yard) {
+    const glass = place(house, new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial()), at, rotY);
+    const wet = place(house, new THREE.Mesh(new THREE.PlaneGeometry(w, h), rainMat), at, rotY);
+    wet.translateZ(0.2);
+    outlooks.push({ glass, at, out, size: [w, h], scene, yard });
   }
-  skyPane(skies[0], views.textures[0], WIN_BACK.x[1] - WIN_BACK.x[0] + 1, WIN_BACK.y[1] - WIN_BACK.y[0] + 1, [
-    (WIN_BACK.x[0] + WIN_BACK.x[1]) / 2,
-    (WIN_BACK.y[0] + WIN_BACK.y[1]) / 2,
-    BACK - 2,
-  ]);
-  skyPane(
-    skies[1],
-    views.textures[1],
+  pane(
+    WIN_BACK.x[1] - WIN_BACK.x[0] + 1,
+    WIN_BACK.y[1] - WIN_BACK.y[0] + 1,
+    [(WIN_BACK.x[0] + WIN_BACK.x[1]) / 2, (WIN_BACK.y[0] + WIN_BACK.y[1]) / 2, BACK - 2],
+    0,
+    [0, 0, -1],
+    views.scenes[0],
+    true
+  );
+  pane(
     WIN_LEFT.z[1] - WIN_LEFT.z[0] + 1,
     WIN_LEFT.y[1] - WIN_LEFT.y[0] + 1,
     [X0 - 2, (WIN_LEFT.y[0] + WIN_LEFT.y[1]) / 2, (WIN_LEFT.z[0] + WIN_LEFT.z[1]) / 2],
-    Math.PI / 2
+    Math.PI / 2,
+    [-1, 0, 0],
+    views.scenes[1],
+    false
   );
   const drawSky = () => skies.forEach(drawSkyOf);
   function drawSkyOf(sky, i) {
@@ -131,7 +128,7 @@ export function buildWindows(shared) {
     });
     clouds.tex.needsUpdate = true;
   }
-  // A bird now and then, flapping across the window over the bed by day.
+  // A bird now and then, flapping across the view beyond the bed by day, out over the lane.
   const birdPart = part();
   [
     [-2, 1],
@@ -140,23 +137,31 @@ export function buildWindows(shared) {
     [1, 0],
     [2, 1],
   ].forEach(([x, y]) => birdPart.add(x, y, 0, "tvBody"));
-  const bird = place(house, mesh(birdPart), [0, 0, BACK - 1.5]);
+  const bird = mesh(birdPart);
+  bird.material = new THREE.MeshBasicMaterial({ vertexColors: true, color: 0x8a8f99, fog: true, transparent: true }); // (out there, unlit)
+  bird.scale.setScalar(2);
+  views.scenes[0].add(bird);
   bird.visible = false;
+  const BIRD_Z = BACK - 190;
   const winMid = (WIN_BACK.x[0] + WIN_BACK.x[1]) / 2;
-  const winHalf = (WIN_BACK.x[1] - WIN_BACK.x[0]) / 2 - 2;
-  const flight = { at: 6, x: 0, y: 0, dir: 1 };
+  const winHalf = 130;
+  const flight = { at: 6, x: 0, y: 0, dir: 1, fade: 1 };
   updates.push((t, dt) => {
     cloudMat.map.offset.x = (t * 0.004) % 1;
     if (!shared.night && t > flight.at && !bird.visible) {
-      Object.assign(flight, { dir: Math.random() < 0.5 ? 1 : -1, y: WIN_BACK.y[0] + 18 + Math.random() * 14 });
+      Object.assign(flight, { dir: Math.random() < 0.5 ? 1 : -1, y: 110 + Math.random() * 50 });
       flight.x = -flight.dir * winHalf;
+      flight.fade = 1;
       bird.visible = true;
     }
     if (bird.visible) {
-      flight.x += flight.dir * 12 * dt;
-      bird.position.set(winMid + flight.x, flight.y + Math.sin(t * 3) * 1.5, BACK - 1.5);
+      flight.x += flight.dir * 30 * dt;
+      bird.position.set(winMid + flight.x, flight.y + Math.sin(t * 3) * 3, BIRD_Z);
       bird.scale.y = Math.sin(t * 14) > 0 ? 1 : -1; // flapping
-      if (Math.abs(flight.x) > winHalf || shared.night) {
+      // Fading in and out at either end of its way across, and away as night falls.
+      if (shared.night) flight.fade -= dt;
+      bird.material.opacity = Math.min(1, (winHalf - Math.abs(flight.x)) / 30, flight.fade);
+      if (Math.abs(flight.x) > winHalf || flight.fade <= 0) {
         bird.visible = false;
         flight.at = t + 12 + Math.random() * 20;
       }
@@ -164,19 +169,24 @@ export function buildWindows(shared) {
   });
 
   // The window frames: white, with glazing bars and a sill; sage curtains tied back either side of the one
-  // over the bed, and a succulent on its sill (where the cat likes to sit).
-  const win = part();
+  // over the bed, and a succulent on its sill (where the cat likes to sit). Each is its own mesh (the one over
+  // the bed fades with its wall: peek.js).
   const frameAround = ([a, b], [lo, hi], at) => {
+    const win = part();
     for (let u = a - 2; u <= b + 2; u++)
       for (let y = lo - 2; y <= hi + 2; y++) if (u < a || u > b || y < lo || y > hi) win.add(...at(u, y, 0), "frame");
     for (let y = lo; y <= hi; y++) win.add(...at(Math.round((a + b) / 2), y, -1), "frame");
     for (let u = a; u <= b; u++) win.add(...at(u, Math.round((lo + hi) / 2), -1), "frame");
     for (let u = a - 3; u <= b + 3; u++) for (let d = 0; d <= 4; d++) win.add(...at(u, lo - 3, d), d === 4 ? "frameShade" : "frame");
+    return win;
   };
-  frameAround(WIN_BACK.x, WIN_BACK.y, (u, y, d) => [u, y, BACK + d]);
-  frameAround(WIN_LEFT.z, WIN_LEFT.y, (u, y, d) => [X0 + d, y, u]);
-  // Curtains on both windows, sage linen in soft pleats with a deeper hem, on a brass rod a little out from
-  // the wall (clear of the cat on the sill): gathered at the sides, or drawn across (clicked, `curtains`).
+  const backWin = frameAround(WIN_BACK.x, WIN_BACK.y, (u, y, d) => [u, y, BACK + d]);
+  ellipsoid(backWin, [WIN_BACK.x[1] - 3, WIN_BACK.y[0] - 1.5, BACK + 2], [1.8, 1.4, 1.4], "pot");
+  ellipsoid(backWin, [WIN_BACK.x[1] - 3, WIN_BACK.y[0] + 0.5, BACK + 2], [1.6, 1.4, 1.3], "succulent");
+  house.add(mesh(backWin), mesh(frameAround(WIN_LEFT.z, WIN_LEFT.y, (u, y, d) => [X0 + d, y, u])));
+  // Curtains on both windows, sage linen in soft pleats with a deeper hem, on a brass rod close in front of
+  // the frame (they hang from above the sill, so the cat on it sits in front of them): gathered at the sides,
+  // or drawn across (clicked, `curtains`).
   // Each panel is drawn across, and gathered in by squeezing its pleats towards the side it hangs from.
   const curtains = [];
   function curtainsOn(span, [lo, hi], margins, at, turnY) {
@@ -199,8 +209,8 @@ export function buildWindows(shared) {
     clickables.push({ parts: panels.map((p) => p.m), toggle: () => (c.closed = !c.closed) });
     curtains.push(c);
   }
-  curtainsOn(WIN_BACK.x, [WIN_BACK.y[0] - 2, WIN_BACK.y[1] + 4], [8, 8], (u) => [u - 0.5, 0, BACK + 8.5], 0);
-  curtainsOn(WIN_LEFT.z, [WIN_LEFT.y[0] + 2, WIN_LEFT.y[1] + 4], [3, 8], (u) => [X0 + 6, 0, u - 0.5], -Math.PI / 2);
+  curtainsOn(WIN_BACK.x, [WIN_BACK.y[0] - 2, WIN_BACK.y[1] + 4], [8, 8], (u) => [u - 0.5, 0, BACK + 1.5], 0);
+  curtainsOn(WIN_LEFT.z, [WIN_LEFT.y[0] + 2, WIN_LEFT.y[1] + 4], [3, 8], (u) => [X0 + 1.5, 0, u - 0.5], -Math.PI / 2);
   const GATHERED = 6; // how wide a panel is, drawn back
   updates.push((t, dt) => {
     for (const c of curtains) {
@@ -208,12 +218,9 @@ export function buildWindows(shared) {
       for (const { g, width } of c.panels) g.scale.x = (GATHERED + (width - GATHERED) * c.k) / width;
     }
   });
-  ellipsoid(win, [WIN_BACK.x[1] - 3, WIN_BACK.y[0] - 1.5, BACK + 2], [1.8, 1.4, 1.4], "pot");
-  ellipsoid(win, [WIN_BACK.x[1] - 3, WIN_BACK.y[0] + 0.5, BACK + 2], [1.6, 1.4, 1.3], "succulent");
-  house.add(mesh(win));
 
-  // The front door: white, with two panes of glass, opening into the room. Through it, a path and a hedge
-  // under the sky; on the floor inside, a doormat.
+  // The front door: white, with two panes of glass, opening into the room (out of it, the front garden:
+  // yard.js); on the floor inside, a doormat.
   const door = pivotGroup(house, [DOOR_X[0] - 0.5, 0, BACK - 2]);
   const doorPart = part();
   box(doorPart, DOOR_X, [0, DOOR.height - 1], [BACK - 2, BACK - 2], (x, y) => {
@@ -229,40 +236,16 @@ export function buildWindows(shared) {
   box(doorFrame, [DOOR_X[0] - 2, DOOR_X[1] + 2], [0, DOOR.height + 1], [BACK, BACK], "frame", [
     { has: (x, y) => x >= DOOR_X[0] && x <= DOOR_X[1] && y < DOOR.height },
   ]);
-  house.add(mesh(doorFrame));
+  const frameMesh = mesh(doorFrame);
+  house.add(frameMesh);
   const mat = new THREE.Mesh(new THREE.PlaneGeometry(22, 10), new THREE.MeshLambertMaterial({ color: COLORS.mat }));
   mat.rotation.x = -Math.PI / 2;
   place(house, mat, [DOOR.x, -0.45, BACK + 8]);
-  const outside = pixelTexture(60, 70, (g, w, h) => {
-    const grad = g.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, "#8ccbf0");
-    grad.addColorStop(1, "#dff1fb");
-    g.fillStyle = grad;
-    g.fillRect(0, 0, w, h);
-    for (let x = 0; x < w; x++) {
-      const top = 34 + Math.round(2 * Math.sin(x * 0.7) + hash(x, 1, 1) * 2); // a hedge
-      g.fillStyle = x % 5 ? "#5e9e4a" : "#4f8a3e";
-      g.fillRect(x, top, 1, h - top);
-      if (hash(x, 2, 3) < 0.15) {
-        g.fillStyle = hash(x, 4, 4) < 0.5 ? "#f6a5c0" : "#fbe28a";
-        g.fillRect(x, top + 3 + Math.floor(hash(x, 5, 5) * 8), 1, 1);
-      }
-    }
-  });
-  // The hedge is close behind the door, so whoever goes out walks off behind it.
-  place(house, new THREE.Mesh(new THREE.PlaneGeometry(60, 70), new THREE.MeshBasicMaterial({ map: outside.tex })), [DOOR.x, 34.5, BACK - 18]);
-  const doorRain = pixelTexture(60, 70, drawRain);
-  doorRain.tex.wrapS = doorRain.tex.wrapT = THREE.RepeatWrapping;
-  const doorRainMat = new THREE.MeshBasicMaterial({ map: doorRain.tex, transparent: true, opacity: 0, depthWrite: false });
-  place(house, new THREE.Mesh(new THREE.PlaneGeometry(60, 70), doorRainMat), [DOOR.x, 34.5, BACK - 17.8]);
-  const path = new THREE.Mesh(new THREE.PlaneGeometry(2 * DOOR.half + 6, 16), new THREE.MeshLambertMaterial({ color: "#d9cbb0" }));
-  path.rotation.x = -Math.PI / 2;
-  place(house, path, [DOOR.x, -0.5, BACK - 10]);
   const frontDoor = { open: false, k: 0 };
   updates.push((t, dt) => {
     frontDoor.k += ((frontDoor.open ? 1 : 0) - frontDoor.k) * (1 - Math.exp(-4 * dt));
     door.outer.rotation.y = -1.45 * frontDoor.k;
   });
 
-  return { cloudMat, rainVeil, rainMat, views, drawSky, drawClouds, bird, doorRain, doorRainMat, frontDoor };
+  return { cloudMat, rainVeil, rainMat, views, outlooks, drawSky, drawClouds, bird, frontDoor, doorLeaf: door.inner, doorFrame: frameMesh };
 }

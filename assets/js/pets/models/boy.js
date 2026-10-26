@@ -331,6 +331,12 @@ export function buildBoy() {
     speed: 30,
     gaitHz: 2.1,
     hands: body.arms.map(({ hand }) => hand),
+    // For dressing him in other clothes (boy-outfits.js, the playground's): his joints, his head's shape, his
+    // colours, and his own day and night clothes.
+    limbs: body,
+    headPart,
+    palette,
+    outfits,
     nightwear(on) {
       outfits[0].forEach((m) => (m.visible = !on));
       outfits[1].forEach((m) => (m.visible = on));

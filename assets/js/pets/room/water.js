@@ -12,7 +12,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 
 export const GRAVITY = 200;
-const MAX = 1400;
+const MAX = 2600;
 const KINDS = {
   // drag (1/s), cube width, stretch per unit of speed, colours
   jet: { drag: 0.35, w: 0.75, stretch: 0.016, colors: ["#8fd0f5", "#b9e3fa", "#e6f7ff"] },

@@ -1,6 +1,7 @@
 /*******************************************************************************
- * Going out: the walk with the dog through the front door (the keys, the
- * umbrellas, the lead), and fetch.
+ * Going out: through the front door into the front garden (the keys, the
+ * umbrellas, the lead) for a walk with the dog or a stroll without her, what
+ * they do out there being in acts/outdoors.js; and fetch, indoors.
  ******************************************************************************/
 
 import { rnd } from "../../stage.js";
@@ -38,33 +39,37 @@ export function outingsActs(c) {
     faceSide,
   } = c;
   const petPet = (...args) => c.petPet(...args); // pets.js
+  const outdoors = (...args) => c.outdoors(...args); // outdoors.js
+  const member = (...args) => c.member(...args);
 
-  // The dog on her lead, often the other person too; the cat stays home (and, with them all out, gets up to
-  // mischief). They line up in single file inside the door, the dog first, clip on her lead, and
-  // go out; out of sight they are out for a while, then come back in the same way, and the dog is petted.
-  // In the rain each of them takes their umbrella off the rack first and puts it up on the step, and the
-  // dog has her raincoat on; back in, umbrellas down and shaken and back on the rack, the dog shakes
-  // herself, and they all leave wet footprints for a few steps.
-  function* outing(a) {
+  // Out of the front door: a walk (`dog`: with the dog on her lead) or a stroll, often with the other person
+  // too; the cat stays home (and, with them all out, gets up to mischief). They line up in single file
+  // inside the door, the dog first, clip on her lead, and go out onto the porch; out in the front garden they
+  // go round a few of its places together (outdoors.js), then line up on the porch and come back in the same
+  // way, and the dog is petted. In the rain each of them takes their umbrella off the rack first and puts it
+  // up on the step, and the dog has her raincoat on; back in, umbrellas down and shaken and back on the rack,
+  // the dog shakes herself, and they all leave wet footprints for a few steps.
+  function* outing(a, dog) {
     const { door } = spots;
-    const dog = byName.collie;
+    const kind = dog ? "walk" : "wander";
     const b = other(a);
     const party = [];
-    if (dog && available(dog)) party.push({ who: dog, lead: true });
+    if (dog && byName.collie && available(byName.collie)) party.push({ who: byName.collie, lead: true });
     party.push({ who: a });
-    if (b && available(b) && Math.random() < 0.45) party.push({ who: b });
+    if (b && available(b) && Math.random() < (dog ? 0.45 : 0.55)) party.push({ who: b });
+    if (dog && !party.some((m) => m.lead)) return; // (she was just taken up with something)
     let gap = 0;
     for (const m of party) {
       m.behind = gap; // how far behind the first in the line
       gap += m.who.human ? 18 : 22;
     }
-    const ev = event(a, "walk", { party: [], ready: new Set() });
-    for (const m of party) if (m.who === a || invite(m.who, act("walk", walkAlong, ev, m))) ev.party.push(m);
+    const ev = event(a, kind, { party: [], ready: new Set(), jobs: new Map(), places: new Map() });
+    for (const m of party) if (m.who === a || invite(m.who, act(kind, walkAlong, ev, m))) ev.party.push(m);
     yield* takeKeys(a);
     yield* lineUp(
       a,
       ev,
-      party.find((m) => m.who === a)
+      ev.party.find((m) => m.who === a)
     );
     if (!(yield* until(() => ev.ready.size === ev.party.length || ev.over, 25))) return;
     // Clip on the leads, and open the door.
@@ -75,7 +80,7 @@ export function outingsActs(c) {
     house.door.open = true;
     onEnd(a, () => (house.door.open = false));
     yield* wait(a, 0.6);
-    // Out in single file at the pace of the slowest, down the path and out of sight; and back in, the last
+    // Out in single file at the pace of the slowest, onto the porch and down the path; and back in, the last
     // one stopping just inside the door.
     const pace = Math.min(...ev.party.map((m) => m.who.speed));
     const last = Math.max(...ev.party.map((m) => m.behind));
@@ -86,11 +91,7 @@ export function outingsActs(c) {
         m.who.face(dir > 0 ? 0 : Math.PI);
       });
       for (let s = 0; s <= Math.abs(to - from) + last; s += pace * clock.dt) {
-        ev.party.forEach((m) => {
-          const z = from - dir * m.behind + dir * s; // in line, each from its place in it
-          [m.who.x, m.who.z, m.who.y] = [door.x, z, 0];
-          m.who.rig.group.visible = z > door.outside; // out of sight behind the hedge
-        });
+        ev.party.forEach((m) => ([m.who.x, m.who.z, m.who.y] = [door.x, from - dir * m.behind + dir * s, 0])); // in line, each from its place in it
         yield;
       }
       ev.party.forEach((m) => (m.who.walking = false));
@@ -104,16 +105,16 @@ export function outingsActs(c) {
     });
     yield* file(door.inside, door.outside, -1);
     house.door.open = false;
-    yield* wait(a, rnd(14, 24));
+    yield* outdoors(a, ev);
+    // Lined up on the porch to come in, the dog first.
+    yield* c.together(a, ev, (m) => lineOut(m.who, ev, m), 20);
     house.door.open = true;
     yield* wait(a, 0.6);
-    // In from a wet street, with wet feet (and a dog in her raincoat wet on her legs and head); caught in
-    // the rain without an umbrella or a raincoat (it came on while they were out), soaked through.
+    // In from a wet garden, with wet feet (and a dog in her raincoat wet on her legs and head).
     if (home.weather.raining || home.weather.wet > 0.3)
       ev.party.forEach(({ who }) => {
-        const covered = who.umbrella || who.raincoat || !home.weather.raining;
         who.wetFeet = who.human ? 7 : 10;
-        who.wet = Math.max(who.wet, covered ? (who.human ? 0.1 : 0.5) : 0.7);
+        if (who.raincoat) who.wet = Math.max(who.wet, 0.5);
       });
     yield* file(door.outside, door.inside, 1);
     house.door.open = false;
@@ -139,6 +140,13 @@ export function outingsActs(c) {
     if (a.umbrella) yield* stowUmbrella(a);
     yield* putKeys(a);
     walked.forEach((p) => later(a, act("pet", petPet, p))); // well done
+  }
+  // Their place in the line on the porch, ready to go in (the first nearest the door), facing it.
+  function* lineOut(a, ev, m) {
+    const { door } = spots;
+    yield* walk(a, [door.x, door.outside - m.behind]);
+    a.face(0);
+    yield* wait(a, 0.3);
   }
 
   // The house keys off the counter and into a pocket, for whoever leads the walk; back on the counter after
@@ -216,8 +224,9 @@ export function outingsActs(c) {
 
   function* walkAlong(a, ev, m) {
     yield* lineUp(a, ev, m);
-    yield* until(() => ev.over, LONG_WAIT); // the host walks everyone
+    yield* member(a, ev); // the host walks everyone, and says what to do out there
     a.walking = false;
+    if (a.out) return; // (cut short out there: finish() brings them in, and puts the umbrella back)
     if (a.umbrella) yield* stowUmbrella(a);
     if (a.raincoat || (a.name === "collie" && a.wet > 0.3)) {
       a.shakeUntil = t() + 1.3; // nose to tail
@@ -243,8 +252,6 @@ export function outingsActs(c) {
     a.face(Math.PI);
     if (!ev.over) ev.ready.add(a);
   }
-
-  const LONG_WAIT = 240;
 
   /* ----- with the pets ----- */
 

@@ -236,9 +236,41 @@ export function livingActs(c) {
 
   // To bed at night, in the loft: lie back, the quilt comes up, and sleep till morning (light mode), or a
   // good while, or till clicked awake; the cat may come and sleep at their feet. Up again with a stretch.
+  // Her plush moth (house.js) sits on the bed while nobody is in it: the first to bed moves it to the
+  // nightstand, the last one up puts it back. Cut short, it is wherever it belongs then.
+  const inBed = (a) => humans.some((h) => h !== a && h.seatKey?.startsWith("bed")); // anyone but `a`
+  const mothHome = (a) => (inBed(a) ? "stand" : "bed");
+  // From beside the bed: picked up, turned round with, and set down where it is to go ("stand" or "bed"),
+  // or on the nightstand after all if someone has got into bed meanwhile.
+  function* moveMoth(a, where) {
+    const { moth } = house;
+    if (moth.at === where || (where === "bed" && inBed(a)) || !claim(a, "moth")) return;
+    onEnd(a, () => moth.by === a && moth.put(mothHome(a)));
+    yield* walk(a, spots.moth.at);
+    if (moth.at !== where && moth.at) {
+      yield* turn(a, spots.moth.yaw[moth.at]);
+      a.hold = HOLDS.pick;
+      yield* wait(a, 0.6);
+      moth.take(a);
+      a.hold = HOLDS.carry;
+      yield* wait(a, 0.3);
+      const to = where === "bed" ? mothHome(a) : where;
+      yield* turn(a, spots.moth.yaw[to]);
+      a.hold = HOLDS.pick;
+      yield* wait(a, 0.6);
+      moth.put(to);
+      a.hold = null;
+      yield* wait(a, 0.3);
+    }
+    release(a, "moth");
+  }
+
   function* sleep(a) {
     const seat = takeSeat(a, a.name === "girl" ? ["bed0", "bed1"] : ["bed1", "bed0"]);
     if (!seat) return;
+    // (cut short in bed, they are put back on the floor at once: the moth back on the bed too, if it is empty)
+    onEnd(a, () => !house.moth.by && house.moth.at === "stand" && !inBed(a) && house.moth.put("bed"));
+    yield* moveMoth(a, "stand");
     yield* intoBed(a, seat);
     const cat = byName.cat;
     if (cat && Math.random() < 0.5) invite(cat, act("snuggle", snuggle, a));
@@ -246,6 +278,7 @@ export function livingActs(c) {
     yield* linger(a, rnd(70, 120), { stop: () => !a.asleep || !home.night });
     yield* wait(a, 1.2); // awake, a look about
     yield* outOfBed(a, seat);
+    if (!a.interrupt) yield* moveMoth(a, "bed");
   }
 
   // A book from the low shelf, one not read lately (house.js), read sitting down (sometimes dozing off over

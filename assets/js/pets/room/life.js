@@ -40,6 +40,7 @@ const MENUS = {
     read: 9,
     water: 8,
     walk: 10,
+    wander: 6,
     fetch: 6,
     pet: 10,
     chat: 7,
@@ -64,6 +65,7 @@ const MENUS = {
     read: 5,
     laptop: 4,
     walk: 10,
+    wander: 5,
     fetch: 7,
     pet: 8,
     chat: 6,
@@ -86,6 +88,7 @@ const NIGHT = {
   tv: 1.3,
   read: 1.3,
   walk: 0.4,
+  wander: 0.5,
   fetch: 0.4,
   zoomies: 0.5,
   cook: 0.6,
@@ -97,20 +100,20 @@ const NIGHT = {
 };
 // A rainy spell (weather.js) makes for a cosy afternoon in: the fire, a book, a nap, and the cat at the window.
 // The dog still needs her walk, rain or not.
-const RAIN = { fire: 2.5, fireside: 1.6, read: 1.5, nap: 1.6, tv: 1.3, perch: 2.5, bed: 1.3 };
+const RAIN = { fire: 2.5, fireside: 1.6, read: 1.5, nap: 1.6, tv: 1.3, perch: 2.5, bed: 1.3, wander: 0.15 };
 // Moods: every few minutes each of them leans a little towards one kind of thing, or none in particular: a
 // spell when she is all for the garden, then one for the screens, or the kitchen. What they lean towards is
 // LEAN times as likely, in what they pick and in who is given the day's rhythm (ROUTINE).
 const LEANINGS = {
   girl: {
-    garden: ["garden", "water", "sprinkle"],
+    garden: ["garden", "water", "sprinkle", "wander"],
     screens: ["tv", "pcGirl", "watchPc", "laptop", "game"],
     kitchen: ["cook", "bake", "snack"],
     cosy: ["read", "nap", "fire", "stretch"],
     pets: ["walk", "fetch", "pet"],
   },
   boy: {
-    garden: ["garden", "water", "sprinkle"],
+    garden: ["garden", "water", "sprinkle", "wander"],
     screens: ["pc", "tv", "laptop", "game"],
     kitchen: ["bake", "snack"],
     cosy: ["read", "nap", "fire", "stretch"],
@@ -129,9 +132,9 @@ const BALANCE = 600;
 const NEED = [0.05, 3];
 const LONGEST = 300; // s any one activity may run
 // What is never dropped for a hungry pet: changing clothes, feeding, running in from the rain, the cat's mess,
-// going to the table when called, a walk (even still on the path outside the door); nor is anyone with food
-// in hand or at the table with what they made (`a.serving`).
-const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff", "dine", "walk"];
+// going to the table when called, a walk or a stroll (even still on the path outside the door); nor is anyone
+// with food in hand or at the table with what they made (`a.serving`).
+const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff", "dine", "walk", "wander"];
 // Nor is anyone called to the table out of these (summon()): those, or cooking or baking (food of their own
 // on the way).
 const NO_CALL = [...NO_DROP, "cook", "bake"];

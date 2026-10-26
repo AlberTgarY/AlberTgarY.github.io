@@ -92,6 +92,44 @@ export function buildShell(shared) {
   });
   paper.tex.wrapS = THREE.RepeatWrapping;
   const paperMat = new THREE.MeshLambertMaterial({ map: paper.tex });
+  // Outside, the back wall (facing the front garden: yard.js) is clad in duck-egg blue weatherboards, each
+  // lit along its top and shadowed under its lip, a little grain in them, over a plinth of old red brick, and
+  // a white fascia under the top.
+  const render = pixelTexture(64, WALL_H, (g, w, h) => {
+    const at = (y) => h - 1 - y;
+    const put = (x, y, c) => {
+      g.fillStyle = c;
+      g.fillRect(x, at(y), 1, 1);
+    };
+    for (let y = 11; y < h; y++) {
+      const row = (y - 11) % 4; // 0 the shadowed lip at the bottom of a board, 3 its lit top
+      for (let x = 0; x < w; x++) {
+        const grain = hash(Math.floor(x / 5), y, 63) < 0.12;
+        put(x, y, row === 0 ? "#b7cccb" : row === 3 ? "#e3efee" : grain ? "#cbdcdb" : "#d4e4e3");
+      }
+    }
+    for (let y = 0; y < 10; y++)
+      for (let x = 0; x < w; x++) {
+        const course = Math.floor(y / 2);
+        const joint = y % 2 === 1 || (x + (course % 2) * 4) % 8 === 0;
+        put(
+          x,
+          y,
+          joint ? "#d8c8b0" : ["#b8654c", "#c46a52", "#a9563f", "#c97556"][Math.floor(hash(Math.floor((x + (course % 2) * 4) / 8), course, 62) * 4)]
+        );
+      }
+    for (let x = 0; x < w; x++) {
+      put(x, 10, "#e9e2d4"); // the top of the plinth
+      for (const [y, c] of [
+        [h - 3, "#fbf8f1"],
+        [h - 2, "#fbf8f1"],
+        [h - 1, "#e6e9e4"],
+      ])
+        put(x, y, c); // the fascia
+    }
+  });
+  render.tex.wrapS = THREE.RepeatWrapping;
+  const renderMat = new THREE.MeshLambertMaterial({ map: render.tex });
   const wallMat = new THREE.MeshLambertMaterial({ color: "#e9dcc4" });
   const capMat = new THREE.MeshLambertMaterial({ color: "#c9ae8a" });
   // A wall from u0 to u1 along it, papered on the inside, WALL_T thick, cut round its `holes` ([u0, u1,
@@ -113,10 +151,17 @@ export function buildShell(shared) {
       const { position, uv } = g.attributes;
       for (let i = 0; i < position.count; i++) uv.setXY(i, (cu + (alongX ? 1 : -1) * position.getX(i)) / 64, (cv + 0.5 + position.getY(i)) / WALL_H);
       const face = new THREE.Mesh(g, paperMat);
+      face.receiveShadow = true; // (of the bedside lamp: loft.js)
       const block = new THREE.Mesh(alongX ? new THREE.BoxGeometry(w, h, WALL_T) : new THREE.BoxGeometry(WALL_T, h, w), wallMat);
       if (alongX) {
         face.position.set(cu, cv, BACK);
         block.position.set(cu, cv, BACK - WALL_T / 2 - 0.05);
+        const outer = new THREE.Mesh(g.clone(), renderMat); // the same, from outside
+        const ouv = outer.geometry.attributes.uv;
+        for (let i = 0; i < ouv.count; i++) ouv.setX(i, (cu - position.getX(i)) / 64);
+        outer.rotation.y = Math.PI;
+        outer.position.set(cu, cv, BACK - WALL_T - 0.15);
+        house.add(outer);
       } else {
         face.rotation.y = Math.PI / 2;
         face.position.set(X0, cv, cu);
@@ -161,6 +206,7 @@ export function buildShell(shared) {
     const carpet = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: pile.tex }));
     carpet.rotation.x = -Math.PI / 2;
     carpet.position.set((x0 + x1) / 2, LOFT.y - 0.5, (z0 + z1) / 2);
+    carpet.castShadow = carpet.receiveShadow = true; // (the bedside lamp's light stays up in the loft)
     house.add(carpet);
   }
   const loft = part();

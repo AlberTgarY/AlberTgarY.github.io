@@ -1,18 +1,23 @@
 /*******************************************************************************
- * What the two windows look out on (house.js shows each in front of its patch
- * of sky). Beyond the bed: rolling hills with a cottage on the far one, and a
- * path over the near one where now and then someone goes by: out for a walk,
- * with a dog, on a bike, flying a kite, or at night with a lantern. Past the
- * kitchen: a street of houses with a street lamp, people walking by on the
- * pavement (with a dog, a shopping bag, a balloon, an umbrella in the rain),
- * and cars, a black cab, a van, a police car, a red double-decker bus and, by
- * day, a yellow school bus driving past both ways. By night the views go dark
- * blue, windows light up and go out at random, cars come by with their lights
- * on, lighting up the road ahead, and a police car's flashing lights wash red
- * and blue over the street and into the kitchen (`glow`, a light by the window).
+ * What the two windows look out on: a scene of its own for each, of flat
+ * painted layers standing at their own depths (outlook.js draws each through
+ * its window, from in the room, so that nearer layers slide across farther
+ * ones as the view turns or the pointer moves). Beyond the bed, past the real
+ * front garden (yard.js) and the lane: a hedgerow, a meadow, a near hill with
+ * a path along its top where now and then someone goes by (out for a walk,
+ * with a dog, on a bike, flying a kite, or at night with a lantern), a far
+ * hill with a cottage, and the sky. Past the kitchen: a street running along
+ * the house, its far pavement with street lamps and people walking by (with a
+ * dog, a shopping bag, a balloon, an umbrella in the rain), the road with cars,
+ * a black cab, a van, a police car, a red double-decker bus and, by day, a
+ * yellow school bus driving past both ways, a row of houses, the sky, and a
+ * branch of their tree close outside. By night the views go dark blue,
+ * windows light up and go out at random, cars come by with their lights on,
+ * lighting up the road ahead, and a police car's flashing lights wash red and
+ * blue over the street and into the kitchen (`glow`, a light by the window).
  *
- * The scenery is drawn a texel to a voxel, like the room; whatever moves, at
- * F texels to a voxel, for finer detail.
+ * The scenery is painted a few texels to a dot; whatever moves, a texel at a
+ * time, for finer detail.
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -285,132 +290,261 @@ function drawWalker(rect, p, step, col, t) {
   }
 }
 
-// `sizes`: [w, h] voxels of each view, back window then left; `sky`: [w, h] voxels of the texture each pane
-// maps; `glow`: a light inside by the left window.
-export function makeViews(sizes, sky, glow) {
+// A canvas to paint a layer of a view on, a texel to each `unit` of the world, and a flat piece of the world
+// showing it: standing up (facing `facing`, "+z" or "+x"), or lying flat on the ground ("up").
+function layer(w, h, { transparent = true, repeat = null } = {}) {
+  const make = () => Object.assign(document.createElement("canvas"), { width: w, height: h });
+  const canvas = make();
+  const base = make();
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.magFilter = tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  if (repeat) {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(...repeat);
+  }
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent, depthWrite: !transparent, fog: true });
+  return { w, h, canvas, g: canvas.getContext("2d"), base, bg: base.getContext("2d"), tex, mat, drawnAt: -Infinity, moving: false };
+}
+function plane(scene, mat, [w, h], [x, y, z], facing) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+  if (facing === "+x") m.rotation.y = Math.PI / 2;
+  if (facing === "up") m.rotation.x = -Math.PI / 2;
+  m.position.set(x, y, z);
+  scene.add(m);
+  return m;
+}
+
+// What the two windows look out on, each a scene of its own of flat painted layers at their own depths
+// (outlook.js draws them through the glass, from in the room, so that the nearer layers move across the
+// farther ones as the view turns or the pointer moves). `skies`: the two windows' sky textures (the back
+// window's, the left one's); `cloudMat`: the clouds drifting over both; `glow`: a light inside by the left
+// window.
+//
+// Beyond the bed, past the real front garden (yard.js) and the lane: a meadow, a hedgerow along it, a near
+// hill with its path and two trees, a far hill with the cottage, the sky. Past the kitchen, a street running
+// along the house: the pavement, the road with its two lanes of traffic, the far pavement with its people
+// and street lamps, a row of houses, the sky; and a branch of their tree close outside.
+export function makeViews(skies, cloudMat, glow) {
   let night = false;
   let rain = 0;
-  const views = sizes.map(([w, h]) => {
-    const make = () => Object.assign(document.createElement("canvas"), { width: sky[0] * F, height: sky[1] * F });
-    const canvas = make();
-    const base = make();
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.magFilter = tex.minFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return { w, h, W: w * F, H: h * F, g: canvas.getContext("2d"), base, bg: base.getContext("2d"), tex, drawnAt: -Infinity, moving: false };
-  });
+  const hills = new THREE.Scene();
+  const street = new THREE.Scene();
+  for (const s of [hills, street]) s.fog = new THREE.Fog(0xcfe6f2, 260, 3200); // far things hazier
 
-  // By night some windows out there are lit and some dark, and now and then someone switches a light on or
-  // off: the neighbours' six (two to a house), then the cottage's.
-  const lit = [0, 1, 2, 3, 4, 5, 6].map(() => Math.random() < 0.5);
-  let blinkAt = 8;
+  // The sky behind each, and the clouds in front of it (neither hazed).
+  const skyMat = skies.map((tex) => new THREE.MeshBasicMaterial({ map: tex, fog: false }));
+  cloudMat.fog = false;
+  plane(hills, skyMat[0], [5200, 2800], [131, 1100, -2700]);
+  plane(hills, cloudMat, [5200, 2800], [131, 1100, -2650]);
+  plane(street, skyMat[1], [5200, 2800], [-2600, 1100, 14], "+x");
+  plane(street, cloudMat, [5200, 2800], [-2550, 1100, 14], "+x");
 
-  /* ---------- the scenery ---------- */
+  /* ---------- beyond the bed ---------- */
 
-  function drawScenery(i) {
-    const { bg, base, w, h } = views[i];
-    bg.clearRect(0, 0, base.width, base.height);
-    const dot = (x, y, c) => {
-      bg.fillStyle = c;
-      bg.fillRect(x * F, y * F, F, F);
+  const FAR = layer(250, 40); // 12 units a texel
+  const NEAR = layer(220, 34); // 8 units a texel
+  const HEDGE = layer(512, 12); // 2 units a texel
+  const MEADOW = layer(32, 32, { transparent: false, repeat: [21, 6] }); // 3 units a texel
+  plane(hills, FAR.mat, [3000, 480], [131, 93, -1500]);
+  plane(hills, NEAR.mat, [1760, 272], [131, 46, -820]);
+  plane(hills, HEDGE.mat, [1024, 24], [131, 11, -272]);
+  plane(hills, MEADOW.mat, [2000, 576], [131, -0.7, -262 - 288], "up");
+  const farTop = (x) => Math.round(14 + 3 * Math.sin(x / 13 + 1) + 1.5 * Math.sin(x / 5.3));
+  const nearTop = (x) => Math.round(10 + 2.2 * Math.sin(x / 11 + 4) + 0.8 * Math.sin(x / 4.1));
+  function paintHills() {
+    const [far, near, tree, trunk, path] = night
+      ? ["#2c3760", "#212a48", "#19203a", "#19203a", "#283153"]
+      : ["#b9d8cf", "#7db56f", "#4f9447", "#7a5a3a", "#d8c99f"];
+    const put = (L, x, y, c) => {
+      L.bg.fillStyle = c;
+      L.bg.fillRect(x, y, 1, 1);
     };
-    (i ? street : hills)(dot, w, h);
-    views[i].drawnAt = -Infinity; // to be put together again
-  }
-  // Beyond the bed: a far hill and a nearer one, a cottage with a red roof on the far one (its window lit
-  // at night), and two round trees on the near one, its top a path.
-  const nearTop = (x, h) => Math.round(h - 6 + 1.8 * Math.sin(x / 9 + 4));
-  function hills(dot, w, h) {
-    const [far, near, tree, trunk] = night ? ["#2c3760", "#212a48", "#19203a", "#19203a"] : ["#a3d2ad", "#7cbb69", "#4f9447", "#7a5a3a"];
-    const farTop = (x) => Math.round(h - 13 + 2.5 * Math.sin(x / 7 + 1) + 1.2 * Math.sin(x / 2.7));
-    for (let x = 0; x < w; x++) for (let y = farTop(x); y < h; y++) dot(x, y, y >= nearTop(x, h) ? near : far);
-    for (let x = 0; x < w; x++) dot(x, nearTop(x, h), night ? "#283153" : "#c9b98f"); // the path
-    const cx = 28;
+    for (const L of [FAR, NEAR, HEDGE]) L.bg.clearRect(0, 0, L.w, L.h);
+    for (let x = 0; x < FAR.w; x++) for (let y = farTop(x); y < FAR.h; y++) put(FAR, x, y, far);
+    // The cottage on the far hill, a red roof and a chimney, its window lit at night.
+    const cx = 128;
     const base = Math.min(...[0, 1, 2, 3, 4].map((k) => farTop(cx + k))) + 1;
     for (let x = cx; x <= cx + 4; x++)
       for (let y = base - 3; y <= base; y++)
-        dot(x, y, x === cx + 2 && y === base - 1 ? (night ? (lit[6] ? "#ffd36b" : "#273052") : "#6d8fb3") : night ? "#3b4670" : "#f2e8d5");
-    for (let k = 0; k <= 3; k++) for (let x = cx - 1 + k; x <= cx + 5 - k; x++) dot(x, base - 4 - k, night ? "#323c63" : "#c4553f");
-    for (let y = base - 8; y <= base - 6; y++) dot(cx + 3, y, night ? "#323c63" : "#8f4b3a"); // the chimney
-    for (const tx of [7, 15]) {
-      const top = nearTop(tx, h);
-      for (let y = top - 2; y < top; y++) dot(tx, y, trunk);
-      for (let x = -2; x <= 2; x++) for (let y = -2; y <= 1; y++) if (x * x + (y + 0.5) ** 2 <= 5) dot(tx + x, top - 4 + y, tree);
+        put(FAR, x, y, x === cx + 2 && y === base - 1 ? (night ? (lit[6] ? "#ffd36b" : "#273052") : "#6d8fb3") : night ? "#3b4670" : "#f2e8d5");
+    for (let k = 0; k <= 3; k++) for (let x = cx - 1 + k; x <= cx + 5 - k; x++) put(FAR, x, base - 4 - k, night ? "#323c63" : "#c4553f");
+    for (let y = base - 8; y <= base - 6; y++) put(FAR, cx + 3, y, night ? "#323c63" : "#8f4b3a");
+    // The near hill, the path along its top, two round trees on it.
+    for (let x = 0; x < NEAR.w; x++) {
+      for (let y = nearTop(x) + 1; y < NEAR.h; y++) put(NEAR, x, y, hash(x, y, 71) < 0.08 ? tree : near);
+      put(NEAR, x, nearTop(x), path);
     }
-  }
-  // Past the kitchen: the road along the bottom (ROAD rows), the pavement above it (PAVE rows), and over
-  // them three houses, red tile, grey slate and brown, with chimneys and windows (lit or not at night), a
-  // street lamp, and a leafy branch of their tree reaching in at the top left.
-  const ROAD = 6;
-  const PAVE = 4;
-  function street(dot, w, h) {
-    const HOUSES = [
-      { x: [0, 12], wall: ["#ecdcc3", "#3a4468"], roof: ["#b9573f", "#2e3758"], chimney: 9 },
-      { x: [13, 25], wall: ["#d8b79c", "#36405f"], roof: ["#6e7789", "#283150"], chimney: 16 },
-      { x: [26, w - 1], wall: ["#e3e6ea", "#3a4468"], roof: ["#a45d42", "#2e3758"], chimney: 33 },
-    ];
-    const n = night ? 1 : 0;
-    const kerb = h - ROAD - PAVE; // the foot of the walls
-    HOUSES.forEach(({ x: [x0, x1], wall, roof, chimney }, k) => {
-      const mid = (x0 + x1) / 2;
-      const eave = kerb - 9 + (k % 2);
-      for (let x = x0; x <= x1; x++) {
-        for (let y = eave; y < kerb; y++) dot(x, y, wall[n]);
-        for (let y = eave - 1 - Math.floor((x1 - x0) / 2 - Math.abs(x - mid)); y < eave; y++) dot(x, y, roof[n]);
+    for (const tx of [96, 104, 140]) {
+      const top = nearTop(tx);
+      for (let y = top - 2; y < top; y++) put(NEAR, tx, y, trunk);
+      for (let x = -2; x <= 2; x++) for (let y = -2; y <= 1; y++) if (x * x + (y + 0.5) ** 2 <= 5) put(NEAR, tx + x, top - 4 + y, tree);
+    }
+    // The hedgerow along the far side of the lane: bushy, a tree standing up out of it here and there.
+    const [hedge, hedgeDark, hedgeLight] = night ? ["#1d2a3e", "#172234", "#24324a"] : ["#5a9a45", "#447e36", "#6fae55"];
+    for (let x = 0; x < HEDGE.w; x++) {
+      const top = Math.round(4 + 1.2 * Math.sin(x / 6) + 0.8 * Math.sin(x / 2.3) - (hash(Math.floor(x / 40), 1, 72) < 0.4 && x % 40 < 9 ? 3 : 0));
+      for (let y = Math.max(0, top); y < HEDGE.h; y++) {
+        const q = hash(x, y, 73);
+        put(HEDGE, x, y, y === top ? hedgeLight : q < 0.3 ? hedgeDark : hedge);
       }
-      for (let y = eave - 7; y <= eave - 3; y++) dot(chimney, y, night ? "#262e4c" : "#9c5a45");
-      [x0 + 3, x1 - 3].forEach((wx, j) => {
-        const on = night && lit[2 * k + j];
-        for (let y = eave + 2; y <= eave + 4; y++) for (const x of [wx, wx + 1]) dot(x, y, on ? "#ffcf66" : night ? "#273052" : "#7fa2c6");
-      });
-      for (let y = kerb - 4; y < kerb; y++) dot(Math.round(mid), y, night ? "#2a2238" : "#7a4b3a"); // a front door
-    });
-    for (let x = 0; x < w; x++) {
-      for (let y = kerb; y < h - ROAD; y++)
-        dot(
-          x,
-          y,
-          y === h - ROAD - 1
-            ? night
-              ? "#3b4058"
-              : "#b9b3a8"
-            : x % 4 === 0 && y === kerb + 1
-              ? night
-                ? "#3d4258"
-                : "#c4beb3"
-              : night
-                ? "#454b66"
-                : "#d4cec3"
-        );
-      for (let y = h - ROAD; y < h; y++) dot(x, y, y === h - 3 && x % 5 < 2 ? (night ? "#6a6f85" : "#e8e4da") : night ? "#2a2e40" : "#6e7177");
     }
-    const LAMP = 25;
-    for (let y = kerb - 10; y < h - ROAD; y++) dot(LAMP, y, night ? "#1d2238" : "#3d4148");
-    dot(LAMP + 1, kerb - 10, night ? "#1d2238" : "#3d4148");
-    for (const x of [LAMP + 1, LAMP + 2]) dot(x, kerb - 9, night ? "#ffe39a" : "#d9dde2");
-    if (night)
-      for (const [x, y] of [
-        [LAMP + 1, kerb - 8],
-        [LAMP + 2, kerb - 8],
-        [LAMP + 1, kerb + 2],
-        [LAMP + 2, kerb + 2],
-        [LAMP + 3, kerb + 2],
-        [LAMP + 2, kerb + 1],
-      ])
-        dot(x, y, "rgba(255, 220, 140, 0.35)"); // its glow
-    const [leaf, leafDark, branch] = night ? ["#202a45", "#1a2239", "#1a2239"] : ["#6aa84f", "#4f8d3e", "#7a5a3a"];
-    for (let x = 0; x <= 11; x++) dot(x, Math.round(2 + x * 0.35), branch);
-    for (const [cx, cy, r] of [
-      [2, 3, 3.2],
-      [7, 5, 2.6],
-      [11, 7, 2.2],
-      [4, 0, 2.8],
-    ])
-      for (let x = Math.floor(cx - r); x <= cx + r; x++)
-        for (let y = Math.floor(cy - r); y <= cy + r; y++)
-          if (x >= 0 && y >= 0 && (x - cx) ** 2 + (y - cy) ** 2 <= r * r) dot(x, y, hash(x, y, 41) < 0.35 ? leafDark : leaf);
+    // The meadow: grass, a few flowers.
+    const g = MEADOW.bg;
+    for (let y = 0; y < MEADOW.h; y++)
+      for (let x = 0; x < MEADOW.w; x++) {
+        const q = hash(x, y, 74);
+        g.fillStyle = night ? (q < 0.3 ? "#1c2a3c" : "#203046") : q < 0.25 ? "#a3cc6e" : q > 0.97 ? "#f6f1df" : q > 0.95 ? "#f2d24a" : "#b0d47c";
+        g.fillRect(x, y, 1, 1);
+      }
+    for (const L of [FAR, NEAR, HEDGE, MEADOW]) L.drawnAt = -Infinity;
   }
+
+  /* ---------- past the kitchen ---------- */
+
+  // Seen from the left window (at x = X0), the street runs along z: 2.5 units a texel, the scenery painted
+  // two texels to a dot (F), whoever moves a texel at a time.
+  const UNIT = 2.5;
+  const LONG = 240; // texels along the street
+  const FACADE = layer(LONG, 44);
+  const WALK = layer(LONG, 40);
+  const LANES = [layer(LONG, 26), layer(LONG, 26)]; // the far lane (going left as seen), the near one
+  const PAVE = layer(16, 16, { transparent: false, repeat: [1, 15] }); // 2.5 units a texel
+  const ROAD = layer(34, 32, { transparent: false, repeat: [1, 7.5] });
+  const BRANCH = layer(36, 24);
+  const along = 14; // the middle of the window, along z
+  const stand = (L, x, bottom = 0) => plane(street, L.mat, [L.w * UNIT, L.h * UNIT], [x, bottom + (L.h * UNIT) / 2, along], "+x");
+  stand(FACADE, -300);
+  stand(WALK, -276);
+  stand(LANES[0], -238);
+  stand(LANES[1], -202);
+  plane(street, PAVE.mat, [40, LONG * UNIT], [-282, 0, along], "up"); // the far pavement
+  plane(street, ROAD.mat, [84, LONG * UNIT], [-220, -0.1, along], "up");
+  plane(street, PAVE.mat, [24, LONG * UNIT], [-166, 0, along], "up"); // the near one
+  stand(BRANCH, -170, 30).position.z = along + 30;
+  const wash = plane(
+    street,
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, fog: false }),
+    [400, 400],
+    [-160, 60, along],
+    "+x"
+  ); // a police car's lights washing over it all
+  wash.renderOrder = 1;
+
+  const HOUSES = [
+    { w: 13, wall: ["#ecdcc3", "#3a4468"], roof: ["#b9573f", "#2e3758"] },
+    { w: 13, wall: ["#d8b79c", "#36405f"], roof: ["#6e7789", "#283150"] },
+    { w: 14, wall: ["#e3e6ea", "#3a4468"], roof: ["#a45d42", "#2e3758"] },
+  ];
+  const LAMPS = [30, 90, 150, 210]; // texels along the far pavement
+  function paintStreet() {
+    const n = night ? 1 : 0;
+    const dot = (L, x, y, c) => {
+      L.bg.fillStyle = c;
+      L.bg.fillRect(x * F, y * F, F, F);
+    };
+    for (const L of [FACADE, WALK, BRANCH]) L.bg.clearRect(0, 0, L.w, L.h);
+    // The row of houses, wall to wall, with chimneys and windows (lit or not at night) and front doors.
+    const H = FACADE.h / F;
+    let x0 = 0;
+    for (let k = 0; x0 < FACADE.w / F; k++) {
+      const { w, wall, roof } = HOUSES[k % 3];
+      const x1 = x0 + w - 1;
+      const mid = (x0 + x1) / 2;
+      const eave = H - 12 + (k % 2);
+      for (let x = x0; x <= x1; x++) {
+        for (let y = eave; y < H; y++) dot(FACADE, x, y, wall[n]);
+        for (let y = eave - 1 - Math.floor(w / 2 - Math.abs(x - mid)); y < eave; y++) dot(FACADE, x, y, roof[n]);
+      }
+      for (let y = eave - 9; y <= eave - 4; y++) dot(FACADE, x0 + 3, y, night ? "#262e4c" : "#9c5a45");
+      for (const [wx, row] of [
+        [x0 + 2, eave + 2],
+        [x1 - 3, eave + 2],
+        [x0 + 2, eave + 7],
+      ]) {
+        const on = night && lit[(k * 3 + row) % 6];
+        for (let y = row; y <= row + 2; y++) for (const x of [wx, wx + 1]) dot(FACADE, x, y, on ? "#ffcf66" : night ? "#273052" : "#7fa2c6");
+      }
+      for (let y = H - 5; y < H; y++)
+        for (const x of [x1 - 3, x1 - 2]) dot(FACADE, x, y, night ? "#2a2238" : ["#7a4b3a", "#3f6fa0", "#5a8a52"][k % 3]);
+      x0 = x1 + 1;
+    }
+    // The street lamps on the far pavement, glowing at night.
+    const pole = night ? "#1d2238" : "#3d4148";
+    const Hw = WALK.h / F;
+    for (const lx of LAMPS.map((t) => t / F)) {
+      for (let y = Hw - 16; y < Hw; y++) dot(WALK, lx, y, pole);
+      dot(WALK, lx + 1, Hw - 16, pole);
+      for (const x of [lx + 1, lx + 2]) dot(WALK, x, Hw - 15, night ? "#ffe39a" : "#d9dde2");
+      if (night)
+        for (const [x, y] of [
+          [lx + 1, Hw - 14],
+          [lx + 2, Hw - 14],
+          [lx, Hw - 14],
+          [lx + 3, Hw - 14],
+          [lx + 1, Hw - 13],
+          [lx + 2, Hw - 13],
+        ])
+          dot(WALK, x, y, "rgba(255, 220, 140, 0.35)");
+    }
+    // Paving slabs, and the road: tarmac, a white line down the middle in dashes, a kerb on either side.
+    const p = PAVE.bg;
+    for (let y = 0; y < PAVE.h; y++)
+      for (let x = 0; x < PAVE.w; x++) {
+        const q = hash(x, y, 75);
+        p.fillStyle =
+          x % 8 === 0 || y % 8 === 0 ? (night ? "#3b4058" : "#b9b3a8") : night ? (q < 0.2 ? "#40465f" : "#454b66") : q < 0.2 ? "#cdc7bc" : "#d4cec3";
+        p.fillRect(x, y, 1, 1);
+      }
+    const r = ROAD.bg;
+    for (let y = 0; y < ROAD.h; y++)
+      for (let x = 0; x < ROAD.w; x++) {
+        const q = hash(x, y, 76);
+        const kerb = x === 0 || x === ROAD.w - 1;
+        const line = Math.abs(x - ROAD.w / 2 + 0.5) < 1 && y % 16 < 8;
+        r.fillStyle = kerb
+          ? night
+            ? "#3b4058"
+            : "#b9b3a8"
+          : line
+            ? night
+              ? "#6a6f85"
+              : "#e8e4da"
+            : night
+              ? q < 0.3
+                ? "#272b3c"
+                : "#2a2e40"
+              : q < 0.3
+                ? "#686b71"
+                : "#6e7177";
+        r.fillRect(x, y, 1, 1);
+      }
+    // A branch of their tree reaching across close outside the window.
+    const [leaf, leafDark, branch] = night ? ["#202a45", "#1a2239", "#1a2239"] : ["#6aa84f", "#4f8d3e", "#7a5a3a"];
+    const B = BRANCH.bg;
+    const leafAt = (x, y, c) => {
+      B.fillStyle = c;
+      B.fillRect(x, y, 1, 1);
+    };
+    for (let x = 0; x < 30; x++) leafAt(x, Math.round(4 + x * 0.3), branch);
+    for (const [cx, cy, rr] of [
+      [4, 4, 4.5],
+      [12, 7, 3.8],
+      [20, 9, 3.2],
+      [27, 11, 2.6],
+      [8, 1, 3.6],
+    ])
+      for (let x = Math.floor(cx - rr); x <= cx + rr; x++)
+        for (let y = Math.floor(cy - rr); y <= cy + rr; y++)
+          if (x >= 0 && y >= 0 && (x - cx) ** 2 + (y - cy) ** 2 <= rr * rr) leafAt(x, y, hash(x, y, 41) < 0.35 ? leafDark : leaf);
+    for (const L of [FACADE, WALK, BRANCH, PAVE, ROAD]) L.drawnAt = -Infinity;
+  }
+
+  // By night some windows out there are lit and some dark, and now and then someone switches a light on or
+  // off: the houses' six patterns, then the cottage's.
+  const lit = [0, 1, 2, 3, 4, 5, 6].map(() => Math.random() < 0.5);
+  let blinkAt = 8;
 
   /* ---------- what moves ---------- */
 
@@ -450,65 +584,52 @@ export function makeViews(sizes, sky, glow) {
     const { len, speed } = VEHICLES[kind];
     const dir = lane ? 1 : -1;
     const [color, stripe] = kind === "van" ? pick(VAN_COLORS) : [PAINT[kind] ?? pick(CAR_COLORS), undefined];
-    const v = { kind, lane, dir, len, color, stripe, t: 0, speed: speed * rnd(0.85, 1.15), x: dir > 0 ? -len : views[1].W };
+    const v = { kind, lane, dir, len, color, stripe, t: 0, speed: speed * rnd(0.85, 1.15), x: dir > 0 ? -len : LONG };
     v.col = colours(v);
     return v;
   }
 
-  // The left view put together: the scenery, then (back to front) the people on the pavement, the far
-  // lane, the near lane; by night, the lights.
-  function drawStreet(t) {
-    const { g, W, H } = views[1];
-    const pave = H - ROAD * F - 3; // where people's feet are
+  // The people on the far pavement, and the vehicles in their lanes (with, by night, their lights).
+  let flash = null; // which of a police car's lights is on, if one is going by
+  function drawWalk() {
     const col = (c) => (night ? dim(c) : c);
-    for (const p of people) drawPerson(painter(g, Math.round(p.x), pave, 6, p.dir), p, Math.floor(p.walked / 3) % 2, col);
-    let flash = null;
-    for (const v of traffic) {
-      if (!v) continue;
-      const bottom = v.lane ? H - 2 : H - ROAD * F + 3;
-      const x0 = Math.round(v.x);
-      const rect = painter(g, x0, bottom, v.len, v.dir);
-      VEHICLES[v.kind].draw(rect, v.col, v.t);
-      if (night) {
-        // The headlights lighting up the road ahead, and a red glow about the tail lights.
-        const lamp = VEHICLES[v.kind].lamp;
-        for (let k = 1; k <= 20; k++) {
-          const a = 1 - k / 21;
-          const i = v.len + k - 1;
-          rect(i, i, lamp - (k >> 2), lamp + (k >> 3), `rgba(255, 240, 180, ${(0.3 * a).toFixed(3)})`); // the beam spreading
-          rect(i, i, 0, 1, `rgba(255, 236, 170, ${(0.22 * a).toFixed(3)})`); // the pool of light on the road
-        }
-        rect(-1, -1, lamp - 1, lamp + 1, "rgba(255, 60, 60, 0.35)");
-        rect(-2, -2, lamp, lamp, "rgba(255, 60, 60, 0.2)");
+    for (const p of people) drawPerson(painter(WALK.g, Math.round(p.x), WALK.h - 1, 6, p.dir), p, Math.floor(p.walked / 3) % 2, col);
+  }
+  function drawLane(lane) {
+    const L = LANES[lane];
+    const v = traffic[lane];
+    if (!v) return;
+    const rect = painter(L.g, Math.round(v.x), L.h - 1, v.len, v.dir);
+    VEHICLES[v.kind].draw(rect, v.col, v.t);
+    if (night) {
+      // The headlights' beams reaching out ahead, and a red glow about the tail lights.
+      const lamp = VEHICLES[v.kind].lamp;
+      for (let k = 1; k <= 20; k++) {
+        const a = 1 - k / 21;
+        const i = v.len + k - 1;
+        rect(i, i, lamp - (k >> 2), lamp + (k >> 3), `rgba(255, 240, 180, ${(0.3 * a).toFixed(3)})`);
+        rect(i, i, 0, 1, `rgba(255, 236, 170, ${(0.22 * a).toFixed(3)})`);
       }
-      if (v.kind === "police") {
-        flash = Math.floor(v.t * 5) % 2;
-        if (night) {
-          // A soft halo about the light that is on.
-          const glowAt = flash ? 8.5 : 11.5;
-          const rgb = flash ? "255, 40, 60" : "60, 120, 255";
-          for (const [r, a] of [
-            [5, 0.12],
-            [3, 0.2],
-            [1.5, 0.3],
-          ])
-            rect(Math.round(glowAt - r), Math.round(glowAt + r), Math.round(11 - r * 0.6), Math.round(11 + r * 0.6), `rgba(${rgb}, ${a})`);
-        }
-      }
+      rect(-1, -1, lamp - 1, lamp + 1, "rgba(255, 60, 60, 0.35)");
+      rect(-2, -2, lamp, lamp, "rgba(255, 60, 60, 0.2)");
     }
-    if (flash !== null && night) {
-      g.fillStyle = flash ? "rgba(255, 50, 70, 0.12)" : "rgba(60, 110, 255, 0.12)";
-      g.fillRect(0, 0, W, H); // washing over the street
+    if (v.kind === "police" && night) {
+      const glowAt = flash ? 8.5 : 11.5;
+      const rgb = flash ? "255, 40, 60" : "60, 120, 255";
+      for (const [r, a] of [
+        [5, 0.12],
+        [3, 0.2],
+        [1.5, 0.3],
+      ])
+        rect(Math.round(glowAt - r), Math.round(glowAt + r), Math.round(11 - r * 0.6), Math.round(11 + r * 0.6), `rgba(${rgb}, ${a})`);
     }
   }
-  function drawHill(t) {
-    const { g, h } = views[0];
+  function drawNear() {
     const col = (c) => (night ? dim(c) : c);
-    for (const p of walkers) {
-      const feet = nearTop(Math.floor(p.x / F + 1.5), h) * F - 1;
-      drawWalker(painter(g, Math.round(p.x), feet, 3, p.dir), p, Math.floor(p.walked / 2) % 2, col, t);
-    }
+    for (const p of walkers)
+      drawWalker(painter(NEAR.g, Math.round(p.x), nearTop(Math.round(p.x)) - 1, 3, p.dir), p, Math.floor(p.walked / 2) % 2, col, now.t);
   }
+  const now = { t: 0 };
 
   // The light from the street inside by the window: red and blue from a police car by night, and warm as
   // a car's headlights sweep past; nothing by day.
@@ -518,7 +639,7 @@ export function makeViews(sizes, sky, glow) {
     if (night)
       for (const v of traffic) {
         if (!v) continue;
-        const near = Math.max(0, 1 - Math.abs(v.x + v.len / 2 - views[1].W / 2) / views[1].W); // most as it passes the middle
+        const near = Math.max(0, 1 - Math.abs(v.x + v.len / 2 - LONG / 2) / (LONG / 3)); // most as it passes the window
         if (v.kind === "police") {
           k = Math.max(k, 0.6 + 0.6 * near);
           color = Math.floor(v.t * 5) % 2 ? 0xff3040 : 0x3a70ff;
@@ -530,17 +651,30 @@ export function makeViews(sizes, sky, glow) {
     glow.color.setHex(color);
   }
 
+  // Each layer with anything moving on it put together again a few times a second (and once more after it
+  // has gone), the rest only when repainted.
+  function refresh(L, t, moving, draw) {
+    if (!moving && !L.moving && L.drawnAt > -Infinity) return;
+    if (moving && t - L.drawnAt < 1 / FPS) return;
+    L.moving = moving;
+    L.drawnAt = t;
+    L.g.clearRect(0, 0, L.w, L.h);
+    L.g.drawImage(L.base, 0, 0);
+    draw?.();
+    L.tex.needsUpdate = true;
+  }
+
   function update(t, dt) {
+    now.t = t;
     if (t > blinkAt) {
       blinkAt = t + rnd(8, 30);
       if (night) {
         const k = Math.floor(Math.random() * lit.length);
         lit[k] = !lit[k];
-        drawScenery(k < 6 ? 1 : 0);
+        (k < 6 ? paintStreet : paintHills)();
       }
     }
     // Traffic: each lane has one at a time, the next along a little while after.
-    const W = views[1].W;
     traffic.forEach((v, lane) => {
       if (!v) {
         if ((nextIn[lane] -= dt) <= 0) traffic[lane] = newVehicle(lane);
@@ -548,17 +682,17 @@ export function makeViews(sizes, sky, glow) {
       }
       v.t += dt;
       v.x += v.dir * v.speed * dt;
-      if (v.x > W || v.x < -v.len) {
+      if (v.x > LONG || v.x < -v.len) {
         traffic[lane] = null;
         nextIn[lane] = night ? rnd(4, 12) : rnd(5, 14);
       }
     });
-    // People on the pavement and up on the hill path.
+    // People on the far pavement and up on the hill path.
     if ((personAt -= dt) <= 0) {
-      personAt = night ? rnd(14, 32) : rnd(5, 15);
-      if (people.length < 3) {
+      personAt = night ? rnd(10, 24) : rnd(4, 11);
+      if (people.length < 4) {
         const dir = Math.random() < 0.5 ? 1 : -1;
-        people.push({ ...newPerson(dir, dir > 0 ? -16 : W + 10, rain > 0.3, night), walked: 0 });
+        people.push({ ...newPerson(dir, dir > 0 ? -16 : LONG + 10, rain > 0.3, night), walked: 0 });
       }
     }
     if ((walkerAt -= dt) <= 0) {
@@ -575,49 +709,52 @@ export function makeViews(sizes, sky, glow) {
           dog: pick(["#c08a4a", "#f1ece3", "#3a2c22"]),
         });
         p.kite = pick(["#ff5a5f", "#59c3ff", "#ffcc33"]);
-        p.x = dir > 0 ? -12 : views[0].W + 2;
+        p.x = dir > 0 ? 80 : 160; // (over the stretch of the path seen from the window)
+        p.end = dir > 0 ? 170 : 70;
         walkers.push(p);
       }
     }
-    for (const [list, w] of [
-      [people, W],
-      [walkers, views[0].W],
-    ])
-      for (let k = list.length - 1; k >= 0; k--) {
-        const p = list[k];
-        p.x += p.dir * p.speed * dt;
-        p.walked += p.speed * dt;
-        if (p.x > w + 12 || p.x < -24) list.splice(k, 1);
-      }
+    for (let k = people.length - 1; k >= 0; k--) {
+      const p = people[k];
+      p.x += p.dir * p.speed * dt;
+      p.walked += p.speed * dt;
+      if (p.x > LONG + 12 || p.x < -24) people.splice(k, 1);
+    }
+    for (let k = walkers.length - 1; k >= 0; k--) {
+      const p = walkers[k];
+      p.x += (p.dir * p.speed * dt) / 4; // (far off: a texel here is a big step)
+      p.walked += p.speed * dt;
+      if ((p.end - p.x) * p.dir < 0) walkers.splice(k, 1);
+    }
+    flash = traffic.some((v) => v?.kind === "police") ? Math.floor(traffic.find((v) => v?.kind === "police").t * 5) % 2 : null;
     lightIn();
+    wash.material.opacity = flash !== null && night ? 0.1 : 0;
+    if (flash !== null) wash.material.color.setHex(flash ? 0xff3246 : 0x3c6eff);
 
-    // Each view put together again a few times a second while anything is in it (and once more after).
-    views.forEach((view, i) => {
-      const moving = i ? people.length > 0 || traffic.some(Boolean) : walkers.length > 0;
-      if (!moving && !view.moving && view.drawnAt > -Infinity) return;
-      if (moving && t - view.drawnAt < 1 / FPS) return;
-      view.moving = moving;
-      view.drawnAt = t;
-      const { g, base } = view;
-      g.clearRect(0, 0, base.width, base.height);
-      g.drawImage(base, 0, 0);
-      (i ? drawStreet : drawHill)(t);
-      view.tex.needsUpdate = true;
-    });
+    refresh(WALK, t, people.length > 0, drawWalk);
+    LANES.forEach((L, lane) => refresh(L, t, !!traffic[lane], () => drawLane(lane)));
+    refresh(NEAR, t, walkers.length > 0, drawNear);
+    for (const L of [FAR, HEDGE, MEADOW, FACADE, PAVE, ROAD, BRANCH]) refresh(L, t, false);
   }
 
   return {
-    textures: views.map((v) => v.tex),
-    // Dark blue by night, with the windows lit at random.
+    scenes: [hills, street], // the back window's, the left one's
+    // Dark blue by night, with the windows lit at random, the haze darker.
     dress(isNight) {
       if (isNight !== night) lit.forEach((_, k) => (lit[k] = Math.random() < 0.5)); // a new evening, other lights on
       night = isNight;
       for (const v of traffic) if (v) v.col = colours(v);
-      views.forEach((_, i) => drawScenery(i));
+      for (const s of [hills, street]) s.fog.color.set(night ? 0x1d2546 : 0xcfe6f2);
+      paintHills();
+      paintStreet();
     },
-    // How hard it is raining (0 to 1): people out walking take umbrellas.
+    // How hard it is raining (0 to 1): people out walking take umbrellas, and the distance greys over.
     rain(k) {
       rain = k;
+      for (const s of [hills, street]) {
+        s.fog.near = 260 - 200 * k;
+        s.fog.far = 3200 - 2200 * k;
+      }
     },
     update,
   };

@@ -25,6 +25,7 @@ export function makeMirror(glass, view, scene) {
       matrix: { value: textureMatrix },
       texel: { value: texel },
       tint: { value: new THREE.Color(glass.material.color) },
+      opacity: { value: 1 }, // (less while the back wall fades: peek.js)
     },
     vertexShader: /* glsl */ `
       uniform mat4 matrix;
@@ -39,6 +40,7 @@ export function makeMirror(glass, view, scene) {
       uniform sampler2D map;
       uniform vec2 texel;
       uniform vec3 tint;
+      uniform float opacity;
       varying vec4 vAt;
       varying vec2 vUv;
       void main() {
@@ -49,7 +51,7 @@ export function makeMirror(glass, view, scene) {
         sum /= 16.0;
         vec3 seen = sum.rgb + tint * (1.0 - sum.a); // the bare glass where nothing is drawn
         float gleam = step(fract((vUv.x * 17.0 + vUv.y * 43.0) / 11.0), 0.15);
-        gl_FragColor = vec4(mix(seen, tint, 0.1) + 0.05 * gleam, 1.0);
+        gl_FragColor = vec4(mix(seen, tint, 0.1) + 0.05 * gleam, opacity);
         #include <colorspace_fragment>
       }`,
   });
@@ -80,6 +82,9 @@ export function makeMirror(glass, view, scene) {
     if (plane.distanceToPoint(eye) <= 0) return; // the glass seen from behind
 
     // The camera mirrored in the glass, looking the mirrored way.
+    const [[u0, u1], [w0, w1]] = extent(camera);
+    if (u1 < -1 || u0 > 1 || w1 < -1 || w0 > 1) return; // the glass out of the view
+
     v.set(0, 0, -1).transformDirection(camera.matrixWorld).add(eye); // a point straight ahead of the camera
     mirrored.position.copy(mirror(eye));
     mirrored.up.set(0, 1, 0).transformDirection(camera.matrixWorld).reflect(normal);
@@ -91,7 +96,6 @@ export function makeMirror(glass, view, scene) {
     const [[x0, x1], [y0, y1]] = extent(mirrored);
     crop.set(2 / (x1 - x0), 0, 0, -(x1 + x0) / (x1 - x0), 0, 2 / (y1 - y0), 0, -(y1 + y0) / (y1 - y0), 0, 0, 1, 0, 0, 0, 0, 1);
     mirrored.projectionMatrix.premultiply(crop);
-    const [[u0, u1], [w0, w1]] = extent(camera);
     const px = renderer.getPixelRatio();
     const size = [((u1 - u0) / 2) * view.W * px, ((w1 - w0) / 2) * view.H * px].map((s) => Math.round(Math.max(8, Math.min(MAX_SIZE, s))));
     if (size[0] !== target.width || size[1] !== target.height) target.setSize(...size);

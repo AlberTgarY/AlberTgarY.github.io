@@ -13,15 +13,110 @@
   position: absolute;
   top: 0;
   visibility: hidden;
+  opacity: 0;
 
   &.ready {
     visibility: visible;
+    opacity: 1;
+    transition: opacity 0.4s;
   }
 
   canvas {
     display: block;
     image-rendering: pixelated;
   }
+}
+
+// The button turning the view round to the front garden and back, in the top right corner.
+.playground-turn {
+  position: absolute;
+  z-index: 3;
+  top: 0.25rem;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--global-divider-color);
+  border-radius: 999px;
+  background: var(--global-card-bg-color);
+  color: var(--global-text-color);
+  font-size: 0.8rem;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--global-theme-color);
+    border-color: var(--global-theme-color);
+  }
+
+  svg {
+    flex: none;
+  }
+
+  &[aria-pressed="true"] svg {
+    transform: scaleX(-1); // turning back the other way
+  }
+
+  .playground-off &,
+  .playground:not(.loaded) & {
+    display: none;
+  }
+}
+
+// The loading bar, in the middle of the space the home will take, until it is all there (playground.md).
+.playground:not(.loaded) {
+  min-height: 60vh;
+}
+
+.playground-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(16rem, 70%);
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: var(--global-text-color-light);
+  font-size: 0.85rem;
+
+  p {
+    margin: 0.6rem 0 0;
+  }
+
+  .loaded &,
+  .playground-off & {
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 0.3s,
+      visibility 0s 0.3s;
+  }
+}
+
+.playground-loading-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--global-divider-color);
+
+  span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--global-theme-color);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.25s ease-out;
+  }
+}
+
+.playground-loading-pct {
+  font-variant-numeric: tabular-nums;
 }
 
 .playground-note {

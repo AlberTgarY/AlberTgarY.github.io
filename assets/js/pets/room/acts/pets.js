@@ -128,11 +128,12 @@ export function petsActs(c) {
     a.props.only("bag");
     a.hold = HOLDS.carry;
     if (!p.hungry) return;
-    // Kneel on whichever side of the pet is clear.
+    // Kneel on whichever side of the pet is clear (not on the other pet's bowl either).
     const gap = p.name === "collie" ? 34 : 30;
     const at = (s) => toward([p.x, p.z], s * gap, 4);
     const clearOf = ([x, z]) => home.actors.reduce((d, o) => (o === a || o === p ? d : Math.min(d, Math.hypot(o.x - x, o.z - z))), Infinity);
-    const side = [-1, 1].filter((s) => nav.free(...at(s))).sort((s1, s2) => clearOf(at(s2)) - clearOf(at(s1)))[0] || 1;
+    const offBowls = ([x, z]) => Object.values(spots.bowls).every(({ bowl }) => Math.hypot(bowl[0] - x, bowl[1] - z) > 14);
+    const side = [-1, 1].filter((s) => nav.free(...at(s)) && offBowls(at(s))).sort((s1, s2) => clearOf(at(s2)) - clearOf(at(s1)))[0] || 1;
     yield* walk(a, at(side));
     if (!p.hungry) return;
     a.props.only();

@@ -9,13 +9,13 @@ import { part, ellipsoid, box, pivotGroup, hash, cells } from "../../models/voxe
 import { sofaCorner } from "../../models/girl-props.js";
 import { pick } from "../../stage.js";
 import { CHANNELS, drawChannel, drawTvGame } from "../screens.js";
-import { DISHES, FRUIT_DISHES, buildDish, buildPad, buildRemote } from "../props.js";
+import { DISHES, FRUIT_DISHES, COOKED, buildDish, buildPad, buildRemote, tableware } from "../props.js";
 import { X0 } from "./layout.js";
 import { COLORS, pixelTexture, solid, place, turned } from "./kit.js";
 
 // `shared`: what the house so far has to share (house.js), with `night` and `overcast` as they are now.
 export function buildLiving(shared) {
-  const { house, mesh, updates, clickables, footprint, turnedFootprint, shadeDay, shadeLit, bedLamp, lamps } = shared;
+  const { house, mesh, updates, clickables, footprint, turnedFootprint, shadeDay, shadeLit, bedLight, lamps } = shared;
   let now = 0; // the time, for what a visitor clicks
   updates.push((t) => (now = t));
 
@@ -41,7 +41,7 @@ export function buildLiving(shared) {
       set(on) {
         shadeLit.visible = on;
         shadeDay.visible = !on;
-        bedLamp.intensity = on ? 1 : 0;
+        bedLight.set(on);
         this.on = on;
       },
     }
@@ -380,7 +380,8 @@ export function buildLiving(shared) {
   box(tvBody, [-23, 22], [44, 70], [0, 1], (x, y) => (Math.abs(x + 0.5) > 21.5 || y === 44 || y === 70 ? "tvEdge" : "tvBody"));
   const tvMesh = tvGroup.add(mesh(tvBody)).children.at(-1);
   const SCREEN = [42, 24];
-  const screen = pixelTexture(...SCREEN, () => {});
+  const RES = 2; // texels on the screen per voxel
+  const screen = pixelTexture(SCREEN[0] * RES, SCREEN[1] * RES, () => {});
   const glass = place(tvGroup, new THREE.Mesh(new THREE.PlaneGeometry(...SCREEN), new THREE.MeshBasicMaterial({ map: screen.tex })), [-0.5, 57, 1.6]);
   const standby = place(
     tvGroup,
@@ -413,13 +414,13 @@ export function buildLiving(shared) {
   };
   function drawScreen(t) {
     const { g } = screen;
-    const [w, h] = SCREEN;
+    const [w, h] = SCREEN.map((n) => n * RES);
     if (tv.mode === "off") {
       g.fillStyle = "#20232a";
       g.fillRect(0, 0, w, h);
       g.fillStyle = "#3b3f4a";
-      for (let k = 0; k < 7; k++) g.fillRect(26 + k, 3 + k, 1, 1);
-      for (let k = 0; k < 4; k++) g.fillRect(31 + k, 3 + k, 1, 1);
+      for (let k = 0; k < 14; k++) g.fillRect(52 + k, 6 + k, 2, 1);
+      for (let k = 0; k < 8; k++) g.fillRect(62 + k, 6 + k, 2, 1);
     } else if (tv.mode === "game") drawTvGame(g, w, h, t);
     else drawChannel(g, w, h, tv.channel, t, t - tv.since, tv.sky);
     screen.tex.needsUpdate = true;
@@ -550,14 +551,29 @@ export function buildLiving(shared) {
   const tableDishes = Object.fromEntries([...DISHES, ...FRUIT_DISHES].map((kind) => [kind, place(tableDish, buildDish(kind), [0, 0, 0])]));
   // What is on the table (props.js's DISHES or FRUIT_DISHES), or nothing; of the fruit, `left` pieces; and
   // whether it is hot from the oven (it steams).
-  const dinner = { dish: null, left: 0, hot: false };
-  updates.push((t) =>
+  // And the bowls and chopsticks laid at each place (`laid`: the seats', "dine0" and "dine1"), and what was
+  // cooked on the hob to go with the rice (`cooked`: props.js's COOKED, steaming), side by side.
+  const dinner = { dish: null, left: 0, hot: false, laid: new Set(), cooked: [] };
+  const cookedDishes = Object.fromEntries(COOKED.map((kind) => [kind, place(tableDish, buildDish(kind), [0, 0, 0])]));
+  const settings = ["dine0", "dine1"].map((key, i) => {
+    const m = mesh(tableware(part(), [0, 0, 0]));
+    place(house, m, [DINING[0] + (i ? PLACE : -PLACE), 14.3, DINING[1] + NEAR + 5]);
+    return [key, m];
+  });
+  updates.push((t) => {
     Object.entries(tableDishes).forEach(([kind, m]) => {
       m.visible = dinner.dish === kind;
       m.userData.pieces?.forEach((piece, k) => (piece.visible = k < dinner.left));
       m.userData.steam?.(t, m.visible && dinner.hot);
-    })
-  );
+    });
+    settings.forEach(([key, m]) => (m.visible = dinner.laid.has(key)));
+    Object.entries(cookedDishes).forEach(([kind, m]) => {
+      const i = dinner.cooked.indexOf(kind);
+      m.visible = i >= 0;
+      m.position.x = dinner.cooked.length > 1 ? (i ? 6 : -6) : 0;
+      m.userData.steam(t, m.visible);
+    });
+  });
   const DINE_Z = DINING[1] - 17;
   const diningChair = part();
   box(diningChair, [-5, 5], [7, 8], [-4, 4], (x, y) => (y === 8 ? "woodLight" : "woodMid"));

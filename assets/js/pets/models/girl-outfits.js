@@ -5,10 +5,12 @@
  * pink hoodie, with a patterned cream scarf, wide dark trousers and high-top
  * trainers; a long white linen shirt dress with a straw hat; a long cream dress
  * printed with roses; a white blouse embroidered in blue over a long skirt
- * printed with blue flowers like old china; and a lilac satin T-shirt over a
- * satin midi skirt with a draped panel, white socks and white trainers. Each
- * look is built on her skeleton (chibi.js) the way girl.js builds hers, and
- * drawn flat on its hanger for the rail in the dressing corner.
+ * printed with blue flowers like old china; a lilac satin T-shirt over a
+ * satin midi skirt with a draped panel, white socks and white trainers; and a
+ * grey hooded shell jacket over very wide olive track trousers with white side
+ * stripes. Each look is built on her skeleton (chibi.js) the way girl.js
+ * builds hers, and drawn flat on its hanger for the rail in the dressing
+ * corner.
  *
  * The profile page never loads this file, so her looks there are unchanged.
  ******************************************************************************/
@@ -63,6 +65,15 @@ export const OUTFIT_PALETTE = {
   hatStraw: "#dcb97a",
   hatStrawDark: "#c39b5b",
   hatBand: "#2b2b30",
+  shell: "#ccced1",
+  shellSeam: "#aeb1b6",
+  shellZip: "#6e727a",
+  knitCuff: "#97989c",
+  track: "#625a3c",
+  trackStripe: "#f5f4ef",
+  ajRed: "#c62233",
+  ajBlack: "#1f1f24",
+  ajWhite: "#f6f4ef",
 };
 
 // Pink gingham, as on her shorts in girl.js.
@@ -115,6 +126,8 @@ const cascade = (x, y, z) => {
   const d = x - (1.5 - (10 - y) * 0.35);
   return Math.abs(d) < 0.8 ? "satinLight" : d >= 0.8 && d < 1.8 ? "satinShade" : sheen(x, z, 5);
 };
+// Track trousers: olive, two white stripes down the outside of each leg (`side` the leg's, as for skirtX).
+const trackPants = (side) => (x, y, z) => ((x === side * 4 || x === side * 5) && (z === -2 || z === 0) ? "trackStripe" : "track");
 const lace = (x) => (((x % 2) + 2) % 2 ? "lace" : "embShade");
 const skinX = (side, x0) => (side > 0 ? [x0, x0 + 1] : [x0 + 1, x0 + 2]); // the inner two columns of an arm
 const skirtX = (side) => (side > 0 ? [0, 5] : [-5, -1]); // the two legs' halves of a skirt, meeting in the middle
@@ -459,6 +472,67 @@ export const LOOKS = [
         const half = 3 + Math.floor((-12 - y) / 5); // the skirt widening to the hem
         box(p, [x - half, x + half], [y, y], [0, 0], (vx) => cascade(vx - x, y + 22, 1));
       }
+    },
+  },
+  {
+    name: "Grey shell and track pants",
+    // A light silver-grey hooded shell jacket, zipped up and a little long, with a darker zip and seams, a zip
+    // pull at the chest and grey knit cuffs at the wrists; very wide olive track trousers down to the shoes,
+    // two white stripes down the outside of each leg; red and white high-top trainers (after Air Jordan 1s).
+    torso: () => {
+      const p = torso(
+        (x, y) => (y === 16 ? "shellSeam" : "shell"), // the yoke's seam
+        (y) => (y <= 17 ? 5.5 : y === 18 ? 5 : 4.5)
+      );
+      for (let y = 9; y <= 20; y++) p.front(0, y)[3] = "shellZip";
+      const [, , zf] = p.front(0, 17);
+      p.add(0, 17, zf + 1, "shellZip"); // the zip pull
+      p.add(0, 16, zf + 1, "shellZip");
+      ellipsoid(p, [0, 20.5, -4], [3.4, 1.5, 1.4], (x, y) => (y >= 21 ? "shellSeam" : "shell")); // the hood, down
+      return p;
+    },
+    thigh(side, x0) {
+      const p = part();
+      box(p, skirtX(side), [8, 8], [-3, 2], (x, y, z) => (z === 2 && x === 0 ? "shellZip" : "shellSeam")); // the jacket's hem
+      box(p, side > 0 ? [1, 4] : [-4, -1], [5, 7], [-3, 1], trackPants(side));
+      return p;
+    },
+    shin(side) {
+      const p = part();
+      box(p, side > 0 ? [1, 5] : [-5, -1], [4, 4], [-3, 2], trackPants(side)); // flaring out to the hem, over the shoe
+      // The trainer: a white midsole and toe box, a red toe cap, heel, eyelet panel and high ankle collar, a white
+      // tongue, and a dark swoosh rising along the outside.
+      const outer = side * 3;
+      const swoosh = (x, y, z) => x === outer && ((y === 1 && (z === 0 || z === 1)) || (y === 2 && z === -1));
+      const trainer = (x, y, z) => {
+        if (swoosh(x, y, z)) return "ajBlack";
+        if (y === 0 || (y === 3 && z === 0 && x === side * 2)) return "ajWhite";
+        if (y === 1) return z === 3 || z <= -1 ? "ajRed" : "ajWhite";
+        return y === 2 && z === 0 ? "ajWhite" : "ajRed";
+      };
+      const foot = side > 0 ? [1, 3] : [-3, -1];
+      box(p, foot, [0, 1], [-2, 3], trainer);
+      box(p, foot, [2, 2], [-2, 1], trainer);
+      box(p, foot, [3, 3], [-2, 0], trainer);
+      return p;
+    },
+    upper(side, x0) {
+      const p = part();
+      box(p, [x0 - (side < 0 ? 1 : 0), x0 + 2 + (side > 0 ? 1 : 0)], [14, 19], [-2, 1], "shell");
+      return p;
+    },
+    fore(side, x0) {
+      const p = part();
+      box(p, [x0, x0 + 2], [10, 13], [-2, 1], (x, y) => (y === 10 ? "shellSeam" : "shell"));
+      box(p, skinX(side, x0), [9, 9], [-1, 0], (x, y, z) => ((x + z) % 2 ? "knitCuff" : "shellSeam")); // the knit cuff
+      box(p, skinX(side, x0), [8, 8], [-1, 0], "skin");
+      return p;
+    },
+    hang(p, x) {
+      box(p, [x - 4, x + 4], [-14, -3], [0, 0], (vx, y) => (vx === x ? "shellZip" : y === -6 || y === -14 ? "shellSeam" : "shell"));
+      for (const dx of [-5, 5]) box(p, [x + dx, x + dx], [-12, -4], [0, 0], (vx, y) => (y === -12 ? "knitCuff" : "shell")); // the sleeves
+      p.add(x, -7, 1, "shellZip"); // the zip pull
+      box(p, [x - 4, x + 4], [-17, -15], [0, 0], (vx) => (Math.abs(vx - x) === 4 || Math.abs(vx - x) === 2 ? "trackStripe" : "track")); // the trousers, folded over the bar
     },
   },
 ];

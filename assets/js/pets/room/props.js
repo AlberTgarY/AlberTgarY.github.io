@@ -69,6 +69,13 @@ const COLORS = {
   roast: "#c98a3d",
   roastDark: "#a5682a",
   herb: "#5f9e45",
+  fryGreen: "#5fae4a",
+  fryRed: "#e0533a",
+  fryYellow: "#f0c24a",
+  fryMeat: "#a8653a",
+  soupBroth: "#d98b3a",
+  soupBowl: "#f4f1ea",
+  soupRim: "#5a7fc0",
   bakeDish: "#d9643f",
   bakeDishRim: "#ef8a5e",
   cheese: "#f2c14e",
@@ -204,6 +211,15 @@ export const MOVES = {
     [-0.95 + 0.15 * Math.abs(Math.sin(t * 9 + 1.5)), -0.15, -0.25, 0, 0],
   ],
   wipe: (t) => [[-2.5, -1.8, 0.55 + 0.25 * Math.sin(t * 9), 0, 0], null],
+  // Tossing the frying pan (tossAt below, in time with the pan): the left hand on its handle, drawn back
+  // and flicked forward and up; the right hand resting on the edge of the worktop.
+  toss: (t) => {
+    const { slide, lift } = tossAt(t);
+    return [
+      [-0.75, -0.5, 0.2, 0, 0],
+      [-1.0 - 0.3 * lift, -0.4, -0.15 - 0.06 * slide, 0, 0],
+    ];
+  },
   // Cutting on a board: the knife hand rising and coming down, the other hand holding it steady.
   chop: (t) => [
     [-1.0 + 0.3 * Math.max(0, Math.sin(t * 9)), -0.5, 0.2, 0, 0],
@@ -228,6 +244,21 @@ const hidden = (o) => {
 
 // Props for one person (`who`: "girl" or "boy"): built on their rig and shown or hidden by their
 // activities. Those carried in a hand ride on its forearm; the ones used sitting down sit in front of the body.
+// A rice bowl (white china, a blue rim) with a pair of chopsticks across it, into `p` at [x, y, z]; `stack`
+// of them, one on another.
+export function tableware(p, [x, y, z] = [0, 0, 0], stack = 1) {
+  for (let k = 0; k < stack; k++) {
+    const y0 = y + k * 2;
+    for (let vy = y0; vy <= y0 + 2; vy++) {
+      const r = vy === y0 ? 1.4 : 2.4;
+      ellipsoid(p, [x, vy, z], [r, 0.5, r], (vx, yy, vz) => ((vx - x) ** 2 + (vz - z) ** 2 > 3.5 && vy === y0 + 2 ? "chinaBlue" : "china"));
+    }
+  }
+  const top = y + stack * 2 + 1;
+  for (let dz = -3; dz <= 3; dz++) for (const dx of [-0.5, 0.5]) p.add(Math.round(x + dx), top, z + dz, "woodDark");
+  return p;
+}
+
 export function propsFor(rig, who) {
   const right = rig.hands[0];
   const body = rig.pose;
@@ -373,7 +404,11 @@ export function propsFor(rig, who) {
   );
   // A dish from the fridge for the oven, and out of it for the table, carried in both hands; or the fruit
   // from the garden, washed, on its plate.
-  const dishes = Object.fromEntries([...DISHES, ...FRUIT_DISHES].map((kind) => [kind, at(body, buildDish(kind), [0, 11, 8])]));
+  const dishes = Object.fromEntries([...DISHES, ...FRUIT_DISHES, ...COOKED].map((kind) => [kind, at(body, buildDish(kind), [0, 11, 8])]));
+  // The bowls and chopsticks for the table, two of them, out of the cupboard; or one, their own, cleared
+  // away after.
+  const bowls = at(body, tableware(part(), [0, 0, 0], 2).mesh(COLORS), [0, 11, 8]);
+  const bowl = at(body, tableware(part()).mesh(COLORS), [0, 11, 8]);
   // A bite of fruit off the plate in the right hand (`bite(kind)`), and the knife for the watermelon.
   const bite = at(right, new THREE.Group(), [0, -1.5, 1.5]);
   const bites = Object.fromEntries(
@@ -460,6 +495,8 @@ export function propsFor(rig, who) {
     bite,
     knife,
     keys,
+    bowls,
+    bowl,
     ...dishes,
   };
   return {
@@ -557,10 +594,20 @@ function buildFruitDish(kind) {
 // What goes in the oven: a roast chicken on a platter with herbs round it, or a lasagna in its baking dish,
 // the cheese browned on top and the sauce bubbling at the edges. About 10 voxels across, standing on y = 0.
 export const DISHES = ["roast", "lasagna"];
+// What is cooked on the hob, for the table with the rice: a plate of stir-fry out of the frying pan (greens,
+// red and yellow peppers and pork), or a bowl of soup out of the pot.
+export const COOKED = ["stirfry", "soup"];
 export function buildDish(kind) {
   if (FRUIT_DISHES.includes(kind)) return buildFruitDish(kind);
   const p = part();
-  if (kind === "roast") {
+  if (kind === "stirfry") {
+    ellipsoid(p, [0, 0, 0], [4.5, 0.5, 4.5], (x, y, z) => (x * x + z * z > 14 ? "platterRim" : "platter"));
+    const FOOD = ["fryGreen", "fryGreen", "fryRed", "fryMeat", "fryYellow", "fryMeat"];
+    ellipsoid(p, [0, 1, 0], [3, 1, 3], (x, y, z) => FOOD[Math.floor(hash(x, y, z) * FOOD.length)]);
+  } else if (kind === "soup") {
+    for (let y = 0; y <= 3; y++) ellipsoid(p, [0, y, 0], [2.4 + y * 0.5, 0.5, 2.4 + y * 0.5], y === 3 ? "soupRim" : "soupBowl", [], 2);
+    ellipsoid(p, [0, 3, 0], [3.2, 0.5, 3.2], (x, y, z) => (hash(x, y, z) < 0.15 ? "fryGreen" : "soupBroth"));
+  } else if (kind === "roast") {
     ellipsoid(p, [0, 0, 0], [5, 0.5, 4], (x, y, z) => ((x / 5) ** 2 + (z / 4) ** 2 > 0.6 ? "platterRim" : "platter"));
     ellipsoid(p, [0, 2.5, -0.5], [3.2, 2, 2.6], (x, y, z) => (hash(x, y, z) < 0.25 ? "roastDark" : "roast"));
     for (const side of [-1, 1]) {
@@ -613,6 +660,22 @@ export function buildDish(kind) {
 }
 // How the dishes look before they go in the oven.
 const UNCOOKED = { roast: "#f1c8aa", roastDark: "#e6b394", cheese: "#f8ecc4", cheeseBrown: "#f3e2ad", sauce: "#d9573f" };
+
+// Tossing a frying pan, every 1.3 s: drawn back and flicked forward (`slide`), its front lifting (`lift`),
+// and what is in it flying up out of it and falling back in (`hop(i)` for the i-th piece, 0 to 1 and back),
+// one just after another. The pan (house/kitchen.js) and the cook's arm (MOVES.toss) both follow it.
+export function tossAt(t) {
+  const p = (t / 1.3) % 1;
+  const flick = p < 0.3 ? Math.sin((Math.PI * p) / 0.3) : 0;
+  return {
+    slide: p < 0.3 ? -Math.sin((2 * Math.PI * p) / 0.3) : 0,
+    lift: flick,
+    hop: (i) => {
+      const k = (p - 0.12 - 0.03 * i) / 0.45;
+      return k > 0 && k < 1 ? Math.sin(Math.PI * k) : 0;
+    },
+  };
+}
 
 // Small things built in half voxels, for the detail: the part's mesh at half the size.
 const fine = (p) => {

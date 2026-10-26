@@ -13,7 +13,9 @@
  * stretch, stroll, light the fire, look after the garden (picking what is ripe
  * into the basket and taking it straight to the fridge, sowing a bed picked
  * clean with something new, and watering), take the dog out for a walk through
- * the front door, play fetch with her, pet and feed the pets, tidy up the cat's
+ * the front door or go out for a stroll in the front garden (its pond, bench,
+ * swing, picnic blanket, flowers and the lane past the gate: acts/outdoors.js),
+ * play fetch with her, pet and feed the pets, tidy up the cat's
  * mess, and go to bed at night. He plays on his computer in the loft, his white
  * headphones off their stand and on his head, talking to his team, cheering
  * when he wins; she may come up and watch, and the cat lies on his computer.
@@ -25,8 +27,8 @@
  * grooms, cuddles up to the sleeping dog, sleeps at their feet, and makes a
  * mess while they are all out. Both curl up by the fire while it burns.
  *
- * Each kind lives in acts/: living, kitchen, pc, wardrobe, garden, outings and
- * pets, with what they share in acts/common.js; here they are put together,
+ * Each kind lives in acts/: living, kitchen, pc, wardrobe, garden, outings,
+ * outdoors and pets, with what they share in acts/common.js; here they are put together,
  * with the menu of what can be done when.
  ******************************************************************************/
 
@@ -39,11 +41,12 @@ import { pcActs } from "./acts/pc.js";
 import { wardrobeActs } from "./acts/wardrobe.js";
 import { gardenActs } from "./acts/garden.js";
 import { outingsActs } from "./acts/outings.js";
+import { outdoorsActs } from "./acts/outdoors.js";
 import { petsActs } from "./acts/pets.js";
 
 export function makeActs(home, life) {
   const c = makeContext(home, life);
-  for (const make of [livingActs, kitchenActs, pcActs, wardrobeActs, gardenActs, outingsActs, petsActs]) Object.assign(c, make(c));
+  for (const make of [livingActs, kitchenActs, pcActs, wardrobeActs, gardenActs, outingsActs, outdoorsActs, petsActs]) Object.assign(c, make(c));
   const {
     house,
     byName,
@@ -107,6 +110,7 @@ export function makeActs(home, life) {
   } = c;
 
   const pets = home.pets;
+  const outingOn = () => home.actors.some((o) => o.out || ["walk", "wander"].includes(o.event?.kind));
   const playing = () => {
     const ev = byName.boy?.event;
     return !!ev && ev.kind === "pc" && ev.playing && !ev.over;
@@ -127,7 +131,9 @@ export function makeActs(home, life) {
     laptop: () => !holder("laptop") && freeSeat(),
     game: (a) => available(other(a)) && house.tv.docked && !holder("sofa1") && (!holder("sofa0") || !holder("sofa2")),
     chat: (a) => available(other(a)),
-    walk: () => available(byName.collie) && !home.actors.some((o) => o.out || o.event?.kind === "walk"),
+    // One outing at a time.
+    walk: () => available(byName.collie) && !outingOn(),
+    wander: (a) => a.human && !outingOn(),
     fetch: () => byName.collie && available(byName.collie) && home.ball.landed() && !holder("ball"),
     pet: (a) => t() > (a.petAgainAt ?? 0) && pets.some((p) => available(p) && p.above() < 0.5),
     stretch: () => true,
@@ -195,7 +201,8 @@ export function makeActs(home, life) {
     laptop,
     game,
     chat,
-    walk: outing,
+    walk: (a) => outing(a, true),
+    wander: (a) => outing(a, false),
     fetch,
     pet: petAPet,
     stretch,
