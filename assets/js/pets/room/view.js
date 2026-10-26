@@ -112,12 +112,13 @@ export function makeView() {
     crop({ scale: mix("scale"), cx: mix("cx"), cy: mix("cy") });
   }
 
-  // Device px drawn per CSS px at most: 2 (at 3, a phone's, over twice the pixels and hardly any sharper),
-  // or 1.5 once lower() finds the device cannot keep up; whether it went lower.
-  let ratio = 2;
+  // Device px drawn per CSS px at most: the screen's own (up to 3, a phone's), stepped down to 2, then 1.5,
+  // each time lower() finds the device cannot keep up; whether it went lower.
+  let ratio = 3;
   view.lower = () => {
-    if (Math.min(ratio, window.devicePixelRatio || 1) <= 1.5) return false;
-    ratio = 1.5;
+    const now = Math.min(ratio, window.devicePixelRatio || 1);
+    if (now <= 1.5) return false;
+    ratio = now > 2 ? 2 : 1.5;
     renderer.setPixelRatio(Math.min(ratio, window.devicePixelRatio || 1)); // (resizing the canvas)
     return true;
   };
