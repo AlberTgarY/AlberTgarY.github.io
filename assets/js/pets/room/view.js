@@ -109,8 +109,48 @@ export function makeView() {
     if (k < OPENING) clipTo(camera.position, smoothstep(0, OPENING, k));
     else clips.forEach(never);
     const mix = (key) => home[key] + (out[key] - home[key]) * e;
-    crop({ scale: mix("scale"), cx: mix("cx"), cy: mix("cy") });
+    fitted = { scale: mix("scale"), cx: mix("cx"), cy: mix("cy") };
+    zoomed();
   }
+
+  // Zoomed in on it (playground.js: pinched, or a trackpad's pinch): `zoom.k` times as big, looking at a
+  // point [du, dv] off the middle (in px at a scale of 1, up positive). Drawn afresh at the screen's own
+  // resolution, so whatever is zoomed in on is as sharp as anything else. Never further out than the whole
+  // view, nor past its edges, nor more than MAX_ZOOMED px per voxel.
+  const MAX_ZOOMED = 12;
+  const zoom = { k: 1, du: 0, dv: 0 };
+  let fitted = null; // the view as fitted, unzoomed
+  const most = () => Math.max(1, MAX_ZOOMED / fitted.scale);
+  function zoomed() {
+    const { scale, cx, cy } = fitted;
+    zoom.k = Math.min(Math.max(1, zoom.k), most());
+    const room = (size) => (size / 2 / scale) * (1 - 1 / zoom.k); // how far off the middle it may look
+    zoom.du = Math.min(Math.max(zoom.du, -room(view.W)), room(view.W));
+    zoom.dv = Math.min(Math.max(zoom.dv, -room(view.H)), room(view.H));
+    const s = scale * zoom.k;
+    crop({ scale: s, cx: (cx / scale + zoom.du) * s, cy: (cy / scale + zoom.dv) * s });
+  }
+  // `f` times as big about canvas px (x, y), that point staying put.
+  view.zoomAt = (f, x, y) => {
+    const s = fitted.scale * zoom.k;
+    const [u, v] = [zoom.du + (x - view.W / 2) / s, zoom.dv - (y - view.H / 2) / s]; // the point, off the middle
+    zoom.k = Math.min(Math.max(1, zoom.k * f), most());
+    zoom.du = u - (x - view.W / 2) / (fitted.scale * zoom.k);
+    zoom.dv = v + (y - view.H / 2) / (fitted.scale * zoom.k);
+    zoomed();
+  };
+  // Moved by (dx, dy) canvas px, as dragged.
+  view.panBy = (dx, dy) => {
+    const s = fitted.scale * zoom.k;
+    zoom.du -= dx / s;
+    zoom.dv += dy / s;
+    zoomed();
+  };
+  view.zoomed = () => zoom.k > 1.001;
+  view.unzoom = () => {
+    Object.assign(zoom, { k: 1, du: 0, dv: 0 });
+    if (fitted) zoomed(); // (laid out)
+  };
 
   // Device px drawn per CSS px at most: the screen's own (up to 3, a phone's), stepped down to 2, then 1.5,
   // each time lower() finds the device cannot keep up; whether it went lower.
@@ -150,6 +190,7 @@ export function makeView() {
   view.turnTo = (out, now = false) => {
     goal = out ? 1 : 0;
     jump = now;
+    view.unzoom(); // (turning, it is seen whole)
   };
   view.update = (dt) => {
     if (view.turn === goal) return false;

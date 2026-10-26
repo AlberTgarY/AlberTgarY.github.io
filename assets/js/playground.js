@@ -136,6 +136,64 @@ async function start() {
     else if (touched && !reducedMotion && room.onDoor(x, y)) room.peekFor(5); // (it fades, frame by frame)
   });
 
+  // Zooming in to see it close up, drawn afresh at the screen's own resolution (view.js): two fingers pinch
+  // it bigger or smaller and move it about; once zoomed in, one finger (or the mouse) drags it about, where
+  // otherwise a finger scrolls the page as anywhere; a trackpad's pinch (a wheel with ctrl held) zooms too.
+  // Pinched right out, it is the whole view again. A press that drags or pinches is no click.
+  const presses = new Map(); // pointer id -> where it is, canvas px
+  let travel = 0; // how far the press has moved
+  let dragged = false;
+  const zoomedNow = () => {
+    view.canvas.style.touchAction = view.zoomed() ? "none" : "pan-y";
+    moved = true; // (what is under the mouse may have changed)
+    if (reducedMotion) room.step(0);
+  };
+  view.canvas.style.touchAction = "pan-y";
+  view.canvas.addEventListener("pointerdown", (e) => {
+    view.canvas.setPointerCapture(e.pointerId); // (let go off the canvas, it still ends here)
+    presses.set(e.pointerId, toCanvas(e));
+    if (presses.size === 1) [travel, dragged] = [0, false];
+  });
+  view.canvas.addEventListener("pointermove", (e) => {
+    if (!presses.has(e.pointerId)) return;
+    const before = [...presses.values()];
+    presses.set(e.pointerId, toCanvas(e));
+    const now = [...presses.values()];
+    const mid = ([p, q]) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+    const apart = ([p, q]) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+    if (now.length >= 2) {
+      const [m0, m1] = [mid(before), mid(now)];
+      view.panBy(m1[0] - m0[0], m1[1] - m0[1]);
+      if (apart(before) > 0) view.zoomAt(apart(now) / apart(before), ...m1);
+      dragged = true;
+    } else if (view.zoomed()) {
+      const [[x0, y0], [x1, y1]] = [before[0], now[0]];
+      view.panBy(x1 - x0, y1 - y0);
+      travel += Math.hypot(x1 - x0, y1 - y0);
+      dragged ||= travel > 8;
+    } else return;
+    zoomedNow();
+  });
+  for (const type of ["pointerup", "pointercancel"]) view.canvas.addEventListener(type, (e) => presses.delete(e.pointerId));
+  window.addEventListener(
+    "click",
+    (e) => {
+      if (dragged && e.target === view.canvas) e.stopPropagation();
+      dragged = false;
+    },
+    true
+  );
+  view.canvas.addEventListener(
+    "wheel",
+    (e) => {
+      if (!e.ctrlKey) return; // (a wheel scrolls the page)
+      e.preventDefault();
+      view.zoomAt(Math.exp(-e.deltaY * 0.01), ...toCanvas(e));
+      zoomedNow();
+    },
+    { passive: false }
+  );
+
   let onScreen = true;
   new IntersectionObserver(([entry]) => (onScreen = entry.isIntersecting)).observe(host);
   new MutationObserver(() => {
