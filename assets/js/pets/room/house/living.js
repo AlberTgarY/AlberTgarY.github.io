@@ -26,7 +26,7 @@ export function buildLiving(shared) {
   corner.update(1);
   const lamp = corner.lamp;
   const shadeGlow = lamp.shade.material; // unlit: it glows
-  const shadeDull = new THREE.MeshLambertMaterial(); // off, it is lit by the room like the rest
+  const shadeDull = new THREE.MeshLambertMaterial({ vertexColors: true }); // off, it is lit by the room like the rest
   lamp.light.intensity = 0; // (the sofa corner's own flat light: this room has its own, below)
   // The floor lamp's light, from the bulb in its shade: most of it down out of the open bottom, a warm pool on
   // the floor round the end of the sofa, falling off with distance, with the shadows of the sofa, the plant
@@ -268,7 +268,7 @@ export function buildLiving(shared) {
     }
   for (const x of [-4, -2]) ps5.add(x, 1, 6, "steelDark");
   const ps5Mesh = solid(ps5);
-  const ps5Glow = new THREE.MeshBasicMaterial({ color: "#2a2b30" });
+  const ps5Glow = new THREE.MeshBasicMaterial({ vertexColors: true, color: "#2a2b30" });
   const ps5Light = light.mesh({ light: "#ffffff" });
   ps5Light.material = ps5Glow;
   for (const m of [ps5Mesh, ps5Light]) {
@@ -305,7 +305,7 @@ export function buildLiving(shared) {
     CANDLES.map((x) => [x + 0.5, 42 + (x % 3), 4.5, "tin"]),
     COLORS
   );
-  candles.material = new THREE.MeshBasicMaterial();
+  candles.material = new THREE.MeshBasicMaterial({ vertexColors: true });
   tvGroup.add(candles);
   // The fire, in frames shown in random turn: tongues of flame of different heights rising from between and
   // behind the logs, leaning one way or the other as they go up, white-hot at the root and yellow, orange

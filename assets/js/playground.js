@@ -156,17 +156,28 @@ async function start() {
   host.classList.add("loaded");
   if (reducedMotion) return;
 
-  // About 60 frames a second at most: on a faster screen (120 Hz, say), every other one.
+  // About 60 frames a second at most: on a faster screen (120 Hz, say), every other one. A device that
+  // cannot keep up (under about 45 a second over 3 s, while the page's own work takes well under the time
+  // between frames: the drawing holds it up, a phone's GPU say) draws fewer pixels (view.js lower()).
   let last = performance.now();
+  const pace = { frames: 0, between: 0, busy: 0 };
   function frame(now) {
     requestAnimationFrame(frame);
     if (now - last < 11) return;
-    const dt = Math.min(0.1, (now - last) / 1000);
+    const between = now - last;
+    const dt = Math.min(0.1, between / 1000);
     last = now;
     if (document.hidden || !onScreen) return;
     if (moved) underMouse();
     const hovered = room.step(dt);
     document.documentElement.classList.toggle("pet-hover", !!hovered || overThing);
+    if (between > 100) return; // (back from a hidden tab, or a hitch)
+    pace.frames++;
+    pace.between += between;
+    pace.busy += performance.now() - now;
+    if (pace.frames < 180) return;
+    if (pace.between / pace.frames > 22 && pace.busy < 0.6 * pace.between) view.lower();
+    Object.assign(pace, { frames: 0, between: 0, busy: 0 });
   }
   requestAnimationFrame(frame);
 }

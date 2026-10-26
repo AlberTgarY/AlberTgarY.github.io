@@ -987,7 +987,7 @@ export function buildKitchen(shared) {
         ]),
         COLORS
       );
-      ring.material = new THREE.MeshBasicMaterial();
+      ring.material = new THREE.MeshBasicMaterial({ vertexColors: true });
       ring.visible = false;
       stoveGroup.add(ring);
       return [key, ring];

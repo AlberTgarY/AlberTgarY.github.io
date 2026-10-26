@@ -4,6 +4,7 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
+import { FACES } from "../../models/voxels.js";
 import { PROP_COLORS } from "../../models/girl-props.js";
 import { OUTFIT_PALETTE } from "../../models/girl-outfits.js";
 import { BOOKS } from "../props.js";
@@ -279,51 +280,44 @@ export function pixelTexture(w, h, draw) {
   return { tex, g, canvas };
 }
 
-// A part (voxels.js) as one mesh of just the voxel faces that show, coloured per face: for a part that
-// never changes shape, a fraction of the triangles of a cube per voxel, and it looks the same.
-const FACES = [
-  [
-    [1, 0, 0],
-    [0, 1, 0],
-    [0, 0, 1],
-  ],
-  [
-    [-1, 0, 0],
-    [0, 0, 1],
-    [0, 1, 0],
-  ],
-  [
-    [0, 1, 0],
-    [0, 0, 1],
-    [1, 0, 0],
-  ],
-  [
-    [0, -1, 0],
-    [1, 0, 0],
-    [0, 0, 1],
-  ],
-  [
-    [0, 0, 1],
-    [1, 0, 0],
-    [0, 1, 0],
-  ],
-  [
-    [0, 0, -1],
-    [0, 1, 0],
-    [1, 0, 0],
-  ],
-]; // each face's normal and two edges, the edges' cross product the normal (so it winds outwards)
+// A part (voxels.js) as one mesh of just the voxel faces that show, coloured per face, and faces of a
+// colour side by side merged: for a part that never changes shape, a small fraction of the triangles of a
+// cube per voxel, and it looks the same.
 export const solidMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+const AXES = FACES.map((face) => face.map((e) => e.findIndex((k) => k !== 0))); // each face's normal's axis and its edges'
+// Each a hair bigger all round: where a corner of one rectangle sits on the edge of a bigger one, the two
+// would leave pinholes between them.
+const SEAM = 0.02;
 export function solid(p, palette = COLORS, material = solidMaterial) {
+  // The faces that show, gathered by direction, plane and colour: each at (a, b) along its two edges.
+  const planes = FACES.map(() => new Map()); // depth -> colour -> [a, b, a, b, ...]
+  for (const voxel of p.list()) {
+    const [x, y, z, name] = voxel;
+    for (let f = 0; f < 6; f++) {
+      const [n] = FACES[f];
+      if (p.has(x + n[0], y + n[1], z + n[2])) continue;
+      const [na, ua, va] = AXES[f];
+      const depth = voxel[na];
+      if (!planes[f].has(depth)) planes[f].set(depth, new Map());
+      const colours = planes[f].get(depth);
+      const colour = palette[name];
+      if (!colours.has(colour)) colours.set(colour, []);
+      colours.get(colour).push(voxel[ua], voxel[va]);
+    }
+  }
+  // Each plane's faces merged into as few rectangles as it takes (far fewer triangles; it looks the same):
+  // over a grid of the plane, from each face left, a run along the first edge, then on along the second as
+  // far as the whole run goes. (A face off the whole-voxel grid from the plane's lowest corner stays single.)
   const position = [];
   const normal = [];
   const color = [];
   const index = [];
   const c = new THREE.Color();
-  for (const [x, y, z, name] of p.list()) {
-    c.set(palette[name]);
-    for (const [n, u, v] of FACES) {
-      if (p.has(x + n[0], y + n[1], z + n[2])) continue;
+  const corner = [0, 0, 0];
+  planes.forEach((depths, f) => {
+    const [n] = FACES[f];
+    const [na, ua, va] = AXES[f];
+    const rectangle = (depth, a0, a1, b0, b1) => {
       const base = position.length / 3;
       for (const [su, sv] of [
         [-0.5, -0.5],
@@ -331,13 +325,42 @@ export function solid(p, palette = COLORS, material = solidMaterial) {
         [0.5, 0.5],
         [-0.5, 0.5],
       ]) {
-        for (let k = 0; k < 3; k++) position.push([x, y, z][k] + n[k] / 2 + su * u[k] + sv * v[k]);
+        corner[na] = depth + n[na] / 2;
+        corner[ua] = (a0 + a1) / 2 + su * (a1 - a0 + 1 + SEAM);
+        corner[va] = (b0 + b1) / 2 + sv * (b1 - b0 + 1 + SEAM);
+        position.push(...corner);
         normal.push(...n);
         color.push(c.r, c.g, c.b);
       }
       index.push(base, base + 1, base + 2, base, base + 2, base + 3);
-    }
-  }
+    };
+    for (const [depth, colours] of depths)
+      for (const [colour, cells] of colours) {
+        c.set(colour);
+        let [a0, b0, a1, b1] = [Infinity, Infinity, -Infinity, -Infinity];
+        for (let k = 0; k < cells.length; k += 2) {
+          [a0, a1] = [Math.min(a0, cells[k]), Math.max(a1, cells[k])];
+          [b0, b1] = [Math.min(b0, cells[k + 1]), Math.max(b1, cells[k + 1])];
+        }
+        const [w, h] = [a1 - a0 + 1, b1 - b0 + 1];
+        const grid = new Uint8Array(Number.isInteger(w) && Number.isInteger(h) ? w * h : 0);
+        for (let k = 0; k < cells.length; k += 2) {
+          const [i, j] = [cells[k] - a0, cells[k + 1] - b0];
+          if (Number.isInteger(i) && Number.isInteger(j) && grid.length) grid[j * w + i] = 1;
+          else rectangle(depth, cells[k], cells[k], cells[k + 1], cells[k + 1]);
+        }
+        for (let j = 0; j < h && grid.length; j++)
+          for (let i = 0; i < w; i++) {
+            if (!grid[j * w + i]) continue;
+            let i1 = i;
+            while (i1 + 1 < w && grid[j * w + i1 + 1]) i1++;
+            let j1 = j;
+            while (j1 + 1 < h && grid.subarray((j1 + 1) * w + i, (j1 + 1) * w + i1 + 1).every(Boolean)) j1++;
+            for (let jj = j; jj <= j1; jj++) grid.fill(0, jj * w + i, jj * w + i1 + 1);
+            rectangle(depth, a0 + i, a0 + i1, b0 + j, b0 + j1);
+          }
+      }
+  });
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
   g.setAttribute("normal", new THREE.Float32BufferAttribute(normal, 3));

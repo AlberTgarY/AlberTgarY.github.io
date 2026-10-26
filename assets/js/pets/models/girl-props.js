@@ -189,7 +189,7 @@ export function teaCup(pose, palette) {
       }
     }
   const cup = cupPart.mesh(palette);
-  cup.material = new THREE.MeshLambertMaterial({ transparent: true, opacity: 0.32, depthWrite: false });
+  cup.material = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.32, depthWrite: false });
   const tea = rows.map((p) => p.mesh(palette));
   const foam = foamPart.mesh(palette);
   const strawCells = [];
@@ -329,7 +329,7 @@ export function sofaCorner(group, palette) {
   );
   for (let y = 7; y <= 19; y++) plantPart.add(39, y, -5, "plant"); // the stem
   const shade = shadePart.mesh(palette);
-  shade.material = new THREE.MeshBasicMaterial(); // it glows: unlit
+  shade.material = new THREE.MeshBasicMaterial({ vertexColors: true }); // it glows: unlit
   const lampLight = new THREE.PointLight(0xffc27a, 1.1, 70, 0); // warms the sofa and her
   lampLight.position.set(-36, 22, 0);
   const sofa = pivotGroup(group, [0, 0, 0]);

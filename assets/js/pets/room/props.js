@@ -619,12 +619,12 @@ export function buildDish(kind) {
   // or on the way (0 to 1). `userData.steam(t, on)` lets faint wisps of steam rise off it while it is hot.
   const m = p.mesh(COLORS);
   const raw = p.mesh({ ...COLORS, ...UNCOOKED });
-  const [done, pale] = [m, raw].map((x) => x.instanceColor.array.slice());
-  raw.dispose();
+  const [done, pale] = [m, raw].map((x) => x.geometry.attributes.color.array.slice());
+  raw.geometry.dispose();
   m.userData.bake = (k) => {
-    const c = m.instanceColor.array;
-    for (let i = 0; i < c.length; i++) c[i] = pale[i] + (done[i] - pale[i]) * k;
-    m.instanceColor.needsUpdate = true;
+    const { color } = m.geometry.attributes;
+    for (let i = 0; i < color.array.length; i++) color.array[i] = pale[i] + (done[i] - pale[i]) * k;
+    color.needsUpdate = true;
   };
   const wisps = [0, 1, 2].map(() => {
     const w = new THREE.Mesh(
@@ -710,7 +710,7 @@ export function buildLaptop() {
     if (z === 4 && Math.abs(x) <= 5) return Math.abs(x) % 2 ? "macDock" : DOCK[(x + 6) % 4];
     return z < -2 ? "wallTop" : z < 1 ? "wallMid" : z < 3 ? "wallLow" : "wallGlow";
   });
-  lid.inner.add(thin(shell), thin(glass, new THREE.MeshBasicMaterial())); // the screen glows
+  lid.inner.add(thin(shell), thin(glass, new THREE.MeshBasicMaterial({ vertexColors: true }))); // the screen glows
   laptop.lid = lid;
   return laptop;
 }

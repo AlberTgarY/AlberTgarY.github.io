@@ -6,8 +6,48 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 
-const cube = new THREE.BoxGeometry(1, 1, 1);
-const material = new THREE.MeshLambertMaterial();
+const material = new THREE.MeshLambertMaterial({ vertexColors: true });
+
+// A voxel's six faces: each one's normal and two edges, the edges' cross product the normal (so it winds
+// outwards).
+export const FACES = [
+  [
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+  ],
+  [
+    [-1, 0, 0],
+    [0, 0, 1],
+    [0, 1, 0],
+  ],
+  [
+    [0, 1, 0],
+    [0, 0, 1],
+    [1, 0, 0],
+  ],
+  [
+    [0, -1, 0],
+    [1, 0, 0],
+    [0, 0, 1],
+  ],
+  [
+    [0, 0, 1],
+    [1, 0, 0],
+    [0, 1, 0],
+  ],
+  [
+    [0, 0, -1],
+    [0, 1, 0],
+    [1, 0, 0],
+  ],
+];
+const CORNERS = [
+  [-0.5, -0.5],
+  [0.5, -0.5],
+  [0.5, 0.5],
+  [-0.5, 0.5],
+];
 
 // A rigid part: a set of voxels keyed by position, so overlapping shapes merge (later wins).
 export function part() {
@@ -25,24 +65,34 @@ export function part() {
       for (const v of voxels.values()) if (v[0] === x && v[1] === y && (!best || v[2] > best[2])) best = v;
       return best;
     },
+    // One mesh of just the faces that show (a face against another voxel of the part never does: a rigid
+    // part never opens up), each coloured as its voxel (the vertex colours; a material put on it instead
+    // needs `vertexColors`).
     mesh(palette) {
-      // Skip voxels buried inside the part: a rigid part never exposes them, and they are most of the volume.
-      const exposed = ([x, y, z]) =>
-        !voxels.has(key(x + 1, y, z)) ||
-        !voxels.has(key(x - 1, y, z)) ||
-        !voxels.has(key(x, y + 1, z)) ||
-        !voxels.has(key(x, y - 1, z)) ||
-        !voxels.has(key(x, y, z + 1)) ||
-        !voxels.has(key(x, y, z - 1));
-      const list = [...voxels.values()].filter(exposed);
-      const mesh = new THREE.InstancedMesh(cube, material, list.length);
-      const m = new THREE.Matrix4();
+      const position = [];
+      const normal = [];
+      const color = [];
+      const index = [];
       const c = new THREE.Color();
-      list.forEach(([x, y, z, color], i) => {
-        mesh.setMatrixAt(i, m.makeTranslation(x, y, z));
-        mesh.setColorAt(i, c.set(palette[color]));
-      });
-      return mesh;
+      for (const [x, y, z, name] of voxels.values()) {
+        c.set(palette[name]);
+        for (const [n, u, v] of FACES) {
+          if (voxels.has(key(x + n[0], y + n[1], z + n[2]))) continue;
+          const base = position.length / 3;
+          for (const [su, sv] of CORNERS) {
+            position.push(x + n[0] / 2 + su * u[0] + sv * v[0], y + n[1] / 2 + su * u[1] + sv * v[1], z + n[2] / 2 + su * u[2] + sv * v[2]);
+            normal.push(...n);
+            color.push(c.r, c.g, c.b);
+          }
+          index.push(base, base + 1, base + 2, base, base + 2, base + 3);
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
+      g.setAttribute("normal", new THREE.Float32BufferAttribute(normal, 3));
+      g.setAttribute("color", new THREE.Float32BufferAttribute(color, 3));
+      g.setIndex(index);
+      return new THREE.Mesh(g, material);
     },
   };
 }

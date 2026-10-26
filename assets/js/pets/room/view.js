@@ -112,6 +112,16 @@ export function makeView() {
     crop({ scale: mix("scale"), cx: mix("cx"), cy: mix("cy") });
   }
 
+  // Device px drawn per CSS px at most: 2 (at 3, a phone's, over twice the pixels and hardly any sharper),
+  // or 1.5 once lower() finds the device cannot keep up; whether it went lower.
+  let ratio = 2;
+  view.lower = () => {
+    if (Math.min(ratio, window.devicePixelRatio || 1) <= 1.5) return false;
+    ratio = 1.5;
+    renderer.setPixelRatio(Math.min(ratio, window.devicePixelRatio || 1)); // (resizing the canvas)
+    return true;
+  };
+
   // Fit the house into `width` x `maxHeight` CSS px: the scale, then a canvas the full width and as tall as
   // the house, cropping the frustum to just that. Turned, the garden and the house are fitted into the same.
   view.layout = (width, maxHeight = Infinity) => {
@@ -124,8 +134,9 @@ export function makeView() {
     home = { scale, cx: (scale * (left + right)) / 2, cy: (up + down) / 2 };
     aim(TURNED_YAW, TARGETS[1]);
     out = fit(OUT_CORNERS);
-    // Drawn at the screen's own resolution (a phone has 2 or 3 device px per CSS px), not stretched up from CSS px.
-    renderer.setPixelRatio(Math.min(3, window.devicePixelRatio || 1));
+    // Drawn at the screen's own resolution (a phone has 2 or 3 device px per CSS px), not stretched up from CSS
+    // px; but at most `ratio` (lower() below).
+    renderer.setPixelRatio(Math.min(ratio, window.devicePixelRatio || 1));
     renderer.setSize(width, view.H, false);
     view.canvas.style.width = `${width}px`;
     view.canvas.style.height = `${view.H}px`;
