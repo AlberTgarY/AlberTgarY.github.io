@@ -112,11 +112,7 @@ export function buildLoft(shared) {
   const monitor = pixelTexture(...MON, () => {});
   const monitorHi = pixelTexture(168, 96, () => {});
   const screen = new THREE.MeshBasicMaterial({ map: monitor.tex });
-  pcParts[1] = place(house, new THREE.Mesh(new THREE.PlaneGeometry(...MON), screen), [
-    DESK[0] + 1.5,
-    Y + 30,
-    DESK[1] - 4.4,
-  ]);
+  pcParts[1] = place(house, new THREE.Mesh(new THREE.PlaneGeometry(...MON), screen), [DESK[0] + 1.5, Y + 30, DESK[1] - 4.4]);
   const SIDE_MON = [11, 25];
   const sideMonitor = pixelTexture(...SIDE_MON, () => {});
   pcParts[2] = place(house, new THREE.Mesh(new THREE.PlaneGeometry(...SIDE_MON), new THREE.MeshBasicMaterial({ map: sideMonitor.tex })), [
