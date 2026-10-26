@@ -404,10 +404,10 @@ export function outdoorsActs(c) {
       release(a, seat.key);
     }
   }
-  function* lieDown(a, secs) {
+  function* lieDown(a, secs, stop = () => false) {
     a.face(V);
     a.lie = true;
-    yield* wait(a, secs);
+    yield* until(stop, secs);
     a.lie = false;
   }
 
@@ -422,10 +422,12 @@ export function outdoorsActs(c) {
     const dogAt = !holder ? bed.dog : holder === girl ? bed.dogByHer : bed.dogBySide;
     yield* go(a, ev, girl === a ? bed.front : bed.side, (m) => (m.who === girl ? bed.front : m.who === dog ? dogAt : bed.side));
     const secs = rnd(25, 40);
+    yard.nap.up = false;
+    const up = () => yard.nap.up; // (clicked out of it early: all get up with her)
     yield* together(
       a,
       ev,
-      (m) => (m.who === girl ? lieOn(girl, bed, secs) : m.who === dog ? lieDown(dog, secs) : keepCompany(m.who, girl, secs)),
+      (m) => (m.who === girl ? lieOn(girl, bed, secs) : m.who === dog ? lieDown(dog, secs, up) : keepCompany(m.who, girl, secs)),
       secs + 15
     );
   }
@@ -433,10 +435,12 @@ export function outdoorsActs(c) {
     if (!claim(a, bed.key)) return;
     try {
       yield* intoBed(a, bed);
+      a.lean = bed.tilt; // (the back up along the canvas, the head on the pillow)
+      yard.nap.who = a; // (a visitor clicking her gets her up, room.js)
       const end = t() + secs;
       let starAt = t() + rnd(2, 4);
       a.asleep = !home.night;
-      while (t() < end) {
+      while (t() < end && !yard.nap.up) {
         if (home.night && t() > starAt) {
           a.look = SKY;
           a.pop("room-pop room-pop-star");
@@ -447,8 +451,11 @@ export function outdoorsActs(c) {
       a.asleep = false;
       a.look = null;
       yield* wait(a, 1.2); // awake, a look about
+      a.lean = 0;
       yield* outOfBed(a, bed);
     } finally {
+      a.lean = 0;
+      yard.nap.who = null;
       release(a, bed.key);
     }
   }
@@ -459,7 +466,7 @@ export function outdoorsActs(c) {
     a.look = girl;
     yield* wait(a, 2);
     a.pop();
-    yield* wait(a, Math.max(2, secs - 6));
+    yield* until(() => !girl.abed, Math.max(2, secs - 6)); // (up with her, if she gets up early)
     a.lie = false;
     a.look = null;
   }
@@ -956,6 +963,12 @@ export function outdoorsActs(c) {
     { name: "stars", run: stars, w: 3, ok: () => home.night && !raining() },
   ];
   function choose(ev, done) {
+    // The hammock, if a visitor clicked it (life.js), before anywhere else.
+    const asked = yard.nap.want && PLACES.find((p) => p.name === "hammock" && p.ok(ev));
+    if (asked) {
+      yard.nap.want = false;
+      return asked;
+    }
     const options = PLACES.filter((p) => p.ok(ev) && !done.includes(p.name));
     const weight = (p) => p.w * (recent.includes(p.name) ? 0.25 : 1);
     let roll = Math.random() * options.reduce((sum, p) => sum + weight(p), 0);

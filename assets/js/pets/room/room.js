@@ -385,6 +385,13 @@ export function* buildingRoom(stage) {
     onCloset,
     onPc,
     thingAt,
+    // A click on someone: a hop and a heart (a sleeper wakes); her, lying in the hammock, she gets up
+    // (acts/outdoors.js).
+    greet(who) {
+      const { nap } = house.yard;
+      if (who === nap.who) nap.up = true;
+      else who.cheer();
+    },
     // A click on him: a hop, and into his other day clothes (the blue T-shirt and the puffer in turn) with a
     // sparkle; at night, in his pyjamas, a heart, and they are what he puts on in the morning.
     changeBoy() {

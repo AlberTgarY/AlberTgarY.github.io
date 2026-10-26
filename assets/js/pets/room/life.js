@@ -432,6 +432,13 @@ export function makeLife(home) {
       if (pc && pc !== girl) pc.interrupt = true;
       else ask("pcGirl");
     }
+    // A click on the hammock: out she goes to lie in it (an outing she is on goes there next, acts/outdoors.js;
+    // one without her, she waits for); not in the rain, nor if she is in it already.
+    const { nap } = house.yard;
+    if (nap.want) {
+      if (home.weather.raining || holder("hammock") === girl) nap.want = false;
+      else if (!actors.some((o) => o.out || ["walk", "wander"].includes(o.event?.kind))) ask("wander");
+    }
 
     // The TV is on while someone watches (once they have switched it on) or plays; the fridge is open while
     // someone stands at it with the door open; the quilt is up over whoever is in bed.

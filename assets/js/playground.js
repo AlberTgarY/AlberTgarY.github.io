@@ -120,7 +120,7 @@ async function start() {
   // clicking someone in front of them says hi instead.
   const pickerAt = (x, y) => !room.hit(x, y) && (room.onCloset(x, y) || room.onPc(x, y));
   const choices = picker(stage, view, (e) => e.target === view.canvas && pickerAt(...toCanvas(e)));
-  // Clicking someone says hi (him, he changes his clothes too); the dressing corner asks what she should
+  // Clicking someone says hi (him, he changes his clothes too; her in the hammock, she gets up); the dressing corner asks what she should
   // wear, his computer what she should watch; the curtains, the fridge, the lamps, the TV and its remote
   // open, shut or switch.
   // A tap on the front door (with no pointer to rest on it) fades the back wall for a few seconds.
@@ -129,7 +129,7 @@ async function start() {
     const who = room.hit(x, y);
     const thing = !who && room.thingAt(x, y);
     if (who && who.name === "boy") room.changeBoy();
-    else if (who) who.cheer();
+    else if (who) room.greet(who);
     else if (room.onCloset(x, y)) choices.toggle(x, y, outfitPage(room));
     else if (room.onPc(x, y)) choices.toggle(x, y, watchPage(room));
     else if (thing) thing.toggle();

@@ -187,7 +187,7 @@ function wetten(material) {
 }
 
 export function buildYard(shared) {
-  const { scene, updates, water: drops } = shared;
+  const { scene, updates, water: drops, clickables } = shared;
   const group = new THREE.Group();
   scene.add(group);
   const yardMaterial = wetten(solidMaterial.clone());
@@ -800,38 +800,58 @@ export function buildYard(shared) {
   // sides cupped up, a pillow at the head. Built along z (the head at -z), turned to HAMMOCK.yaw. Beside it, on
   // the wall side, a cantilever parasol, furled, that opens out over the hammock in the rain.
   const parasol = { k: 0, hub: turned([HAMMOCK.x, HAMMOCK.z], HAMMOCK.yaw, [-1, 0]), r: 18 };
+  // A visitor clicking it asks her to come out and lie in it a while (life.js; acts/outdoors.js), and rocks it
+  // a little (not with her in it); clicking her in it (`who`) gets her up (`up`).
+  const nap = { want: false, who: null, up: false, rocked: Infinity };
+  // What hangs rocks about the line through the hooks: `rock.rotation.z`, along the hammock.
+  const rock = new THREE.Group();
+  rock.position.set(HAMMOCK.x, 21, HAMMOCK.z);
+  rock.rotation.y = HAMMOCK.yaw;
+  group.add(rock);
   {
-    const ham = part();
-    const END = 21; // the canvas, -END..END along it
-    const sag = (x, z) => Math.round(6 + 7 * Math.abs(z / END) ** 3 + 1.5 * (x / 8) ** 2);
-    box(ham, [-1, 1], [0, 1], [-20, 20], "benchDark"); // the beam
+    const ham = part(); // the stand
+    const hung = part(); // what hangs from its hooks: the ropes, the spreader bars, the canvas and the pillow
+    const [END, FOOT] = [21, 17]; // the canvas, -END..FOOT along it (the foot end a little shorter)
+    const reach = (z) => (z < 0 ? END : FOOT);
+    const sag = (x, z) => Math.round(6 + 7 * Math.abs(z / reach(z)) ** 3 + 1.5 * (x / 8) ** 2);
+    box(ham, [-1, 1], [0, 1], [-END + 1, FOOT - 1], "benchDark"); // the beam
     for (const s of [-1, 1]) {
-      box(ham, [-9, 9], [0, 1], [s * 20, s * 20], "benchDark"); // the feet
+      const e = s < 0 ? END : FOOT;
+      box(ham, [-9, 9], [0, 1], [s * (e - 1), s * (e - 1)], "benchDark"); // the feet
       for (let y = 1; y <= 22; y++) {
-        const z = s * Math.round(19 + 9 * (y / 22) ** 2); // curving up and out to the hook
+        const z = s * Math.round(e - 2 + 9 * (y / 22) ** 2); // curving up and out to the hook
         box(ham, [-1, 1], [y, y], [Math.min(z, z - s), Math.max(z, z - s)], y === 22 ? "benchDark" : "bench");
       }
-      box(ham, [-8, 8], [13, 13], [s * END, s * END], "bench"); // the spreader bar
+      box(hung, [-8, 8], [13, 13], [s * e, s * e], "bench"); // the spreader bar
       for (const x of [-7, -3, 1, 5]) {
         // a rope from the hook down to the bar
-        for (let k = 0; k <= 8; k++) ham.add(Math.round(x * (k / 8)), 21 - k, s * Math.round(28 - (7 * k) / 8), "rope");
+        for (let k = 0; k <= 8; k++) hung.add(Math.round(x * (k / 8)), 21 - k, s * Math.round(e + 7 - (7 * k) / 8), "rope");
       }
     }
     const stripe = (x) => ["canvas", "canvasTeal", "canvas", "canvasCoral"][Math.floor((x + 8) / 2) % 4];
-    for (let z = -END + 1; z <= END - 1; z++)
+    for (let z = -END + 1; z <= FOOT - 1; z++)
       for (let x = -8; x <= 8; x++) {
         const y = sag(x, z);
         const below = Math.min(sag(x, z - Math.sign(z) || 0), y); // (no gaps where it climbs steeply)
-        for (let yy = below; yy <= y; yy++) ham.add(x, yy, z, stripe(x));
+        for (let yy = below; yy <= y; yy++) hung.add(x, yy, z, stripe(x));
       }
-    for (let z = -16; z <= -13; z++) for (let x = -5; x <= 5; x++) ham.add(x, sag(x, z) + 1, z, z === -13 ? "cushionDark" : "pillowSage"); // the pillow
-    const m = mesh(ham);
+    for (let z = -16; z <= -13; z++) for (let x = -5; x <= 5; x++) hung.add(x, sag(x, z) + 1, z, z === -13 ? "cushionDark" : "pillowSage"); // the pillow
+    const [m, h] = [mesh(ham), mesh(hung)];
     m.position.set(HAMMOCK.x, 0, HAMMOCK.z);
     m.rotation.y = HAMMOCK.yaw;
     group.add(m);
-    const [c, s] = [Math.abs(Math.cos(HAMMOCK.yaw)), Math.abs(Math.sin(HAMMOCK.yaw))];
-    const [hx, hz] = [9 * c + 29 * s, 9 * s + 29 * c];
-    block(HAMMOCK.x - hx, HAMMOCK.x + hx, HAMMOCK.z - hz, HAMMOCK.z + hz);
+    h.position.y = -21;
+    rock.add(h);
+    clickables.push({
+      parts: [m, h],
+      toggle: () => {
+        nap.want = true;
+        if (!nap.who) nap.rocked = 0;
+      },
+    });
+    const corners = [-9, 9].flatMap((lx) => [-END - 8, FOOT + 8].map((lz) => turned([HAMMOCK.x, HAMMOCK.z], HAMMOCK.yaw, [lx, lz])));
+    const [xs, zs] = [corners.map((p) => p[0]), corners.map((p) => p[1])];
+    block(Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs));
 
     // The parasol: a pole on a square stone base, an arm out over the hammock and the canopy hung from its
     // end, cream and teal panels with a coral scalloped edge. Furled, the canopy hangs down narrow under the
@@ -1318,6 +1338,9 @@ export function buildYard(shared) {
     const open = parasol.k * parasol.k * (3 - 2 * parasol.k);
     parasol.mesh.scale.set(0.08 + 0.92 * open, 2.6 - 1.6 * open, 0.08 + 0.92 * open);
     swingPivot.outer.rotation.x = swing.angle;
+    // The hammock, clicked: a little rock to and fro, dying away.
+    nap.rocked += dt;
+    rock.rotation.z = nap.rocked < 3 ? 0.12 * Math.exp(-1.6 * nap.rocked) * Math.sin(5.5 * nap.rocked) : 0;
     // Now and then a fish rising, by day; drops all over it in the rain.
     glints.tex.offset.x = (t * 0.01) % 1;
     if (!night && Math.random() < dt / 6) ripple(POND.x + (Math.random() - 0.5) * POND.rx, POND.z + (Math.random() - 0.5) * POND.rz, 1.3);
@@ -1361,13 +1384,16 @@ export function buildYard(shared) {
     pondMid: [POND.x, 1, POND.z],
     bench: [10, -10].map((lx, i) => seat(`bench${i}`, turned([BENCH.x, BENCH.z], BENCH.turn, [lx, 0]), BENCH.turn + Math.PI, 17)), // (left, right on screen)
     benchDog: turned([BENCH.x, BENCH.z], BENCH.turn, [0, -18]), // lying at their feet
-    // The hammock: lying in it (the hips), sitting on its edge to get in (facing out, the viewer's side), and
-    // standing beside it; where someone keeping her company kneels (at her head end), and where the dog lies.
+    // The hammock: lying in it (the hips, 1.5 below the canvas there as on the bed indoors, its top 6.5 at
+    // the bottom of the sag; the back raised by `tilt` along the canvas, up to the pillow's top, 9.5 some 16
+    // further on), sitting on its edge to get in (facing out, the viewer's side), and standing beside it;
+    // where someone keeping her company kneels (at her head end), and where the dog lies.
     hammock: {
       key: "hammock",
       x: byHammock([0, 2])[0],
       z: byHammock([0, 2])[1],
-      y: 7,
+      y: 5,
+      tilt: Math.atan2(9.5 - 6.5, 16.5),
       yaw: HAMMOCK.yaw,
       sitYaw: HAMMOCK.yaw + Math.PI / 2,
       end: byHammock([7, 2]),
@@ -1460,6 +1486,7 @@ export function buildYard(shared) {
   return {
     yard: {
       group,
+      nap,
       // Paths keep to the garden and the lane, off the back wall.
       bounds: [YARD.x0 + 6, YARD.x1 - 6, YARD.z0 + 4, YARD.z1 - 6],
       obstacles,
