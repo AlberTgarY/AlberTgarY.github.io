@@ -3,12 +3,11 @@
  * a race, falling blocks, a space shooter, a rhythm game, fishing, tower
  * defence, karts, pinball, a memory card game, snake, a monster battle) with
  * their win and loss screens and the launcher he picks them from, what his side
- * screen shows while he plays; her cosy farm game is drawn by stardew.js.
+ * screen shows while he plays; her cosy farm game is drawn by stardew.js, finer.
  ******************************************************************************/
 
 import { hash } from "../../models/voxels.js";
 import { pen, number } from "./pen.js";
-import { drawStardew } from "./stardew.js";
 
 export const GAMES = [
   "platformer",
@@ -68,8 +67,8 @@ const SNAKE = [];
 });
 
 // His computer: `mode` "off", "menu" (the launcher, `game` about to be played), "game", "win" or "lose",
-// `game` (GAMES, or her farm game "stardew") while one is on, `e` how long since the mode changed.
-export function drawPcGame(g, w, h, mode, game, t, e, day) {
+// `game` (GAMES) while one is on, `e` how long since the mode changed.
+export function drawPcGame(g, w, h, mode, game, t, e) {
   const { rect, px } = pen(g);
   if (mode === "off") return rect(0, 0, w, h, "#060608");
   if (mode === "menu") {
@@ -422,8 +421,6 @@ export function drawPcGame(g, w, h, mode, game, t, e, day) {
     rect(4, 14, 4, 1, "#fff8ef");
     rect(15, 14, 5, 1, "#fff8ef");
     if (t % 0.6 < 0.4) px(2, 12, "#f6cf4a");
-  } else if (game === "stardew") {
-    drawStardew(g, w, h, t, e, day);
   } else {
     // Running and jumping over the hills, by day and then at dusk, coins to catch, a slime coming the other way.
     const dusk = Math.floor(t / 20) % 2;

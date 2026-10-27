@@ -6,7 +6,18 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { part, ellipsoid, box, pivotGroup, hash } from "../../models/voxels.js";
 import { LOOKS } from "../../models/girl-outfits.js";
-import { GAMES, drawPcGame, drawGameSide, drawClipShow, drawClipSide, drawFarmSide, episodeOf } from "../screens.js";
+import {
+  GAMES,
+  drawPcGame,
+  drawGameSide,
+  drawClipShow,
+  drawClipSide,
+  drawStardew,
+  drawFarmSide,
+  STARDEW_SIZE,
+  STARDEW_SIDE,
+  episodeOf,
+} from "../screens.js";
 import { BACK, LOFT } from "./layout.js";
 import { COLORS, pixelTexture, solid, glowing, place } from "./kit.js";
 
@@ -107,19 +118,18 @@ export function buildLoft(shared) {
   rocker.inner.add(mesh(kirbyTop));
   // The two screens, and their glow on him at night. The one on end shows his team's voice chat, his music,
   // the computer's stats or a guide to the game while he plays (`pc.side`).
-  // Her dramas are drawn finer, on a canvas of their own: the clips' own 168 x 96.
+  // Her dramas and her farm game are drawn finer, on canvases of their own: the clips' own 168 x 96 (the
+  // game's the same), the side screen's four times as fine.
   const MON = [26, 15];
   const monitor = pixelTexture(...MON, () => {});
-  const monitorHi = pixelTexture(168, 96, () => {});
+  const monitorHi = pixelTexture(...STARDEW_SIZE, () => {});
   const screen = new THREE.MeshBasicMaterial({ map: monitor.tex });
   pcParts[1] = place(house, new THREE.Mesh(new THREE.PlaneGeometry(...MON), screen), [DESK[0] + 1.5, Y + 30, DESK[1] - 4.4]);
   const SIDE_MON = [11, 25];
   const sideMonitor = pixelTexture(...SIDE_MON, () => {});
-  pcParts[2] = place(house, new THREE.Mesh(new THREE.PlaneGeometry(...SIDE_MON), new THREE.MeshBasicMaterial({ map: sideMonitor.tex })), [
-    DESK[0] - 21,
-    Y + 33,
-    DESK[1] - 4.4,
-  ]);
+  const sideMonitorHi = pixelTexture(...STARDEW_SIDE, () => {});
+  const sideScreen = new THREE.MeshBasicMaterial({ map: sideMonitor.tex });
+  pcParts[2] = place(house, new THREE.Mesh(new THREE.PlaneGeometry(...SIDE_MON), sideScreen), [DESK[0] - 21, Y + 33, DESK[1] - 4.4]);
   const monLight = new THREE.PointLight(0xa8c8ff, 0, 70, 2);
   monLight.position.set(DESK[0], Y + 30, DESK[1] + 2);
   // The fans' glow, at night, on the floor in front of the computer and the side of the nightstand.
@@ -157,21 +167,27 @@ export function buildLoft(shared) {
     g.fillStyle = c;
     g.fillRect(Math.round(x), Math.round(y), rw, rh);
   };
-  // `mode` "show" is a drama she watches (screens.js's DRAMAS), `pc.game` which and `pc.ep` the episode.
+  // `mode` "show" is a drama she watches (screens.js's DRAMAS), `pc.game` which and `pc.ep` the episode;
+  // "game" with `pc.game` "stardew" her farm game, `pc.ep` the day.
   function drawMonitor(t) {
-    const on = pc.mode === "show" ? monitorHi : monitor;
+    const farm = pc.mode === "game" && pc.game === "stardew";
+    const on = pc.mode === "show" || farm ? monitorHi : monitor;
     screen.map = on.tex;
     if (pc.mode === "show") drawClipShow(on.g, on.canvas.width, on.canvas.height, episodeOf(pc.game, pc.ep), t - pc.since, t - pc.since);
-    else drawPcGame(on.g, ...MON, pc.mode, pc.game, t, t - pc.since, pc.ep);
+    else if (farm) drawStardew(on.g, t, t - pc.since, pc.ep);
+    else drawPcGame(on.g, ...MON, pc.mode, pc.game, t, t - pc.since);
     on.tex.needsUpdate = true;
   }
   function drawSideMonitor(t) {
     const [w, h] = SIDE_MON;
-    if (pc.mode === "show") drawClipSide(sideMonitor.g, w, h, pc.game, pc.ep, t - pc.since);
-    else if (pc.mode !== "off" && pc.sitter?.name === "girl") drawFarmSide(sideMonitor.g, w, h, t - pc.since, pc.ep);
-    else if (pc.mode === "off") rectOn(sideMonitor.g)(0, 0, w, h, "#060608");
-    else drawGameSide(sideMonitor.g, w, h, pc.side, pc.mode, pc.game, t, pc.talking);
-    sideMonitor.tex.needsUpdate = true;
+    const farm = pc.mode === "game" && pc.game === "stardew";
+    const on = farm ? sideMonitorHi : sideMonitor;
+    sideScreen.map = on.tex;
+    if (pc.mode === "show") drawClipSide(on.g, w, h, pc.game, pc.ep, t - pc.since);
+    else if (farm) drawFarmSide(on.g, t - pc.since, pc.ep);
+    else if (pc.mode === "off") rectOn(on.g)(0, 0, w, h, "#060608");
+    else drawGameSide(on.g, w, h, pc.side, pc.mode, pc.game, t, pc.talking);
+    on.tex.needsUpdate = true;
   }
   let monitorAt = -1;
   let kirbySway = 0;

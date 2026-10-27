@@ -13,12 +13,13 @@
  * from the real episodes) or a day of her cosy farm game, scene by scene, and
  * what the side screen shows meanwhile; and what in them she reacts to.
  *
- * The drawing is in screens/: tv.js, pc.js, clipshows.js and stardew.js, on
- * pen.js; and posters.js, her farm game's poster for the visitor to choose.
+ * The drawing is in screens/: tv.js, pc.js and clipshows.js, on pen.js;
+ * stardew.js, finer, on its own pen (screens/stardew/); and posters.js, her
+ * farm game's poster for the visitor to choose.
  ******************************************************************************/
 
 export { CHANNELS, HI_RES, drawChannel, drawTvGame } from "./screens/tv.js";
 export { GAMES, SIDES, drawPcGame, drawGameSide } from "./screens/pc.js";
 export { CLIP_SHOWS, DRAMAS, episodeOf, clipLength, clipMoment, drawClipShow, drawClipSide, drawClipThumb } from "./screens/clipshows.js";
-export { stardewMoment, FARM_DAY, drawFarmSide } from "./screens/stardew.js";
+export { stardewMoment, FARM_DAY, drawStardew, drawFarmSide, STARDEW_SIZE, STARDEW_SIDE } from "./screens/stardew.js";
 export { POSTER, drawPoster } from "./screens/posters.js";
