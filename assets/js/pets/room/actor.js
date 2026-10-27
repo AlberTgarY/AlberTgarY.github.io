@@ -15,6 +15,7 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 import { VOX, clamp, approach, rnd, pick, wrap, spring, stepSpring } from "../stage.js";
 import { smoothstep } from "../models/voxels.js";
 import { HIP_PIVOT } from "../models/chibi.js";
+import { BASE_Y } from "./house/layout.js";
 
 const FACE_AWAY = 0.8; // how far a person's face turns from the viewer at most, while turned towards the room
 const BOW = 0.3; // how far a pet tips forward in a play bow
@@ -68,6 +69,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
     seated: false, // a person sitting on a seat
     lie: false, // a pet lying down, or a person kneeling
     lean: 0, // a person leaning about the hips: back (negative, pulling at something) or forward
+    legs: null, // a person's legs posed by hand: [hip, knee] for each (chibi.js's legHold), or null
     abed: false, // a person lying in bed
     lainDown: false, // and all the way down on the pillow
     phones: false, // the boy's headphones on his head
@@ -80,6 +82,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
     talk: false,
     nod: 0, // extra head nod, e.g. sniffing
     leads: false, // a person holding the leads
+    bareHead: false, // a person with the nightcap off (in the bath or the shower)
     harnessed: false, // a pet on a lead
     company: null, // for a person on the sofa, whether each neighbouring seat has a pet on it
     partner: null,
@@ -92,6 +95,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
     event: null, // what it is doing with others
     nextAt: 0,
     out: false, // out of the house (on a walk), in the front garden or out of the gate
+    below: false, // down in the basement (steps.js takes them down the stairs and up)
     pitch: 0, // tipped forward (positive) or back about its feet, as on the swing
     hungry: false,
     // Water (room.js, prints.js): how soaked it is (0 to 1, dripping), how many wet footprints it has
@@ -123,7 +127,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
   };
   Object.defineProperty(a, "yaw", { get: () => turn.x });
   // How high it is above the floor beneath it (on a seat, a bed or the cat tree).
-  a.above = () => a.y - home.house.floorY(a.x, a.z);
+  a.above = () => a.y - home.house.floorY(a.x, a.z, a.below);
 
   /* ----- where it is on screen ----- */
 
@@ -140,7 +144,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
   };
   // Whether canvas px (px, py) is over it: an ellipse round its body, as on the profile page. Out the front, it
   // is only there to click while what is out there can be seen.
-  const seen = () => group.visible && (!a.out || home.outSeen());
+  const seen = () => group.visible && (!a.out || home.outSeen()) && home.floorSeen(a);
   a.over = (px, py) => {
     if (!seen()) return false;
     const k = view.pxPerUnit(a.x, a.y, a.z) * size;
@@ -221,6 +225,15 @@ export function makeActor(name, rig, kind, home, size = 1) {
   let inBed = 0; // 0 up, 1 lying back in bed
   let lean = 0;
   let night = false;
+  // The nightcap on (1) or off (0), going over HAT_SECS: drawn in to the cuff and lifted off, or set down
+  // and grown out, about the middle of the cuff's foot (`capFoot`, in the cap's own frame).
+  const HAT_SECS = 0.45;
+  let hatK = 0;
+  let hatSnap = true; // (at nightfall or daybreak, on or off at once with the pyjamas)
+  const capRest = rig.hat.position.clone();
+  rig.hat.geometry.computeBoundingBox();
+  const capBox = rig.hat.geometry.boundingBox;
+  const capFoot = new THREE.Vector3((capBox.min.x + capBox.max.x) / 2, capBox.min.y, (capBox.min.z + capBox.max.z) / 2);
   let sitting = 0;
   let bowing = 0;
   let stride = 0;
@@ -233,6 +246,11 @@ export function makeActor(name, rig, kind, home, size = 1) {
   const earTwitch = [0, 0];
   let twitchAt = rnd(3, 6);
   let holdW = 0;
+  let legW = 0; // and the legs', likewise
+  const heldLegs = [
+    [0, 0],
+    [0, 0],
+  ];
   const armW = [0, 0]; // each arm's share in the hold (an arm left free has none)
   const holdArms = [
     [0, 0, 0, 0, 0],
@@ -372,6 +390,9 @@ export function makeActor(name, rig, kind, home, size = 1) {
       if (target) arm.forEach((_, j) => (arm[j] = armW[i] < 0.02 ? target[j] : approach(arm[j], target[j], 12, dt)));
     });
 
+    legW = approach(legW, a.legs ? 1 : 0, 6, dt);
+    if (a.legs) a.legs.forEach((leg, i) => (heldLegs[i] = leg));
+
     const elapsed = t - a.since;
     const progress = a.until > a.since ? clamp(elapsed / (a.until - a.since), 0, 1) : 0;
     if (rig.harness) rig.harness.visible = a.harnessed;
@@ -392,6 +413,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
       seated: a.human && inBed > 0.001 ? 1 - lieBack : a.seated, // lying back from sitting on the end of the bed
       sit: sitting,
       hold: holdW > 0.01 ? { w: holdW, mix: armW, arms: holdArms } : null,
+      legHold: legW > 0.01 ? { w: legW, legs: heldLegs } : null,
       talk: a.talk,
       phones: a.phones,
     });
@@ -409,14 +431,26 @@ export function makeActor(name, rig, kind, home, size = 1) {
       rig.pose.position.y += hy * (1 - Math.cos(back)) + hz * Math.sin(back);
       rig.pose.position.z += hz * (1 - Math.cos(back)) - hy * Math.sin(back);
     }
-    rig.hat.visible = night && inBed < 0.05 && !a.phones && !a.props?.umbrellaOpen.visible; // (off under an umbrella)
+    // The nightcap at night, but not in bed, under headphones, in the bath or the shower, under an umbrella,
+    // nor down in the basement (off half way down the stairs, on again half way up).
+    const capOn = night && inBed < 0.05 && !a.phones && !a.bareHead && !a.props?.umbrellaOpen.visible && a.y > BASE_Y / 2;
+    hatK = hatSnap ? +capOn : clamp(hatK + (capOn ? dt : -dt) / HAT_SECS, 0, 1);
+    hatSnap = false;
+    const e = smoothstep(0, 1, hatK);
+    rig.hat.visible = e > 0.01;
+    rig.hat.scale.setScalar(Math.max(e, 0.01));
+    rig.hat.position
+      .copy(capFoot)
+      .multiplyScalar(1 - e)
+      .add(capRest);
+    rig.hat.position.y += 2.5 * (1 - e); // (lifted off, set down going on)
     a.show("z", sleeping ? "room-z" : a.state === "petted" && rig.purrs ? "room-z room-note" : null);
     placeBadges();
   };
 
   a.dress = (isNight) => {
     night = isNight;
-    rig.hat.visible = night;
+    hatSnap = true;
     rig.nightwear?.(night);
   };
   return a;

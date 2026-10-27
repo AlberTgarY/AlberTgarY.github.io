@@ -9,7 +9,7 @@ import { DISHES, FRUIT_DISHES, buildDish, tossAt } from "../props.js";
 import { stockFridge, stockCrisper, shopCrisper, stockFreezer, FOOD_SCALE, FOOD_LIFT } from "../fridge-food.js";
 import { melonStripes } from "../veg.js";
 import { BACK } from "./layout.js";
-import { COLORS, pixelTexture, solid, glowing, place, turned } from "./kit.js";
+import { COLORS, pixelTexture, solid, glowing, place, turned, basinWater } from "./kit.js";
 
 // `shared`: what the house so far has to share (house.js), with `night` and `overcast` as they are now.
 export function buildKitchen(shared) {
@@ -583,12 +583,23 @@ export function buildKitchen(shared) {
   stripSpot.position.set(COUNTER[0], 59.5, BACK + 5);
   stripSpot.target.position.set(COUNTER[0], 35, BACK + 9);
   house.add(strip, stripSpot, stripSpot.target);
+  // Clicked anywhere about the glow (an unseen box round the strip and the light under it), on or off; on by
+  // itself at night, off by day (house.js dress()).
+  const clickZone = () =>
+    new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  const shelfZone = clickZone();
+  shelfZone.scale.set(36, 5, 9);
+  shelfZone.position.set(COUNTER[0], 57.5, BACK + 6);
+  house.add(shelfZone);
   const underShelf = {
+    on: false,
     set(on) {
       stripSpot.intensity = on ? 22 : 0;
       strip.material.color.set(on ? 0xffe2b8 : 0xd8ccb8);
+      underShelf.on = on;
     },
   };
+  clickables.push({ parts: [strip, shelfZone], toggle: () => underShelf.set(!underShelf.on) });
 
   // An umbrella rack on the wall between the door and the foot of the stairs, out of everyone's way: a
   // little wooden board with two brass hooks, her pink umbrella and his navy one hanging from them by their
@@ -732,7 +743,11 @@ export function buildKitchen(shared) {
     [10.5, 35.5, -4]
   );
   stream.visible = false;
-  const splashAt = new THREE.Vector3();
+  const STREAM_TOP = 40.5; // (the tap's mouth)
+  // The water collecting in the sink while the tap runs, and the tap off by itself once it is nearly full
+  // (kit.js); the stream down to its surface.
+  const sinkPool = basinWater({ w: 13, d: 11, y0: 29.8, y1: 33.8, spout: STREAM_TOP, land: [0.5, 0.18], fill: 9, drops: water });
+  place(stoveGroup, sinkPool.mesh, [10.5, 0, -0.5]);
   const inSinkFruit = place(stoveGroup, new THREE.Group(), [10.5, 30.5, -0.5]);
   const sinkFruit = Object.fromEntries(
     FRUIT_DISHES.map((kind) => {
@@ -772,24 +787,29 @@ export function buildKitchen(shared) {
     });
   }
   fairy.add(mesh(fairyPart));
-  const sink = { running: false, fruit: null, soap: false, tip: 0 };
+  // (`busy`: someone at the sink just now, room.js; a visitor's click on the tap then does nothing. `plugged`:
+  // the plug in, the water stays; `level()` how full, 0 to 1.)
+  const sink = { running: false, plugged: false, fruit: null, soap: false, tip: 0, busy: () => false, level: () => sinkPool.level };
   updates.push((t, dt) => {
     sink.tip += ((sink.soap ? 1 : 0) - sink.tip) * (1 - Math.exp(-8 * dt));
     fairy.rotation.z = -1.1 * sink.tip; // its top over towards the sink
     fairy.position.y = 36 + 3 * sink.tip; // lifted off the worktop
-    stream.visible = sink.running;
-    if (sink.running) {
+    sink.running = sinkPool.step(t, dt, sink.running, sink.plugged);
+    const pouring = sinkPool.stream(t); // [top, bottom, thickness]
+    stream.visible = !!pouring;
+    if (pouring) {
+      const [top, bottom, thick] = pouring;
       streaks.tex.offset.y = (t * 3) % 1; // (running down)
-      stream.scale.x = stream.scale.z = 0.92 + 0.08 * Math.sin(t * 37);
-      // A few drops thrown up where it lands, gone before they fall back (the sink's floor is not the ground).
-      stream.localToWorld(splashAt.set(0, -5, 0));
-      for (let k = Math.random() * 90 * dt; k > 0; k--) {
-        const a = Math.random() * Math.PI * 2;
-        water.emit("splash", splashAt.x, splashAt.y + 0.3, splashAt.z, Math.cos(a) * 9, 14 + Math.random() * 10, Math.sin(a) * 9, 0.2);
-      }
+      stream.scale.x = stream.scale.z = thick * (0.92 + 0.08 * Math.sin(t * 37));
+      stream.scale.y = (top - bottom) / 10;
+      stream.position.y = (top + bottom) / 2;
     }
     Object.entries(sinkFruit).forEach(([kind, m]) => (m.visible = sink.fruit === kind));
   });
+  // The tap, clicked on (filling the sink) or off, while nobody is at the sink.
+  const tapZone = place(stoveGroup, clickZone(), [10.5, 36, -1.5]);
+  tapZone.scale.set(14, 12, 14); // (over the tap and the sink)
+  clickables.push({ parts: [tapZone, sinkPool.mesh], toggle: () => (sink.running = !sink.running), can: () => !sink.busy() });
   // Wall cupboards with green doors glazed in clear glass, four side by side, each with a shelf: through the
   // glass, tumblers and wine glasses, jars of rice, pasta, beans and lentils, oil, and a stack of bowls.
   const doorU = (x) => (((x + 22) % 11) + 11) % 11;
@@ -829,6 +849,26 @@ export function buildKitchen(shared) {
   jar(13, 67, -8, "rice");
   jar(17, 67, -8, "pasta");
   stoveGroup.add(mesh(stovePart));
+  // A light strip hidden under the front of the wall cupboards, as under the shelf by the fridge: a warm light
+  // down over the sink and the right of the hob; clicked about its glow, on or off (on by itself at night).
+  const cupStrip = new THREE.Mesh(new THREE.BoxGeometry(41, 0.3, 0.6), new THREE.MeshBasicMaterial());
+  cupStrip.position.set(-0.5, 55.6, -4.9);
+  const cupSpot = new THREE.SpotLight(0xffd6a6, 0, 70, 1.2, 1, 1);
+  cupSpot.position.set(-0.5, 55.4, -5);
+  cupSpot.target.position.set(-1, 34, 3);
+  const cupZone = clickZone();
+  cupZone.scale.set(43, 5, 10);
+  cupZone.position.set(-0.5, 53.5, -2);
+  stoveGroup.add(cupStrip, cupSpot, cupSpot.target, cupZone);
+  const underCupboards = {
+    on: false,
+    set(on) {
+      cupSpot.intensity = on ? 36 : 0;
+      cupStrip.material.color.set(on ? 0xffe2b8 : 0xd8ccb8);
+      underCupboards.on = on;
+    },
+  };
+  clickables.push({ parts: [cupStrip, cupZone], toggle: () => underCupboards.set(!underCupboards.on) });
   // The glass: barely tinted, with a gleam across each pane.
   const glassTex = pixelTexture(16, 16, (g, w, h) => {
     g.fillStyle = "rgba(220, 240, 236, 0.16)";
@@ -1094,6 +1134,7 @@ export function buildKitchen(shared) {
 
   return {
     underShelf,
+    underCupboards,
     FRIDGE,
     store,
     restockCrisper,

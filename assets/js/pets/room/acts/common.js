@@ -5,7 +5,7 @@
  ******************************************************************************/
 
 import { rnd, wrap } from "../../stage.js";
-import { LOFT, X1 } from "../house.js";
+import { LOFT } from "../house.js";
 import { makeSteps } from "../steps.js";
 import { VIEW_YAW } from "../view.js";
 
@@ -77,12 +77,31 @@ export function makeContext(home, life) {
       zs,
       (x, z) =>
         ok(x, z) &&
-        !(x > X1 - 4 && gardenWet()) &&
         offPlaces(x, z) &&
         home.actors.every(
           (o) => o === a || o.out || (Math.hypot(o.x - x, o.z - z) > room && (!o.goal || Math.hypot(o.goal[0] - x, o.goal[1] - z) > room))
         )
     );
+  }
+
+  // A pet to be taken along (the dog for her walk): free, or dozing in something it may be roused from;
+  // `rouse` wakes it (as a click does), so that it can be asked.
+  const dozing = (p) => !!p && p.asleep && p.calm && !p.out && !p.hungry && !p.event && !p.pending && !p.queue.length;
+  const rousable = (p) => available(p) || dozing(p);
+  function rouse(p) {
+    if (dozing(p)) Object.assign(p, { woken: true, asleep: false });
+    return available(p);
+  }
+
+  // A free spot down in the basement in `area` (all of it, or [xs, zs]), clear of everyone down there and of
+  // where they are going; marked as down there, so that walking to it goes by the stairs.
+  function freeSpotBelow(a, [xs, zs] = [house.basement.bounds.slice(0, 2), house.basement.bounds.slice(2)], room = 26) {
+    const spot = home.belowNav.randomSpot(xs, zs, (x, z) =>
+      home.actors.every(
+        (o) => o === a || !o.below || (Math.hypot(o.x - x, o.z - z) > room && (!o.goal || Math.hypot(o.goal[0] - x, o.goal[1] - z) > room))
+      )
+    );
+    return spot && house.below(spot);
   }
 
   // Wait calmly up to `secs`, dozing off at `dozeAt`, until asked to stop or `stop()`; clicking a sleeper
@@ -174,6 +193,9 @@ export function makeContext(home, life) {
     sprinkler,
     gardenWet,
     freeSpot,
+    freeSpotBelow,
+    rousable,
+    rouse,
     linger,
     dozeChance,
     beside,

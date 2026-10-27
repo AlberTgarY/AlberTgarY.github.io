@@ -11,7 +11,7 @@ import { glowing, place } from "./kit.js";
 export function buildDecor(shared) {
   const { house, mesh, updates } = shared;
 
-  // A round clock over the front door that keeps the real time.
+  // A round clock over the front door that keeps the time of day.
   const clockGroup = place(house, new THREE.Group(), [DOOR.x, 72, BACK + 0.6]);
   const clockPart = part();
   for (let x = -7; x <= 7; x++)
@@ -33,11 +33,10 @@ export function buildDecor(shared) {
     m.scale.set(0.8, 1, 0.5);
     return m;
   });
+  // It keeps the time of day (shared.hour: daytime.js).
   updates.push(() => {
-    const d = new Date();
-    const minutes = d.getMinutes() + d.getSeconds() / 60;
-    clockHands[0].rotation.z = -((d.getHours() % 12) + minutes / 60) * (Math.PI / 6);
-    clockHands[1].rotation.z = -minutes * (Math.PI / 30);
+    clockHands[0].rotation.z = -(shared.hour % 12) * (Math.PI / 6);
+    clockHands[1].rotation.z = -((shared.hour * 60) % 60) * (Math.PI / 30);
   });
 
   // A picture over the stairs: hills, a sun, and a little house.

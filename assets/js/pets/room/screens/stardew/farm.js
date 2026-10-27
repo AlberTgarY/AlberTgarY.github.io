@@ -474,14 +474,14 @@ const dusk = (season) =>
     b.rect(x, y + 4, 8, 1, "#c8a050");
   });
 
-// Mountains far off and green hills before them, along the bottom of a sky 60 high.
+// Mountains far off and green hills before them, down to row 64 (where the grass starts).
 function hills(b, far = "#6a9ac8", near = "#4f8a6a") {
   for (let x = 0; x < W; x++) {
     const top = 34 + Math.round(8 * Math.sin(x * 0.045 + 1) + 4 * Math.sin(x * 0.13));
-    b.rect(x, top, 1, 62 - top, far);
+    b.rect(x, top, 1, 64 - top, far);
     if (Math.sin(x * 0.045 + 1) > 0.6 && x % 3 === 0) b.px(x, top + 1, "#e8f0f6");
     const top2 = 48 + Math.round(4 * Math.sin(x * 0.07 + 3) + 2 * Math.sin(x * 0.21));
-    b.rect(x, top2, 1, 62 - top2, near);
+    b.rect(x, top2, 1, 64 - top2, near);
     b.px(x, top2, mixHex(near, "#ffffff", 0.25));
   }
 }

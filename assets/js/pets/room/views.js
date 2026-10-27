@@ -320,13 +320,13 @@ function plane(scene, mat, [w, h], [x, y, z], facing) {
 // (outlook.js draws them through the glass, from in the room, so that the nearer layers move across the
 // farther ones as the view turns or the pointer moves). `skies`: the two windows' sky textures (the back
 // window's, the left one's); `cloudMat`: the clouds drifting over both; `glow`: a light inside by the left
-// window.
+// window, `through()` of it let in (0 to 1: the curtains).
 //
 // Beyond the bed, past the real front garden (yard.js) and the lane: a meadow, a hedgerow along it, a near
 // hill with its path and two trees, a far hill with the cottage, the sky. Past the kitchen, a street running
 // along the house: the pavement, the road with its two lanes of traffic, the far pavement with its people
 // and street lamps, a row of houses, the sky; and a branch of their tree close outside.
-export function makeViews(skies, cloudMat, glow) {
+export function makeViews(skies, cloudMat, glow, through = () => 1) {
   let night = false;
   let rain = 0;
   const hills = new THREE.Scene();
@@ -647,7 +647,7 @@ export function makeViews(skies, cloudMat, glow) {
         }
         k = Math.max(k, 0.35 * near * near);
       }
-    glow.intensity = k;
+    glow.intensity = k * through();
     glow.color.setHex(color);
   }
 
@@ -747,6 +747,10 @@ export function makeViews(skies, cloudMat, glow) {
       for (const s of [hills, street]) s.fog.color.set(night ? 0x1d2546 : 0xcfe6f2);
       paintHills();
       paintStreet();
+    },
+    // The haze over the distance, the colour of the time of day (daytime.js).
+    haze(colour) {
+      for (const s of [hills, street]) s.fog.color.copy(colour);
     },
     // How hard it is raining (0 to 1): people out walking take umbrellas, and the distance greys over.
     rain(k) {

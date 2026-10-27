@@ -4,9 +4,14 @@
  ******************************************************************************/
 
 import { rnd, pick } from "../../stage.js";
-import { LOFT, X1 } from "../house.js";
 import { HOLDS } from "../props.js";
 import { V, PET_AGAIN, DOWNSTAIRS } from "./common.js";
+
+const NAP_BELOW = 0.25; // how often the dog's lie-down on the rug, or the cat's nap, is down in the basement
+const LOUNGE_BELOW = [
+  [20, 140],
+  [30, 104],
+]; // the basement's lounge, x and z (house/basement.js): the daybed, the tea table, the rugs
 
 // `c` is everything they share (common.js), and the activities of the other files.
 export function petsActs(c) {
@@ -43,6 +48,7 @@ export function petsActs(c) {
     bowlSide,
     offPlaces,
     freeSpot,
+    freeSpotBelow,
     linger,
     dozeChance,
     beside,
@@ -215,8 +221,9 @@ export function petsActs(c) {
     return true;
   }
 
-  // Lie on the rug for a while, maybe nodding off.
+  // Lie on the rug for a while, maybe nodding off; now and then down in the basement instead.
   function* rug(a) {
+    if (Math.random() < NAP_BELOW) return yield* napBelow(a);
     if (!(yield* toRug(a))) return;
     yield* linger(a, rnd(8, 16), { dozeAt: dozeChance(0.3, 0.6) });
     a.lie = false;
@@ -323,8 +330,21 @@ export function petsActs(c) {
     yield* wait(a, ev.reaction === "swat" ? 0.9 : 2);
   }
 
-  // The cat naps: on her tree, a free seat, the dog's bed, or the rug.
+  // A nap down in the basement, on the floor of its lounge (the warm oak boards by the daybed and the tea
+  // table): lain down there, dozing off soon.
+  function* napBelow(a) {
+    const spot = freeSpotBelow(a, LOUNGE_BELOW, 18);
+    if (!spot) return;
+    yield* walk(a, spot);
+    a.face(V + rnd(-0.6, 0.6));
+    a.lie = true;
+    yield* linger(a, rnd(20, 40), { dozeAt: t() + rnd(2, 5) });
+    a.lie = false;
+  }
+
+  // The cat naps: on her tree, a free seat, the dog's bed, or the rug; now and then down in the basement.
   function* catNap(a) {
+    if (Math.random() < NAP_BELOW) return yield* napBelow(a);
     const r = Math.random();
     if (r < 0.35 && !holder("tree")) return yield* climb(a, true);
     if (r < 0.6) {
@@ -488,23 +508,17 @@ export function petsActs(c) {
   // then she sits and watches it go.
   function* chase(a) {
     if (!claim(a, "butterfly")) return;
-    const b = house.garden.butterfly;
-    const inGarden = (x, z) => x > X1 + 6 && z > LOFT.z1 + 6 && ground(x, z);
-    const clear = (x, z) => inGarden(x, z) && offPlaces(x, z) && home.actors.every((o) => o === a || o.out || Math.hypot(o.x - x, o.z - z) > 18); // not on top of the dog sunbathing
-    a.look = { facePoint: () => b.position.toArray() };
+    const g = house.garden;
+    const yardNav = home.yardNav;
+    // On the grass by the beds (not among them), clear of everyone (not on top of the dog sunbathing).
+    const clear = (x, z) =>
+      g.contains(x, z) && !g.offPath([x, z]) && offPlaces(x, z) && home.actors.every((o) => o === a || Math.hypot(o.x - x, o.z - z) > 18);
+    const lawn = (x, z) =>
+      g.contains(x, z) && !g.bedAt(x, z) && offPlaces(x, z) && home.actors.every((o) => o === a || Math.hypot(o.x - x, o.z - z) > 18);
+    a.look = { facePoint: () => g.butterflyAt().toArray() };
     for (let k = 0; k < 3 && !home.night; k++) {
-      const { x, z } = b.position;
-      const spot =
-        nav.randomSpot([x - 12, x + 12], [z - 12, z + 12], clear) ||
-        freeSpot(
-          a,
-          [
-            [X1 + 8, 200],
-            [LOFT.z1 + 8, 100],
-          ],
-          18,
-          inGarden
-        );
+      const { x, z } = g.butterflyAt();
+      const spot = yardNav.randomSpot([x - 12, x + 12], [z - 12, z + 12], lawn) || yardNav.randomSpot([x - 30, x + 30], [z - 30, z + 30], clear);
       if (!spot) break;
       yield* walk(a, spot, 1.4);
       a.sit = true;

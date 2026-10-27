@@ -44,12 +44,10 @@ export function buildWindows(shared) {
   const views = makeViews(
     skies.map((sky) => sky.tex),
     cloudMat,
-    streetGlow
+    streetGlow,
+    () => 1 - 0.8 * curtains[1].k // (the curtains drawn across the left window keep most of it out)
   );
-  updates.push((t, dt) => {
-    views.update(t, dt);
-    streetGlow.intensity *= 1 - 0.8 * curtains[1].k; // (the curtains drawn across the left window keep most of it out)
-  });
+  updates.push((t, dt) => views.update(t, dt));
   // The glass of each window, `w` x `h` voxels at `at` (turned by `rotY`), showing what is out there as seen
   // from in the room (outlook.js draws it each frame), the rain running down it in front, and in front of
   // that the glass itself: one thin sheet with the faintest cool tint, clear but not nothing. `out`: which way
@@ -86,8 +84,9 @@ export function buildWindows(shared) {
   function drawSkyOf(sky, i) {
     const { g } = sky;
     const grad = g.createLinearGradient(0, 0, 0, SKY[1]);
-    grad.addColorStop(0, shared.night ? "#18234a" : "#7fc0ec");
-    grad.addColorStop(1, shared.night ? "#33447a" : "#d4ecfb");
+    const lit = shared.sky; // (the time of day's: daytime.js)
+    grad.addColorStop(0, lit ? lit.top : shared.night ? "#18234a" : "#7fc0ec");
+    grad.addColorStop(1, lit ? lit.bottom : shared.night ? "#33447a" : "#d4ecfb");
     g.fillStyle = grad;
     g.fillRect(0, 0, ...SKY);
     if (shared.overcast) {
@@ -102,8 +101,11 @@ export function buildWindows(shared) {
         for (let y = -5; y <= 5; y++)
           for (let x = -5; x <= 5; x++) if (x * x + y * y <= 25 && (x + 3) ** 2 + (y - 1) ** 2 > 18) g.fillRect(30 + x, 9 + y, 1, 1);
     } else if (!i) {
-      g.fillStyle = "#fff6c9"; // the sun peeking in at the corner
-      for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) if (x * x + y * y <= 36) g.fillRect(34 + x, 6 + y, 1, 1);
+      // The sun peeking in at the corner, lower and warmer early and late in the day.
+      const low = lit ? 1 - Math.min(1, lit.up / 1.26) : 0;
+      g.fillStyle = lit && low > 0.5 ? lit.sun : "#fff6c9";
+      const cy = Math.round(6 + low * (SKY[1] - 14));
+      for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) if (x * x + y * y <= 36) g.fillRect(34 + x, cy + y, 1, 1);
     }
     sky.tex.needsUpdate = true;
   }

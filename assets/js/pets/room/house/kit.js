@@ -4,12 +4,13 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { FACES } from "../../models/voxels.js";
+import { FACES, hash } from "../../models/voxels.js";
 import { PROP_COLORS } from "../../models/girl-props.js";
 import { OUTFIT_PALETTE } from "../../models/girl-outfits.js";
 import { BOOKS } from "../props.js";
 import { FOOD_COLORS } from "../fridge-food.js";
 import { VEG_COLORS } from "../veg.js";
+import { GRAVITY } from "../water.js";
 
 export const COLORS = {
   ...OUTFIT_PALETTE,
@@ -278,6 +279,216 @@ export function pixelTexture(w, h, draw) {
   tex.generateMipmaps = false;
   tex.colorSpace = THREE.SRGBColorSpace;
   return { tex, g, canvas };
+}
+
+// The water held in a basin or a sink, `w` by `d` across (an oval if `round`), between heights y0 (empty)
+// and y1 (brimful) in its parent, under a tap whose mouth is at height `spout`. Turned on, the tap's water
+// comes as a thin trickle at first, its front falling from the mouth, thickening; only once it reaches the
+// bottom does water gather, a shallow puddle where it lands spreading over the floor of it, then rising
+// (`fill` s to the brim); the tap turns itself off once it is up to `full`, the last of its water falling
+// away. Then it drains away slowly (`drain` s), down to a puddle shrinking to the plug in the middle. Clear
+// pale blue with light rippling over it, and where the tap's water lands (`land`, 0..1 along its x and its
+// z) churned white, rings spreading out. `step(t, dt, running)` moves it on and returns whether the tap
+// still runs; `stream(t)` is the tap's water just now, [top, bottom, thickness 0..1] (heights in the
+// parent), or null; `mesh` is to be placed by its parent (at its middle).
+export function basinWater({ w, d, round = false, y0, y1, spout, land = [0.5, 0.5], fill = 7, drain = 16, full = 0.85, drops = null }) {
+  const N = 24;
+  const ripple = pixelTexture(N, N, () => {});
+  ripple.tex.magFilter = ripple.tex.minFilter = THREE.LinearFilter;
+  const image = ripple.g.createImageData(N, N);
+  const sheet = new THREE.Mesh(
+    round ? new THREE.CircleGeometry(0.5, 24).scale(w, d, 1) : new THREE.PlaneGeometry(w, d),
+    new THREE.MeshLambertMaterial({ map: ripple.tex, transparent: true, opacity: 0.85, depthWrite: false })
+  );
+  sheet.rotation.x = -Math.PI / 2;
+  sheet.renderOrder = 2;
+  const mesh = new THREE.Group();
+  mesh.add(sheet);
+  mesh.visible = false;
+  const landAt = [(land[0] - 0.5) * w, (land[1] - 0.5) * d]; // (from its middle)
+  // Where the stream lands: a broken ring of white froth round it, turned and swelling afresh each frame, and
+  // drops thrown up and out in a little crown (`drops`: water.js), each gone as it falls back to the surface
+  // (or, still dry, the floor).
+  const froth = pixelTexture(16, 16, (g) => {
+    for (let y = 0; y < 16; y++)
+      for (let x = 0; x < 16; x++) {
+        const r = Math.hypot(x + 0.5 - 8, y + 0.5 - 8) / 8;
+        const ring = Math.exp(-(((r - 0.5) / 0.2) ** 2));
+        if (hash(x, y, 31) < ring * 0.85) {
+          g.fillStyle = `rgba(246,252,255,${(0.5 + 0.5 * ring).toFixed(2)})`;
+          g.fillRect(x, y, 1, 1);
+        }
+      }
+  });
+  froth.tex.magFilter = froth.tex.minFilter = THREE.LinearFilter;
+  const crown = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.6, 2.6),
+    new THREE.MeshBasicMaterial({ map: froth.tex, transparent: true, depthWrite: false })
+  );
+  crown.position.set(landAt[0], 0.05, landAt[1]);
+  crown.renderOrder = 3;
+  mesh.add(crown);
+  const splashFrom = new THREE.Vector3();
+  function splash(t, dt) {
+    const j = 0.85 + 0.3 * Math.random();
+    crown.rotation.set(-Math.PI / 2, 0, Math.random() * Math.PI * 2);
+    crown.scale.set(j, j, 1);
+    if (!drops) return;
+    mesh.localToWorld(splashFrom.set(landAt[0], 0.2, landAt[1]));
+    for (let n = Math.random() * 120 * dt; n > 0; n--) {
+      const a = Math.random() * Math.PI * 2;
+      const [out, up] = [3 + Math.random() * 6, 9 + Math.random() * 13];
+      drops.emit("splash", splashFrom.x, splashFrom.y, splashFrom.z, Math.cos(a) * out, up, Math.sin(a) * out, (2 * up) / GRAVITY);
+    }
+  }
+  let drawnAt = -1;
+  function draw(t, pouring) {
+    const { data } = image;
+    const [lx, ly] = [land[0] * N, land[1] * N]; // (its rows run along z, from its back)
+    for (let y = 0; y < N; y++)
+      for (let x = 0; x < N; x++) {
+        let c = Math.sin(y * 0.8 + t * 1.6 + Math.sin(x * 0.6 + t)) + Math.sin(x * 0.9 - t * 1.3 + Math.sin(y * 0.4 - t * 0.5));
+        const rl = Math.hypot(x + 0.5 - lx, y + 0.5 - ly);
+        if (pouring) c += 2 * Math.sin(rl * 1.6 - t * 10) * Math.max(0, 1 - rl / 12);
+        const caustic = Math.max(0, 1 - Math.abs(c) * 1.6) ** 3;
+        let [r, g, b] = [158 + 80 * caustic, 214 + 36 * caustic, 236 + 16 * caustic];
+        const churn = pouring && rl < 3.5 && hash(x, y, Math.floor(t * 12)) < 1 - rl / 3.5;
+        if (churn) [r, g, b] = [246, 251, 253];
+        const k = 4 * (y * N + x);
+        [data[k], data[k + 1], data[k + 2], data[k + 3]] = [Math.min(255, r), Math.min(255, g), Math.min(255, b), 255];
+      }
+    ripple.g.putImageData(image, 0, 0);
+    ripple.tex.needsUpdate = true;
+  }
+  const fallen = (secs) => 0.5 * GRAVITY * secs * secs; // how far water falls in `secs`
+  const SPREAD = 0.15; // (as full as it is once it covers the floor)
+  let [on, from, to] = [false, -Infinity, -Infinity]; // the tap, when it was turned on and off
+  const pivot = [0, 0]; // where the puddle spreads from (as it fills) or shrinks to (as it drains)
+  const pool = {
+    mesh,
+    level: 0,
+    top: () => y0 + (y1 - y0) * pool.level,
+    // On by dt with the tap `running` (and the plug in, `plugged`: it does not drain); whether the tap runs on.
+    step(t, dt, running, plugged = false) {
+      if (running !== on) [on, from, to] = running ? [true, t, to] : [false, from, t];
+      const landed = running && fallen(t - from) >= spout - pool.top();
+      pool.level = Math.min(1, Math.max(0, pool.level + (landed ? dt / fill : running || plugged ? 0 : -dt / drain)));
+      if (pool.level >= full) running = false;
+      // A puddle as big as it has spread, round the point it spreads from.
+      const spread = Math.min(1, pool.level / SPREAD);
+      const goal = running ? landAt : [0, 0];
+      for (const k of [0, 1]) pivot[k] += (goal[k] - pivot[k]) * Math.min(1, dt * 3);
+      const s = 0.12 + 0.88 * spread * (2 - spread);
+      sheet.scale.set(s, s, 1);
+      sheet.position.set(pivot[0] * (1 - s), 0, pivot[1] * (1 - s));
+      sheet.material.opacity = 0.45 + 0.4 * spread;
+      mesh.visible = pool.level > 0.003 || landed;
+      sheet.visible = pool.level > 0.003;
+      crown.visible = landed;
+      mesh.position.y = pool.top();
+      if (landed) splash(t, dt);
+      if (mesh.visible && t - drawnAt > 0.1) {
+        drawnAt = t;
+        draw(t, landed);
+      }
+      return running;
+    },
+    stream(t) {
+      const drop = spout - pool.top();
+      const top = on ? 0 : fallen(t - to);
+      if (top >= drop) return null;
+      const bottom = Math.min(drop, fallen(t - from) + 0.3);
+      const thick = on ? Math.min(1, 0.3 + (t - from) / 0.5) : Math.max(0.3, 1 - (t - to) / 0.3);
+      return [spout - top, spout - bottom, thick];
+    },
+  };
+  return pool;
+}
+
+// Honey oak boards, 6 voxels deep, of random lengths with darker seams (256 x 48 voxels a repeat, a texel a
+// voxel): the house's floors.
+export function oakBoards() {
+  const planks = pixelTexture(256, 48, (g) => {
+    const tones = ["#cf9d6b", "#c69161", "#d6a677", "#c08a5a"];
+    for (let row = 0; row < 8; row++) {
+      let x = -Math.floor(hash(row, 1, 7) * 40);
+      while (x < 256) {
+        const len = 34 + Math.floor(hash(row, x, 3) * 50);
+        g.fillStyle = tones[Math.floor(hash(x, row, 5) * tones.length)];
+        g.fillRect(x, row * 6, len, 6);
+        for (let k = 0; k < 6; k++) {
+          // a few grain streaks
+          const gx = x + Math.floor(hash(x, row, k) * len);
+          g.fillStyle = "rgba(120,72,36,0.16)";
+          g.fillRect(gx, row * 6 + 1 + (k % 4), 5, 1);
+        }
+        g.fillStyle = "#a8743f";
+        g.fillRect(x, row * 6, 1, 6);
+        x += len;
+      }
+      g.fillStyle = "#b07c4a";
+      g.fillRect(0, row * 6 + 5, 256, 1);
+    }
+  });
+  planks.tex.wrapS = planks.tex.wrapT = THREE.RepeatWrapping;
+  return planks;
+}
+
+// The house's wallpaper, `h` voxels high and 64 across (a texel a voxel): warm cream with fine stripes and
+// little flowers over white panelling, a wooden rail between them and a skirting board below, a cornice at
+// the top; or, `tiled`, over cream metro tiles edged in sage (the basement's bathroom: basement.js).
+export function wallpaper(h, tiled = false) {
+  const paper = pixelTexture(64, h, (g, w) => {
+    const at = (y) => h - 1 - y; // canvas rows run down, wall heights up
+    g.fillStyle = "#f6e8cf";
+    g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x += 8) {
+      g.fillStyle = "#f1e0c4";
+      g.fillRect(x, 0, 1, h);
+    }
+    for (let y = 38; y < h - 6; y += 12)
+      for (let x = (y / 12) % 2 ? 4 : 0; x < w; x += 8) {
+        g.fillStyle = "#e8a99a";
+        g.fillRect(x + 4, at(y), 1, 1);
+        g.fillStyle = "#c9d9a8";
+        g.fillRect(x + 4, at(y - 1), 1, 1);
+      }
+    if (tiled) {
+      g.fillStyle = "#e2dccf"; // the grout
+      g.fillRect(0, at(31), w, 30);
+      for (let y = 2; y < 30; y += 2)
+        for (let x = (y / 2) % 2 ? -2 : 0; x < w; x += 4) {
+          g.fillStyle = "#f7f3ea";
+          g.fillRect(x, at(y + 1), 3, 1);
+          g.fillStyle = "#fbf9f4"; // (a glint along each tile's top)
+          g.fillRect(x, at(y + 1), 2, 1);
+          g.fillStyle = "#f2ede2";
+          g.fillRect(x, at(y), 3, 1);
+        }
+      g.fillStyle = "#a9bb9c"; // a sage trim along the top, and along the floor
+      g.fillRect(0, at(31), w, 2);
+      g.fillStyle = "#8fa682";
+      g.fillRect(0, at(1), w, 2);
+    } else {
+      g.fillStyle = "#f3eee4"; // panelling
+      g.fillRect(0, at(30), w, 27);
+      for (let x = 0; x < w; x += 16) {
+        g.fillStyle = "#e2d9c8";
+        g.fillRect(x, at(28), 1, 22);
+        g.fillRect(x, at(28), 12, 1);
+        g.fillStyle = "#fbf8f2";
+        g.fillRect(x + 1, at(7), 12, 1);
+      }
+      g.fillStyle = "#b58457"; // the rail
+      g.fillRect(0, at(32), w, 2);
+      g.fillStyle = "#9a6a40"; // the skirting
+      g.fillRect(0, at(4), w, 5);
+    }
+    g.fillStyle = "#e9d6b6"; // the cornice
+    g.fillRect(0, 0, w, 3);
+  });
+  paper.tex.wrapS = THREE.RepeatWrapping;
+  return paper;
 }
 
 // A part (voxels.js) as one mesh of just the voxel faces that show, coloured per face, and faces of a

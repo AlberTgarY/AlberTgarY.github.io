@@ -32,6 +32,7 @@ export function kitchenActs(c) {
     available,
     invite,
     summon,
+    later,
     anew,
     onEnd,
     t,
@@ -321,8 +322,8 @@ export function kitchenActs(c) {
   }
 
   // At the table with what was made: sit down (a dish from the oven goes in the middle), and wait for the
-  // other, called over out of whatever they are doing ("dinner's ready!" now and then till they come), unless
-  // they are out of the house; then eat, the dog hoping for a bite. Someone who comes home in the middle is
+  // other, called over out of whatever they are doing ("dinner's ready!" now and then till they come), in from
+  // the front garden too; then eat, the dog hoping for a bite. Someone who comes home in the middle is
   // called too. The clearing up after is his if he ate too (clearTable), hers if she ate alone. For fruit from the garden (`left` pieces on its plate), they
   // eat from the plate together till it is empty, waiting for someone on their way while there is enough.
   function* meal(a, dish = null, left = 0) {
@@ -336,11 +337,22 @@ export function kitchenActs(c) {
     a.serving = true; // at the table with what they made: not to be called away (life.js)
     const b = other(a);
     const ev = event(a, "meal", { ready: false, guest: null });
-    const away = () => !b || b.out || ["walk", "wander"].includes(b.jobName);
+    // Out in the front garden the other is called in too: on a walk or a stroll, the outing cut short (or not
+    // set off on: outings.js, acts/outdoors.js) and asked to the table once home; seeing to the vegetables or
+    // the like, to come once that is done.
+    const outing = () => !!b && ["walk", "wander"].includes(b.jobName) && !!b.event;
+    const away = () => !b;
     const there = () => !!b && b.seated && !!b.seatKey?.startsWith("dine");
-    // Whether the other is (now) on their way: called, once, unless they are out or already at the table. They
-    // are waited for (a while, or for as long as they are on their way to the table).
-    const calling = () => !ev.guest && !away() && !there() && (b.pending?.ev === ev || b.event === ev || summon(b, act("dine", dine, ev)));
+    const coming = () => b.pending?.ev === ev || b.event === ev || b.queue.some((todo) => todo.ev === ev);
+    // Whether the other is (now) on their way: called, once, unless already at the table. They are waited for
+    // (a while, or for as long as they are on their way to the table).
+    const calling = () => {
+      if (ev.guest || away() || there()) return false;
+      if (outing()) b.event.hurry = true;
+      if (coming()) return true;
+      if (b.out || outing()) return !!later(b, act("dine", dine, ev)); // (next, before anything else)
+      return summon(b, act("dine", dine, ev));
+    };
     const waitFor = function* (secs) {
       const end = t() + secs;
       let shoutAt = t() + 0.8;
@@ -462,26 +474,38 @@ export function kitchenActs(c) {
     yield* washUp(a, dish ? 1 : n);
   }
 
-  // What is in their hands (`n` things), to the sink to rinse under the tap, and into the dishwasher (on
-  // with it once there are two or more in it); while it is washing, or full, left by the sink. With someone
-  // at the sink, they wait their turn.
+  // What is in their hands (`n` things), to the sink: the plug in and the tap on, a squeeze of washing-up
+  // liquid as it runs, the tap off with the sink half full, a scrub in the water, a rinse under the tap, the
+  // tap off and the plug out (it drains away); then into the dishwasher (on with it once there are two or more
+  // in it), or, while it is washing or full, left by the sink. With someone at the sink, they wait their turn.
   function* washUp(a, n = 1) {
     if (!(yield* claimSink(a, 45))) return a.props.only();
     const { sink, dishwasher: dw } = house;
-    onEnd(a, () => (sink.running = dw.open = false));
+    onEnd(a, () => (sink.running = sink.plugged = dw.open = false));
     yield* walk(a, spots.sink.at);
     yield* turn(a, spots.sink.yaw);
-    a.hold = HOLDS.pick;
-    yield* wait(a, 0.5);
+    const tap = function* (on) {
+      a.hold = HOLDS.pick;
+      yield* wait(a, 0.3);
+      sink.running = on;
+    };
+    sink.plugged = true;
+    yield* tap(true);
+    yield* wait(a, 0.3);
     sink.soap = true; // a squeeze of washing-up liquid
     onEnd(a, () => (sink.soap = false));
     yield* wait(a, 0.6);
     sink.soap = false;
-    yield* wait(a, 0.2);
-    sink.running = true;
-    a.hold = MOVES.stir; // a scrub
-    yield* wait(a, 1.6);
-    sink.running = false;
+    yield* until(() => sink.level() > 0.45 || !sink.running, 6);
+    yield* tap(false);
+    a.hold = MOVES.stir; // a scrub in the water
+    yield* wait(a, 2.2);
+    yield* tap(true); // a rinse under the tap
+    a.hold = MOVES.stir;
+    yield* wait(a, 1);
+    yield* tap(false);
+    sink.plugged = false; // the plug out
+    yield* wait(a, 0.3);
     home.popAt(spots.sink.basin, "room-pop room-pop-sparkle");
     a.hold = HOLDS.tray;
     if (dw.running || dw.load + n > dw.slots) {

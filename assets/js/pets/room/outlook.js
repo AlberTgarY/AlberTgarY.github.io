@@ -22,7 +22,7 @@ const POINTER = [10, 5]; // and with the pointer, at most (across, up)
 // drawn through the back window even while the view does not show them otherwise (room.js).
 export function makeOutlooks(outlooks, view, scene, outside) {
   const { renderer, camera } = view;
-  const NEVER = [0, 1].map(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e6)); // (view.js's two clip planes, off)
+  const NEVER = [0, 1, 2, 3, 4].map(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e6)); // (view.js's five clip planes, off)
   const up = new THREE.Vector3(0, 1, 0);
   const v = new THREE.Vector3();
   const panes = outlooks.map(({ glass, at, out, size, scene: there, yard }) => {

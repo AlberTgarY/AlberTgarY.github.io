@@ -8,6 +8,7 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
+import { UNCUT } from "./view.js";
 
 const MAX_SIZE = 256; // texels across the texture at most
 
@@ -17,6 +18,7 @@ export function makeMirror(glass, view, scene) {
   const { renderer, camera } = view;
   const target = new THREE.WebGLRenderTarget(1, 1);
   const mirrored = new THREE.PerspectiveCamera();
+  mirrored.layers.enable(UNCUT); // (anyone indoors: room.js)
   const textureMatrix = new THREE.Matrix4();
   const texel = new THREE.Vector2();
   glass.material = new THREE.ShaderMaterial({
@@ -27,14 +29,18 @@ export function makeMirror(glass, view, scene) {
       tint: { value: new THREE.Color(glass.material.color) },
       opacity: { value: 1 }, // (less while the back wall fades: peek.js)
     },
+    clipping: true, // (cut away with the rest by view.js's planes: the dressing corner's, seen from the basement)
     vertexShader: /* glsl */ `
       uniform mat4 matrix;
       varying vec4 vAt;
       varying vec2 vUv;
+      #include <clipping_planes_pars_vertex>
       void main() {
         vAt = matrix * vec4(position, 1.0);
         vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <clipping_planes_vertex>
       }`,
     fragmentShader: /* glsl */ `
       uniform sampler2D map;
@@ -43,7 +49,9 @@ export function makeMirror(glass, view, scene) {
       uniform float opacity;
       varying vec4 vAt;
       varying vec2 vUv;
+      #include <clipping_planes_pars_fragment>
       void main() {
+        #include <clipping_planes_fragment>
         vec2 at = vAt.xy / vAt.w;
         vec4 sum = vec4(0.0); // 1 2 1 / 2 4 2 / 1 2 1, over 16
         for (int i = -1; i <= 1; i++)

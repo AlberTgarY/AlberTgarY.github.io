@@ -27,10 +27,11 @@
 
 import { rnd, pick, clamp } from "../stage.js";
 import { freshPicker } from "../choose.js";
-import { X1, LOFT } from "./house.js";
+import { LOFT, BASE_Y } from "./house.js";
+import { DAY_SECS } from "./daytime.js";
 
 // How much each of them likes to do what (acts.js has what each one is). Night (dark mode) changes some;
-// going to bed is only for the night.
+// going to bed is only for the night. The gym goes by taste and mood alone, whatever the hour or the weather.
 const MENUS = {
   girl: {
     tv: 13,
@@ -44,43 +45,57 @@ const MENUS = {
     fetch: 6,
     pet: 10,
     chat: 7,
-    game: 5,
+    game: 7,
     watchPc: 6,
     pcGirl: 14,
-    nap: 6,
+    nap: 3, // (a doze anywhere but in bed: now and then, not often)
     stroll: 8,
-    stretch: 4,
-    laptop: 4,
+    stretch: 6,
+    laptop: 6,
     dress: 5,
     garden: 5,
     sprinkle: 5,
-    fire: 5,
+    fire: 6,
     sleep: 16,
+    teeth: 6,
+    loo: 7,
+    soak: 7,
+    shower: 6,
+    washPet: 4, // (a pet at a time, not again within 15 minutes: acts/basement.js)
+    fish: 6,
+    gym: 8,
   },
   boy: {
     pc: 18,
     tv: 9,
     snack: 10,
     bake: 6,
-    read: 5,
-    laptop: 4,
+    read: 7,
+    laptop: 6,
     walk: 10,
     wander: 5,
     fetch: 7,
     pet: 8,
     chat: 6,
     game: 6,
-    nap: 4,
+    nap: 2,
     stroll: 7,
-    stretch: 4,
-    water: 3,
+    stretch: 6,
+    water: 5,
     garden: 7,
     sprinkle: 5,
     fire: 6,
     sleep: 12,
+    teeth: 6,
+    loo: 7,
+    soak: 5,
+    shower: 6,
+    washPet: 4,
+    fish: 5,
+    gym: 9,
   },
   collie: { bed: 15, rug: 14, stroll: 14, zoomies: 7, visit: 14, sniff: 6, sunbathe: 8, splash: 20, fireside: 14, rest: 30 },
-  cat: { nap: 22, perch: 10, climb: 12, groom: 12, stroll: 10, visit: 10, cuddle: 6, tower: 8, chase: 8, fireside: 12, rest: 18 },
+  cat: { nap: 22, perch: 10, climb: 12, groom: 12, stroll: 10, visit: 10, cuddle: 6, tower: 8, chase: 8, fireside: 12, rest: 18, fishWatch: 12 },
 };
 const NIGHT = {
   nap: 2,
@@ -97,6 +112,8 @@ const NIGHT = {
   game: 0.8,
   fire: 3,
   fireside: 1.5,
+  teeth: 2.5, // (before bed)
+  soak: 1.6,
 };
 // A rainy spell (weather.js) makes for a cosy afternoon in: the fire, a book, a nap, and the cat at the window.
 // The dog still needs her walk, rain or not.
@@ -109,15 +126,17 @@ const LEANINGS = {
     garden: ["garden", "water", "sprinkle", "wander"],
     screens: ["tv", "pcGirl", "watchPc", "laptop", "game"],
     kitchen: ["cook", "bake", "snack"],
-    cosy: ["read", "nap", "fire", "stretch"],
-    pets: ["walk", "fetch", "pet"],
+    cosy: ["read", "nap", "fire", "stretch", "soak"],
+    pets: ["walk", "fetch", "pet", "washPet"],
+    fit: ["gym", "shower", "teeth"],
   },
   boy: {
     garden: ["garden", "water", "sprinkle", "wander"],
     screens: ["pc", "tv", "laptop", "game"],
     kitchen: ["bake", "snack"],
-    cosy: ["read", "nap", "fire", "stretch"],
-    pets: ["walk", "fetch", "pet"],
+    cosy: ["read", "nap", "fire", "stretch", "soak"],
+    pets: ["walk", "fetch", "pet", "washPet"],
+    fit: ["gym", "shower", "teeth"],
   },
   collie: { play: ["zoomies", "splash", "stroll", "sniff"], lazy: ["bed", "rug", "rest", "sunbathe", "fireside"], company: ["visit"] },
   cat: { play: ["chase", "climb", "perch", "tower"], lazy: ["nap", "rest", "fireside", "groom"], company: ["visit", "cuddle"] },
@@ -132,6 +151,7 @@ const AREAS = {
   loft: ["pc", "pcGirl", "watchPc", "dress", "sleep"],
   garden: ["garden", "sprinkle"],
   out: ["walk", "wander", "fetch"],
+  basement: ["teeth", "loo", "soak", "shower", "fish", "gym", "fishWatch", "washPet"],
 };
 const OPENING = 90;
 const areaOf = (name) => Object.keys(AREAS).find((k) => AREAS[k].includes(name)) ?? "about";
@@ -142,31 +162,63 @@ const MOOD_LASTS = [240, 420]; // s
 // within a few minutes, as keen as ever after BALANCE), kept within NEED.
 const BALANCE = 600;
 const NEED = [0.05, 3];
-const LONGEST = 300; // s any one activity may run
+const LONGEST = 300; // s any one activity may run (but a night's sleep: until the morning, acts/living.js)
 // What is never dropped for a hungry pet: changing clothes, feeding, running in from the rain, the cat's mess,
 // going to the table when called, a walk or a stroll (even still on the path outside the door); nor is anyone
 // with food in hand or at the table with what they made (`a.serving`).
-const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff", "dine", "walk", "wander"];
+const NO_DROP = ["dress", "feed", "shelter", "scold", "sprinklerOff", "dine", "walk", "wander", "loo", "soak", "shower"]; // (and nobody is called out of the bath)
 // Nor is anyone called to the table out of these (summon()): those, or cooking or baking (food of their own
 // on the way).
 const NO_CALL = [...NO_DROP, "cook", "bake"];
-// The day's rhythm: what comes round every so often (s, at random between the two) whatever anyone's tastes,
-// each due that long after it was last done (by anyone, asked or not); and for `rest` s after it was done,
-// no one does it again of their own accord (the dog has just been out, they have just eaten, the garden has
-// just been seen to). A meal is either of them cooking, or one of them baking.
+// The day's rhythm, whatever anyone's tastes: the dog walked every so often (`every` s, at random between the
+// two, after the last walk by anyone, asked or not; and no one takes her out of their own accord within
+// `rest` s of it); a meal made and the garden seen to once a day and once in the evening (`at`: hours,
+// daytime.js), each at a random time in its part of the day, by whoever does it first, of their own accord
+// or asked when that time comes (and not again till the next part). A meal is either of them cooking, or
+// one of them baking.
 const ROUTINE = [
-  { names: ["walk"], every: [300, 480], rest: 240 },
-  { names: ["cook", "bake"], every: [420, 660], rest: 360 },
-  { names: ["garden"], every: [270, 450], rest: 180 },
+  { names: ["walk"], every: [480, 600], rest: 480 },
+  {
+    names: ["cook", "bake"],
+    at: [
+      [7, 17],
+      [18, 20.5],
+    ],
+  },
+  {
+    names: ["garden"],
+    at: [
+      [7, 17],
+      [18, 20.5],
+    ],
+  },
 ];
 
 export function makeLife(home) {
   const { clock, actors, humans, pets, house } = home;
   const claims = new Map(); // place -> the actor using it
   const t = () => clock.t;
-  const due = new Map(ROUTINE.map((r) => [r, t() + rnd(...r.every) / 2])); // when each part of the rhythm comes round
+  const due = new Map(ROUTINE.filter((r) => r.every).map((r) => [r, t() + rnd(...r.every) / 2])); // when the walk comes round
   const done = new Map(ROUTINE.map((r) => [r, -Infinity])); // and when it was last started
-  const resting = (name) => ROUTINE.some((r) => r.names.includes(name) && t() - done.get(r) < r.rest);
+  // For what is done once in each part of the day (`at`): which part it is in now (an index into `at`, -1
+  // between them), when in it that is to be (an hour), and whether it has been done in it yet.
+  const parts = new Map(ROUTINE.filter((r) => r.at).map((r) => [r, { part: -1, hour: 0, done: false }]));
+  const partNow = (r) => r.at.findIndex(([h0, h1]) => home.hour() >= h0 && home.hour() < h1);
+  function partOf(r) {
+    const p = parts.get(r);
+    const now = partNow(r);
+    if (now !== p.part) Object.assign(p, { part: now, hour: now < 0 ? 0 : rnd(...r.at[now]), done: false });
+    return p;
+  }
+  // Not to be done of anyone's own accord just now: the dog walked a moment ago, or the meal or the garden
+  // already seen to in this part of the day (or between parts).
+  const resting = (name) =>
+    ROUTINE.some((r) => {
+      if (!r.names.includes(name)) return false;
+      if (r.every) return t() - done.get(r) < r.rest;
+      const p = partOf(r);
+      return p.part < 0 || p.done;
+    });
 
   /* ---------- places ---------- */
 
@@ -194,6 +246,8 @@ export function makeLife(home) {
 
   // Doing something with the other person (or they are about to join in); a pet watching does not count.
   const together = (a) => !!a.event && humans.some((h) => h !== a && (h.event === a.event || h.pending?.ev === a.event));
+  // Out on a walk or a stroll (not just out in the front garden, seeing to the vegetables, say).
+  const onOuting = (a) => a.out && ["walk", "wander"].includes(a.jobName);
   // Free to be asked: home, awake, not hungry or busy with someone, and idle or doing something calm.
   const available = (a) => !!a && !a.out && !a.asleep && !a.hungry && !a.event && !a.pending && !a.queue.length && (!a.job || a.calm);
 
@@ -212,7 +266,7 @@ export function makeLife(home) {
   // come next. Whether they will come.
   function summon(a, todo) {
     if (invite(a, todo)) return true;
-    if (!a || a.out || a.pending || a.serving || NO_CALL.includes(a.jobName)) return false;
+    if (!a || onOuting(a) || a.pending || a.serving || NO_CALL.includes(a.jobName)) return false;
     if (!a.job) start(a, todo);
     else {
       a.pending = todo;
@@ -228,7 +282,8 @@ export function makeLife(home) {
   function start(a, todo) {
     for (const r of ROUTINE)
       if (r.names.includes(todo.name)) {
-        due.set(r, t() + rnd(...r.every));
+        if (r.every) due.set(r, t() + rnd(...r.every));
+        else partOf(r).done = true;
         done.set(r, t());
       }
     a.pending = null;
@@ -283,19 +338,23 @@ export function makeLife(home) {
     });
     a.setState("idle");
     ["want", "mood", "say"].forEach((c) => a.show(c, null));
-    // Only a broken activity can leave someone up on the furniture, in bed or out of the house, or half way
-    // up off a seat (`ground` still set): put them back on the floor, inside.
+    // Only a broken activity can leave someone up on the furniture, in bed or out on a walk, or half way up
+    // off a seat (`ground` still set): put them back on the floor (inside, from a walk). Done with something
+    // out in the front garden, they stay out there till they go somewhere (in at the front door: steps.js).
     const stay = rise && (a.seated || a.ground) && !a.abed && !a.out;
     if (stay) a.seated = true; // half way up off it: they get up from where they are (feed() does)
-    if (!stay && (broken || a.above() > 0.01 || a.seated || a.abed || a.out || a.ground)) {
+    const away = a.out && (broken || onOuting(a));
+    if (!stay && (broken || away || a.above() > 0.01 || a.seated || a.abed || a.ground)) {
       a.seated = false;
       a.abed = false;
       if (a.ground) [a.x, a.z] = a.ground;
       const door = [house.spots.door.x, house.spots.door.inside];
-      if (a.out) [a.x, a.z] = door;
-      else if (!home.nav.free(a.x, a.z)) [a.x, a.z] = home.nav.nearest(a.x, a.z) || door;
-      a.y = house.floorY(a.x, a.z);
-      a.out = false;
+      const nav = a.below ? home.belowNav : a.out && !away ? home.yardNav : home.nav;
+      if (away) [a.x, a.z] = door;
+      else if (!nav.free(a.x, a.z)) [a.x, a.z] = nav.nearest(a.x, a.z) || door;
+      a.y = house.floorY(a.x, a.z, a.below);
+      if (away) a.out = false;
+      a.inBed = null; // (put back on free floor)
     }
     if (!stay) a.ground = null;
     a.seatKey = null;
@@ -303,8 +362,8 @@ export function makeLife(home) {
     // Soon on to something else if it could not be done at all, or stopped half way up or down the stairs, or
     // to get out of the way.
     const failed = t() === a.jobStart;
-    const fy = house.floorY(a.x, a.z);
-    const stairs = !a.seated && fy > 0.01 && fy < LOFT.y - 0.01 && Math.abs(a.y - fy) < 0.5;
+    const fy = house.floorY(a.x, a.z, a.below);
+    const stairs = !a.seated && Math.abs(a.y - fy) < 0.5 && ((fy > 0.01 && fy < LOFT.y - 0.01) || (fy < -0.01 && fy > BASE_Y + 0.01)); // (up to the loft, or down)
     a.nextAt = t() + (failed || stairs ? 0.3 : crowded(a) ? 0.5 : a.human ? rnd(1.5, 5) : rnd(2.5, 7));
   }
 
@@ -328,6 +387,8 @@ export function makeLife(home) {
   }
   function choose(a) {
     if (a.above() < 0.5 && crowded(a)) return start(a, act("stroll", home.acts.stroll.run));
+    // Down in the basement, the bath seen let out (by a visitor): run again before anything else.
+    if (a.human && home.acts.refill.can(a)) return start(a, act("refill", home.acts.refill.run));
     const weights = {};
     const leans = leaning(a);
     for (const [name, w] of Object.entries(MENUS[a.name])) {
@@ -357,7 +418,7 @@ export function makeLife(home) {
     if (!a.job) return;
     let broken = false;
     try {
-      if (t() - a.jobStart > LONGEST) {
+      if (a.jobName !== "sleep" && t() - a.jobStart > LONGEST) {
         a.job.return();
         broken = true;
       } else if (!a.job.next().done) return;
@@ -406,6 +467,8 @@ export function makeLife(home) {
     if (girl.jobName === name || girl.pending) return;
     const todo = act(name, home.acts[name].run);
     const changing = girl.jobName === "dress" && name !== "dress";
+    // Out on a walk or a stroll, it is cut short for this (or not set off on: outings.js, acts/outdoors.js).
+    if (name !== "wander" && ["walk", "wander"].includes(girl.event?.kind) && !girl.event.over) girl.event.hurry = true;
     if (girl.out || girl.serving || (NO_DROP.includes(girl.jobName) && !changing)) girl.pending = todo;
     else if (!girl.job) start(girl, todo);
     else if (girl.abed || (girl.asleep && girl.jobName === "nap")) {
@@ -512,7 +575,8 @@ export function makeLife(home) {
     // balance (so mostly whoever likes it more, or has not done it for longer, but not always); if no one can
     // just now, it is looked at again a little later.
     for (const r of ROUTINE) {
-      if (t() < due.get(r)) continue;
+      const p = r.at && partOf(r);
+      if (p ? p.part < 0 || p.done || home.hour() < p.hour : t() < due.get(r)) continue;
       const options = awake
         .filter(available)
         .flatMap((h) =>
@@ -523,14 +587,16 @@ export function makeLife(home) {
       let roll = Math.random() * options.reduce((sum, o) => sum + o[2], 0);
       const pair = options.find((o) => (roll -= o[2]) < 0) || options.at(-1);
       const asked = pair && invite(pair[0], act(pair[1], home.acts[pair[1]].run));
-      due.set(r, t() + (asked ? rnd(...r.every) : 10));
+      if (r.every) due.set(r, t() + (asked ? rnd(...r.every) : 10));
+      else if (asked) p.done = true;
+      else p.hour = home.hour() + 10 * (24 / DAY_SECS); // (looked at again in 10 s)
     }
 
-    // Rain comes when it will: whoever it catches out in the garden drops what they are doing and runs in
-    // (what they were next asked to do still waits for them).
+    // Rain comes when it will: whoever it catches out in the front garden (but on a walk, which has its
+    // umbrellas) drops what they are doing and runs in (what they were next asked to do still waits for them).
     if (home.weather.raining)
       for (const a of actors) {
-        if (a.out || a.x < X1 || a.z < LOFT.z1 || a.y > 1 || ["shelter", "sprinklerOff"].includes(a.jobName)) continue;
+        if (!a.out || onOuting(a) || ["shelter", "sprinklerOff"].includes(a.jobName)) continue;
         if (a.job) {
           a.job.return();
           finish(a, false);

@@ -5,37 +5,14 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { part, box, hash } from "../../models/voxels.js";
-import { X0, X1, SIDE, BACK, FRONT, WALL_H, WALL_T, LOFT, STAIRS, DOOR } from "./layout.js";
-import { pixelTexture } from "./kit.js";
+import { X0, SIDE, BACK, FRONT, WALL_H, WALL_T, LOFT, STAIRS, DOOR, DOWN } from "./layout.js";
+import { pixelTexture, wallpaper, oakBoards } from "./kit.js";
 
 // `shared`: what the house so far has to share (house.js), with `night` and `overcast` as they are now.
 export function buildShell(shared) {
   const { house, mesh, footprint } = shared;
 
-  // Honey oak boards, 6 voxels deep, of random lengths with darker seams.
-  const planks = pixelTexture(256, 48, (g) => {
-    const tones = ["#cf9d6b", "#c69161", "#d6a677", "#c08a5a"];
-    for (let row = 0; row < 8; row++) {
-      let x = -Math.floor(hash(row, 1, 7) * 40);
-      while (x < 256) {
-        const len = 34 + Math.floor(hash(row, x, 3) * 50);
-        g.fillStyle = tones[Math.floor(hash(x, row, 5) * tones.length)];
-        g.fillRect(x, row * 6, len, 6);
-        for (let k = 0; k < 6; k++) {
-          // a few grain streaks
-          const gx = x + Math.floor(hash(x, row, k) * len);
-          g.fillStyle = "rgba(120,72,36,0.16)";
-          g.fillRect(gx, row * 6 + 1 + (k % 4), 5, 1);
-        }
-        g.fillStyle = "#a8743f";
-        g.fillRect(x, row * 6, 1, 6);
-        x += len;
-      }
-      g.fillStyle = "#b07c4a";
-      g.fillRect(0, row * 6 + 5, 256, 1);
-    }
-  });
-  planks.tex.wrapS = planks.tex.wrapT = THREE.RepeatWrapping;
+  const planks = oakBoards();
   const floorMat = new THREE.MeshLambertMaterial({ map: planks.tex });
   // Boards over [x0, x1] x [z0, z1] at height y, lined up with all the others.
   function boards(x0, x1, z0, z1, y) {
@@ -49,49 +26,21 @@ export function buildShell(shared) {
     m.receiveShadow = true; // (of the floor lamp: living.js)
     house.add(m);
   }
-  boards(X0, X1, BACK, FRONT, -0.5);
-  // The cut edge of the floor all round, like a dolls' house, the garden's included.
-  const slab = new THREE.Mesh(
-    new THREE.BoxGeometry(SIDE - X0 + WALL_T, 8, FRONT - BACK + WALL_T),
-    new THREE.MeshLambertMaterial({ color: "#8a5a34" })
-  );
-  slab.position.set((X0 - WALL_T + SIDE) / 2, -4.6, (BACK - WALL_T + FRONT) / 2);
-  house.add(slab);
+  // To the opening over the stairs down (stairs.js), and on along the landing at their head.
+  const OPEN = DOWN.x0 - 2;
+  boards(X0, OPEN, BACK, FRONT, -0.5);
+  boards(OPEN, SIDE, DOWN.well, DOWN.head, -0.5);
+  // The cut edge of the floor all round, like a dolls' house, the stairs' included; open over the stairwell.
+  const slabMat = new THREE.MeshLambertMaterial({ color: "#8a5a34" });
+  const slab = (x0, x1, z0, z1) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 8, z1 - z0), slabMat);
+    m.position.set((x0 + x1) / 2, -4.6, (z0 + z1) / 2);
+    house.add(m);
+  };
+  slab(X0 - WALL_T, OPEN, BACK - WALL_T, FRONT);
+  slab(OPEN, SIDE, BACK - WALL_T, DOWN.head);
 
-  // Warm cream wallpaper with fine stripes and little flowers over white panelling, a wooden rail between
-  // them and a skirting board below.
-  const paper = pixelTexture(64, WALL_H, (g, w, h) => {
-    const at = (y) => h - 1 - y; // canvas rows run down, wall heights up
-    g.fillStyle = "#f6e8cf";
-    g.fillRect(0, 0, w, h);
-    for (let x = 0; x < w; x += 8) {
-      g.fillStyle = "#f1e0c4";
-      g.fillRect(x, 0, 1, h);
-    }
-    for (let y = 38; y < h - 6; y += 12)
-      for (let x = (y / 12) % 2 ? 4 : 0; x < w; x += 8) {
-        g.fillStyle = "#e8a99a";
-        g.fillRect(x + 4, at(y), 1, 1);
-        g.fillStyle = "#c9d9a8";
-        g.fillRect(x + 4, at(y - 1), 1, 1);
-      }
-    g.fillStyle = "#f3eee4"; // panelling
-    g.fillRect(0, at(30), w, 27);
-    for (let x = 0; x < w; x += 16) {
-      g.fillStyle = "#e2d9c8";
-      g.fillRect(x, at(28), 1, 22);
-      g.fillRect(x, at(28), 12, 1);
-      g.fillStyle = "#fbf8f2";
-      g.fillRect(x + 1, at(7), 12, 1);
-    }
-    g.fillStyle = "#b58457"; // the rail
-    g.fillRect(0, at(32), w, 2);
-    g.fillStyle = "#9a6a40"; // the skirting
-    g.fillRect(0, at(4), w, 5);
-    g.fillStyle = "#e9d6b6"; // the cornice
-    g.fillRect(0, 0, w, 3);
-  });
-  paper.tex.wrapS = THREE.RepeatWrapping;
+  const paper = wallpaper(WALL_H);
   const paperMat = new THREE.MeshLambertMaterial({ map: paper.tex });
   // Outside, the back wall (facing the front garden: yard.js) is clad in duck-egg blue weatherboards, each
   // lit along its top and shadowed under its lip, a little grain in them, over a plinth of old red brick, and

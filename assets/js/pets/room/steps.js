@@ -21,18 +21,35 @@ const GET_UP = ["plain", "push", "stretch"];
 
 export function makeSteps(home) {
   const { clock } = home;
-  const { floorY } = home.house;
+  const floor = (a, x = a.x, z = a.z) => home.house.floorY(x, z, a.below); // underfoot, on the floor `a` is on
   let lastGetUp = null;
-  // The floor plan of the side of the back wall `a` is on: the house, or the front garden.
+  // The floor plan of where `a` is: the house, the front garden (on the other side of the back wall), or the
+  // basement (`below`, down the stairs: house/stairs.js).
   const indoors = { nav: home.nav, bounds: home.house.bounds, obstacles: home.house.obstacles };
   const outdoors = { nav: home.yardNav, bounds: home.house.yard.bounds, obstacles: home.house.yard.obstacles };
-  const planOf = (a) => (a.z < BACK ? outdoors : indoors);
+  const downstairs = { nav: home.belowNav, bounds: home.house.basement.bounds, obstacles: home.belowObstacles };
+  const planOf = (a) => (a.below ? downstairs : a.z < BACK ? outdoors : indoors);
 
   // Walk to [x, z] round the furniture (as found by nav.js), at `pace` times the usual speed, on whatever
   // floor is underfoot; never off the floor. Close behind someone going the same way, it falls in behind
   // them rather than walking through them; stepped so far aside to pass someone that the way on would cut
-  // through the furniture, it finds the way again from there.
-  function* walk(a, [x, z], pace = 1) {
+  // through the furniture, it finds the way again from there. On the other side of the back wall, out of the
+  // front door first (or in at it); to somewhere down in the basement (a point marked `below`: house.js), down
+  // the stairs first, or up them from there to anywhere else.
+  function* walk(a, to, pace = 1) {
+    let [x, z] = to;
+    // Still in a seat (what they were doing was cut short there, life.js's drop() and ask()): up out of it
+    // first, not sliding off it.
+    if (a.seated && !a.abed) yield* getUp(a);
+    // Left among the vegetable beds (a garden job cut short): out to the path between them first, never
+    // across a bed (acts/garden.js's toBed sets `a.inBed`, which says where on the path).
+    if (a.inBed) {
+      const to = a.inBed();
+      a.inBed = null;
+      yield* stepTo(a, to);
+    }
+    if (z < BACK !== !!a.out) yield* throughDoor(a, z < BACK, pace);
+    if (!!to.below !== !!a.below) yield* byStairs(a, !!to.below, pace);
     const { nav, bounds } = planOf(a);
     const [x0, x1, z0, z1] = bounds;
     [x, z] = [clamp(x, x0, x1), clamp(z, z0, z1)];
@@ -59,7 +76,7 @@ export function makeSteps(home) {
         if (d <= stride || clock.t > end) {
           a.x = clock.t > end ? x : px;
           a.z = clock.t > end ? z : pz;
-          a.y = floorY(a.x, a.z);
+          a.y = floor(a);
           if (clock.t > end) return;
           k++;
           continue;
@@ -69,7 +86,7 @@ export function makeSteps(home) {
         if (d > 0.5) a.faceTowards(a.x + dx, a.z + dz);
         a.x += dx * stride;
         a.z += dz * stride;
-        a.y = floorY(a.x, a.z);
+        a.y = floor(a);
         const swerved = Math.abs(dx * uz - dz * ux) > 0.05;
         if (swerved && nav.free(a.x, a.z) && nav.free(px, pz) && !nav.clearLine(a.x, a.z, px, pz)) {
           points = route();
@@ -82,6 +99,44 @@ export function makeSteps(home) {
       a.heading = null;
       a.pace = 1;
     }
+  }
+
+  // Out of the front door into the front garden (`out`), or back in: to the door on this side, the door
+  // opened, through it onto the porch (or just inside it), and shut behind them unless someone else is
+  // coming through (a walk going out in single file opens and shuts it itself: acts/outings.js).
+  function* throughDoor(a, out, pace) {
+    const { door } = home.house.spots;
+    const [from, to] = out ? [door.inside, door.outside] : [door.outside, door.inside];
+    yield* walk(a, [door.x, from], pace);
+    yield* turn(a, out ? Math.PI : 0);
+    const leaf = home.house.door;
+    leaf.open = true;
+    const dir = Math.sign(to - from);
+    try {
+      yield* wait(a, 0.45);
+      if (out) a.out = true; // (out from the step, in once over the threshold)
+      a.walking = true;
+      a.heading = [0, dir];
+      while ((to - a.z) * dir > 0) {
+        [a.x, a.y] = [door.x, 0];
+        a.z += dir * Math.min(a.speed * pace * clock.dt, Math.abs(to - a.z));
+        yield;
+      }
+      a.out = out;
+    } finally {
+      a.walking = false;
+      a.heading = null;
+      const doorway = (o) => o !== a && o.walking && Math.abs(o.x - door.x) < 16 && o.z > door.outside - 6 && o.z < door.inside + 6;
+      if (!home.actors.some(doorway)) leaf.open = false;
+    }
+  }
+
+  // Down the stairs to the basement (`down`), or up them: to their foot on the floor of the house (along the
+  // landing and down the flight), or on the basement's; there, on the other floor.
+  function* byStairs(a, down, pace) {
+    const { foot } = home.house.stairs;
+    yield* walk(a, down ? foot : home.house.below(foot), pace);
+    a.below = down;
   }
 
   // A few steps straight to [x, z] close by, as along a garden bed from one plant to the next, where the way
@@ -145,7 +200,7 @@ export function makeSteps(home) {
     // Already in the margin round the furniture (as a path round a corner may be), the step aside need only
     // keep out of the furniture itself and off a floor's edge.
     const [x, z] = [a.x + sx * 4, a.z + sz * 4];
-    const solid = obstacles.some(([x0, x1, z0, z1]) => x > x0 && x < x1 && z > z0 && z < z1) || Math.abs(floorY(x, z) - floorY(a.x, a.z)) > 2;
+    const solid = obstacles.some(([x0, x1, z0, z1]) => x > x0 && x < x1 && z > z0 && z < z1) || Math.abs(floor(a, x, z) - floor(a)) > 2;
     return nav.free(x, z) || (!nav.free(a.x, a.z) && !solid) ? [sx, sz] : [dx, dz];
   }
 
@@ -237,7 +292,7 @@ export function makeSteps(home) {
     } else {
       a.lie = false;
       a.sit = false;
-      yield* hop(a, [x, floorY(x, z), z]);
+      yield* hop(a, [x, floor(a, x, z), z]);
     }
     a.ground = null;
   }
@@ -264,7 +319,7 @@ export function makeSteps(home) {
     a.abed = false;
     a.face(bed.sitYaw ?? bed.yaw);
     a.seated = true;
-    yield* arc(a, [x, floorY(x, z), z], BED_TIME, 0);
+    yield* arc(a, [x, floor(a, x, z), z], BED_TIME, 0);
     a.hold = MOVES.stretch;
     a.since = clock.t;
     yield* wait(a, 2.4);

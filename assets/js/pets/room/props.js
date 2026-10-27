@@ -86,6 +86,13 @@ const COLORS = {
   steel: "#c3c9cf",
   steelEdge: "#eef2f4",
   keyFob: "#f4a3b8",
+  cupPink: "#f7a9be",
+  cupBlue: "#93bfeb",
+  brushPink: "#f07ea0",
+  brushBlue: "#4f86d6",
+  bristle: "#ffffff",
+  dbBlack: "#26282b",
+  dbGrey: "#4a4e54",
 };
 // Each one's umbrella: the two colours of its panels.
 const UMBRELLAS = { girl: ["umbrellaPink", "white"], boy: ["umbrellaNavy", "umbrellaNavyDark"] };
@@ -312,6 +319,34 @@ export function propsFor(rig, who) {
   const pads = at(right, new THREE.Group(), [0, -2.5, 1.5], [Math.PI / 2, 0, 0]);
   [-1.2, 1.2].forEach((y) => (pads.add(buildPad()).children.at(-1).position.y = y));
   const remote = at(right, buildRemote(), [0, -2.2, 1.2], [Math.PI / 2, 0, 0]);
+  // Their toothbrush (hers pink, his blue), its bristles at the end, in the right hand; their tooth mug in the
+  // left (both off their basin: acts/basement.js teeth).
+  const [mugColor, brushColor] = who === "girl" ? ["cupPink", "brushPink"] : ["cupBlue", "brushBlue"];
+  const brushP = part();
+  box(brushP, [0, 0], [0, 0], [-6, 5], brushColor);
+  box(brushP, [0, 0], [1, 2], [3, 5], "bristle");
+  const toothbrush = at(right, fine(brushP), [0, -1.6, 1.2], [0, 0.67, 0]); // (slanting out of the fist: at the mouth, up in front of the face to its corner, not into the cheek)
+  toothbrush.scale.setScalar(0.8); // (bigger than fine(): seen at the mouth)
+  const mugP = part();
+  for (let y = 0; y <= 6; y++)
+    for (let x = -3; x <= 3; x++)
+      for (let z = -3; z <= 3; z++) {
+        const r = Math.hypot(x, z);
+        if (r < 3.2 && (r > 2.2 || y === 0)) mugP.add(x, y, z, y === 6 ? "white" : mugColor);
+      }
+  const toothMug = at(rig.hands[1], fine(mugP), [0, -3, 1]);
+  // A dumbbell in each hand, off the gym's rack (acts/basement.js): the steel handle across the fist between
+  // two round black heads, steel caps on their ends.
+  const dbP = part();
+  for (let x = -5; x <= 5; x++)
+    for (let y = -4; y <= 4; y++)
+      for (let z = -4; z <= 4; z++) {
+        const [d, ax] = [Math.hypot(y, z), Math.abs(x)];
+        if (ax <= 2) {
+          if (d === 0) dbP.add(x, y, z, "steel");
+        } else if (d < 3.6) dbP.add(x, y, z, ax === 5 && d < 1.2 ? "steel" : d > 2.8 ? "dbGrey" : "dbBlack");
+      }
+  const [dumbbellRight, dumbbellLeft] = rig.hands.map((hand) => at(hand, fine(dbP), [0, -1.6, 1.2]));
 
   // Treats from the fridge: an ice cream cone, or a juice box with a straw.
   const coneP = part();
@@ -466,6 +501,10 @@ export function propsFor(rig, who) {
     pad,
     pads,
     remote,
+    toothbrush,
+    toothMug,
+    dumbbellRight,
+    dumbbellLeft,
     iceCream,
     juice,
     can,

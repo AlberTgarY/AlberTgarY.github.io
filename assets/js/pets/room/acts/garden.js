@@ -1,41 +1,28 @@
 /*******************************************************************************
- * The garden: the harvest into the basket and straight to the fridge (fruit
- * washed and eaten together), sowing a bed picked clean, watering, the
- * sprinkler and its tap, and running in from the rain.
+ * The vegetable garden, out in the front garden along the house wall
+ * (house/garden.js): the harvest into the basket and in at the front door
+ * straight to the fridge (fruit washed and eaten together), sowing a bed picked
+ * clean, watering, the sprinkler and its tap, and running in from the rain.
+ * Walks out there and back go through the front door by themselves (steps.js).
  ******************************************************************************/
 
 import { rnd, pick, clamp, wrap } from "../../stage.js";
-import { X1 } from "../house.js";
 import { HOLDS, MOVES } from "../props.js";
 import { VEG } from "../veg.js";
+import { TURNED_YAW } from "../view.js";
 import { V } from "./common.js";
+
+const OUT_V = TURNED_YAW; // facing the viewer, out in the front garden (seen with the view turned)
 
 // `c` is everything they share (common.js), and the activities of the other files.
 export function gardenActs(c) {
-  const {
-    home,
-    house,
-    nav,
-    byName,
-    spots,
-    walk,
-    stepTo,
-    turn,
-    wait,
-    until,
-    glide,
-    claim,
-    holder,
-    release,
-    act,
-    later,
-    onEnd,
-    t,
-    ground,
-    sprinkler,
-    gardenWet,
-    halfTowards,
-  } = c;
+  const { home, house, byName, spots, walk, stepTo, turn, wait, until, glide, claim, holder, release, act, later, onEnd, t, sprinkler, gardenWet } =
+    c;
+  const G = house.garden;
+  const yardNav = home.yardNav;
+  const inside = () => [spots.door.x, spots.door.inside]; // just in at the front door
+  // Turned towards [x, z] out there, keeping `keep` of the way to facing the viewer.
+  const halfTowards = (a, x, z, keep = 0.5) => a.face(OUT_V + wrap(Math.atan2(x - a.x, z - a.z) - OUT_V) * (1 - keep));
   const askToBeg = (...args) => c.askToBeg(...args); // kitchen.js
   const meal = (...args) => c.meal(...args); // kitchen.js
   const claimSink = (...args) => c.claimSink(...args); // kitchen.js
@@ -101,7 +88,7 @@ export function gardenActs(c) {
   // fetches it then), and not if someone else has it. Cut short again, it waits for the next harvest.
   function* basketBack(a) {
     const { basket } = house.garden;
-    if (!basket.out() || (basket.at[0] > X1 && gardenWet()) || !claim(a, "basket")) return;
+    if (!basket.out() || (G.contains(...basket.at) && gardenWet()) || !claim(a, "basket")) return;
     onEnd(a, () => basket.carrier === a && basket.setDown(atHand(a, 6), a.yaw, [a.x, a.z]));
     yield* takeBasket(a);
     if (basket.bunches.length) yield* toFridge(a);
@@ -111,7 +98,8 @@ export function gardenActs(c) {
   // A point `d` to the right of `a` (the hand things are set down with), or at its feet if that is no place.
   const atHand = (a, d) => {
     const at = [a.x - d * Math.cos(a.yaw), a.z + d * Math.sin(a.yaw)];
-    return home.house.obstacles.some(([x0, x1, z0, z1]) => at[0] > x0 && at[0] < x1 && at[1] > z0 && at[1] < z1) ? [a.x, a.z] : at;
+    const { obstacles } = a.out ? house.yard : house;
+    return obstacles.some(([x0, x1, z0, z1]) => at[0] > x0 && at[0] < x1 && at[1] > z0 && at[1] < z1) ? [a.x, a.z] : at;
   };
 
   // Bend down (facing `to`, a point on the floor, if given) for something done there (`then()`), and up.
@@ -125,15 +113,20 @@ export function gardenActs(c) {
     a.lie = false;
   }
 
+  // Left among the beds (a harvest cut short), it is fetched the way the plants are: along the path and
+  // straight in, and straight out again, never across a bed.
   function* takeBasket(a) {
     const { basket } = house.garden;
-    yield* walk(a, basket.stand);
+    const among = G.offPath(basket.stand);
+    if (among) yield* toBed(a, basket.stand);
+    else yield* walk(a, basket.stand);
     yield* bend(a, basket.at, () => {
       basket.pickUp(a);
       a.props.only("basket");
       a.props.fill(basket.pieces());
     });
     a.hold = HOLDS.basket;
+    if (among) yield* offBed(a);
   }
 
   // The basket set down at their right hand (by `stand`, where they are), or taken up again.
@@ -157,17 +150,24 @@ export function gardenActs(c) {
   }
 
   // Between the path and a spot by a bed (behind a plant, at the marker): straight out to the path, along it,
-  // and straight in, so never across a bed (as the way from the nearest free floor might go).
-  function* toBed(a, sp, at) {
-    const path = sp.at[0];
-    if (Math.abs(a.z - at[1]) > 2.5 || a.x < path) {
-      if (a.x > path) yield* stepTo(a, [path, a.z]);
-      yield* walk(a, [path, at[1]]);
+  // and straight in, so never across a bed (as the way from the nearest free floor might go). In among the
+  // beds `a.inBed` says where on the path they are level with, so that if the job is cut short the next walk
+  // steps out to it first.
+  function* toBed(a, at) {
+    const path = G.onPath(at);
+    const here = G.onPath([a.x, a.z]);
+    if (Math.hypot(here[0] - path[0], here[1] - path[1]) > 2.5 || !G.offPath([a.x, a.z])) {
+      if (G.offPath([a.x, a.z])) yield* stepTo(a, here);
+      yield* walk(a, path);
     }
+    a.inBed = () => G.onPath([a.x, a.z]);
     yield* stepTo(a, at);
   }
 
-  const offBed = (a, sp) => stepTo(a, [sp.at[0], a.z]);
+  function* offBed(a) {
+    yield* stepTo(a, G.onPath([a.x, a.z]));
+    a.inBed = null;
+  }
 
   // Pick bed `i` clean, plant by plant: from behind each (facing it, and the viewer), the basket set down at
   // the right hand, kneeling to the low ones, every piece in turn from the top down into a bunch of its own
@@ -188,8 +188,8 @@ export function gardenActs(c) {
       if (!fruits.length) continue;
       const spot = sp.plants[k];
       entered = true;
-      yield* toBed(a, sp, spot.at);
-      yield* turn(a, 0);
+      yield* toBed(a, spot.at);
+      yield* turn(a, spot.yaw);
       yield* basketDown(a, spot.basket);
       const bunch = { kind: g.beds[i].kind, pieces: [] }; // into the basket with its first piece
       a.lie = veg.low;
@@ -226,7 +226,7 @@ export function gardenActs(c) {
     if (ev) ev.over = true;
     a.beHappy(1.5);
     yield* wait(a, 0.4);
-    yield* offBed(a, sp);
+    yield* offBed(a);
   }
 
   // One piece off plant `k` of bed `i`, by the kind's way of harvesting it, into `bunch` in the basket.
@@ -461,8 +461,8 @@ export function gardenActs(c) {
     a.props.packet(g.plan(i));
     a.props.only("seeds");
     a.hold = HOLDS.packet;
-    yield* toBed(a, sp, sp.marker.at);
-    yield* turn(a, Math.PI / 2);
+    yield* toBed(a, sp.marker.at);
+    yield* turn(a, sp.marker.yaw);
     a.lie = true;
     a.look = sp.marker.look;
     a.hold = [HOLDS.pick[0], HOLDS.packet[1]];
@@ -474,8 +474,8 @@ export function gardenActs(c) {
     for (const k of [0, 1, 2]) {
       if (g.sown(i, k)) continue;
       const spot = sp.plants[k];
-      yield* toBed(a, sp, spot.at);
-      yield* turn(a, 0);
+      yield* toBed(a, spot.at);
+      yield* turn(a, spot.yaw);
       a.lie = true;
       a.look = spot.plant;
       a.hold = HOLDS.packet;
@@ -512,7 +512,7 @@ export function gardenActs(c) {
       yield* wait(a, 0.25);
     }
     g.done(i);
-    yield* offBed(a, sp);
+    yield* offBed(a);
     a.props.only();
     a.look = null;
     a.hold = MOVES.shake; // the soil off the hands
@@ -590,7 +590,7 @@ export function gardenActs(c) {
       a.lie = false;
       yield* wait(a, 0.5);
       a.look = null;
-      yield* turn(a, V);
+      yield* turn(a, OUT_V);
       a.hold = MOVES.shake;
       yield* wait(a, 1.3);
       a.hold = null;
@@ -606,7 +606,7 @@ export function gardenActs(c) {
     }
     a.look = null;
     release(a, "sprinkler");
-    yield* walk(a, spots.gardenDoor.inside); // in, out of the way of the spray
+    yield* walk(a, inside()); // in, out of the way of the spray
   }
 
   // Kneeling to the tap (`tap`, looking at its handle at `at`), a turn of it, and `then()` as the water comes.
@@ -636,17 +636,16 @@ export function gardenActs(c) {
     release(a, "sprinkler");
     if (rain()) return yield* shelter(a);
     yield* wait(a, 0.6);
-    yield* walk(a, spots.gardenDoor.inside);
+    yield* walk(a, inside());
   }
 
-  // Caught in the garden by the rain (life.js sends them in, whatever they were doing): in through the
-  // garden door at a run, a person with hands over the head; inside, wet through, the rain shaken off the
-  // hands, or the dog shaking herself nose to tail, dripping, and wet footprints after.
+  // Caught out in the front garden by the rain, off a walk (life.js sends them in, whatever they were doing):
+  // in at the front door at a run (out from among the beds first, not across one: walk() sees to that), a
+  // person with hands over the head; inside, wet through, the rain shaken off the hands, or the dog shaking
+  // herself nose to tail, dripping, and wet footprints after.
   function* shelter(a) {
     if (a.human) a.hold = MOVES.flail;
-    const path = spots.beds[0].at[0];
-    if (a.x > path + 2 && !a.out) yield* stepTo(a, [path, a.z], 1.8); // out from among the beds first, not across one
-    yield* walk(a, spots.gardenDoor.inside, 1.8);
+    yield* walk(a, inside(), 1.8);
     a.hold = null;
     a.wet = Math.max(a.wet, 0.4);
     yield* turn(a, V);
@@ -666,18 +665,18 @@ export function gardenActs(c) {
   function* splash(a) {
     if (!claim(a, "splash")) return;
     const [sx, sz] = sprinkler.at;
-    const lawn = (x, z) => x > X1 + 6 && ground(x, z) && Math.hypot(x - sx, z - sz) > 14;
+    const lawn = (x, z) => G.contains(x, z) && Math.hypot(x - sx, z - sz) > 14;
     const heading = (x, z) => Math.atan2(x - sx, z - sz);
     for (let k = 0; k < 5 && sprinkler.on && !sprinkler.wrong; k++) {
-      const ahead = sprinkler.heading + 1; // where the jet comes round to in about 3 s
+      const ahead = sprinkler.bearing() + 1; // where the jet comes round to in about 3 s
       const r = rnd(16, 36);
       const [x, z] = [sx + Math.sin(ahead) * r, sz + Math.cos(ahead) * r];
-      const spot = nav.randomSpot([x - 12, x + 12], [z - 12, z + 12], lawn);
+      const spot = yardNav.randomSpot([x - 12, x + 12], [z - 12, z + 12], lawn);
       if (!spot) continue;
       yield* walk(a, spot, 1.6);
       a.look = sprinkler.spots.head;
       a.bow = true; // ready for it
-      yield* until(() => Math.abs(wrap(sprinkler.heading - heading(a.x, a.z))) < 0.12 || !sprinkler.on, 6);
+      yield* until(() => Math.abs(wrap(sprinkler.bearing() - heading(a.x, a.z))) < 0.12 || !sprinkler.on, 6);
       a.bow = false;
       a.happy = true;
       for (let j = 0; j < 3; j++) {
@@ -691,7 +690,7 @@ export function gardenActs(c) {
     a.look = null;
     release(a, "splash");
     sprinkler.splashedAt = t();
-    yield* walk(a, spots.gardenDoor.outside);
+    yield* walk(a, spots.gate); // out of it onto the lawn
     if (a.wet > 0.05) {
       a.shakeUntil = t() + 1.3;
       yield* wait(a, 1.4);

@@ -9,6 +9,9 @@ import { rnd, pick, clamp } from "../../stage.js";
 import { smoothstep } from "../../models/voxels.js";
 import { HOLDS, MOVES } from "../props.js";
 import { V, F, SAY, DOWNSTAIRS } from "./common.js";
+import { DAWN, DAY_SECS } from "../daytime.js";
+
+const STROLL_BELOW = 0.3; // how often a wander (anyone's) goes down to the basement
 
 // `c` is everything they share (common.js), and the activities of the other files.
 export function livingActs(c) {
@@ -45,6 +48,7 @@ export function livingActs(c) {
     takeSeat,
     offPlaces,
     freeSpot,
+    freeSpotBelow,
     linger,
     dozeChance,
     faceSide,
@@ -122,7 +126,7 @@ export function livingActs(c) {
     if (b && !b.watching && Math.random() < 0.4 && freeSeat(SOFA)) invite(b, act("tv", tv));
     for (const p of home.pets) if (Math.random() < 0.4) invite(p, act("snuggle", snuggle, a));
     const end = t() + rnd(20, 35);
-    let dozeAt = dozeChance(0.15, 0.5);
+    let dozeAt = dozeChance(0.08, 0.3);
     let laughAt = t() + rnd(4, 8);
     let zapAt = t() + rnd(10, 18);
     let seen = house.tv.poke.n;
@@ -276,7 +280,11 @@ export function livingActs(c) {
     const cat = byName.cat;
     if (cat && Math.random() < 0.5) invite(cat, act("snuggle", snuggle, a));
     a.asleep = true;
-    yield* linger(a, rnd(70, 120), { stop: () => !a.asleep || !home.night });
+    // Asleep until the morning, each waking in the first three quarters of an hour after daybreak (sooner if
+    // the morning is brought on: daytime.js).
+    const wake = DAWN + rnd(0, 0.75);
+    const hoursTo = () => (wake - home.hour() + 24) % 24;
+    yield* linger(a, hoursTo() * (DAY_SECS / 24) + 1, { stop: () => !a.asleep || (!home.night && home.hour() >= wake) });
     yield* wait(a, 1.2); // awake, a look about
     yield* outOfBed(a, seat);
     if (!a.interrupt) yield* moveMoth(a, "bed");
@@ -332,7 +340,7 @@ export function livingActs(c) {
     let next = t() + 0.5; // the next look, line or page
     let line = 0; // the lines down the two pages, 0 to 2 * LINES
     yield* linger(a, rnd(18, 30), {
-      dozeAt: dozeChance(0.2, 0.5),
+      dozeAt: dozeChance(0.1, 0.3),
       each() {
         if (a.asleep) {
           a.look = null;
@@ -512,7 +520,7 @@ export function livingActs(c) {
       a.hold = null;
       yield* wait(a, 0.3);
     } else {
-      onEnd(a, () => holder("pads") === a && house.tv.dock(true, t()));
+      onEnd(a, () => holder("pads") === a && (house.tv.dock(true, t()), a.props.only())); // (back on the stand, out of the hand)
       a.props.only("pads");
       a.hold = HOLDS.carry;
     }
@@ -650,9 +658,9 @@ export function livingActs(c) {
     yield* wait(a, 2.4);
   }
 
-  // A wander somewhere, upstairs or down, and a look round.
+  // A wander somewhere, upstairs or down (now and then down in the basement), and a look round.
   function* stroll(a) {
-    const spot = freeSpot(a);
+    const spot = Math.random() < STROLL_BELOW ? freeSpotBelow(a) : freeSpot(a);
     if (spot) yield* walk(a, spot);
     if (!a.human && Math.random() < 0.4) a.sit = true;
     yield* linger(a, rnd(2, 5));

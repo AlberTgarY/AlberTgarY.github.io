@@ -66,9 +66,10 @@ const HIPS = [0.75, -1.9];
 // with one hand), the walk (`stride`, `gait`) and the running phases in `phase` (wave, clap, pat). Any
 // pose not given is not in use. `hold`, if given, then takes the arms over by `hold.w`: its `arms` are
 // [shoulder x, elbow x, shoulder y, shoulder z, elbow z] for the right arm and then the left, each arm
-// weighted again by `hold.mix`, if given.
+// weighted again by `hold.mix`, if given. `legHold`, if given, takes the legs over the same way by `legHold.w`:
+// its `legs` are [hip x, knee x] for each (pedalling, rowing).
 export function poseLimbs({ legs, arms }, p) {
-  const { kneel = 0, sit = 0, stride = 0, gait = 0, stamp = 0, dizzy = 0, elapsed = 0, phase, wave = 0, hold } = p;
+  const { kneel = 0, sit = 0, stride = 0, gait = 0, stamp = 0, dizzy = 0, elapsed = 0, phase, wave = 0, hold, legHold } = p;
   const [eat, offer, clap, water, rice, cupHeld, cross, bite, munch, shake] = [
     p.eat,
     p.offer,
@@ -94,6 +95,11 @@ export function poseLimbs({ legs, arms }, p) {
       Math.PI * kneel +
       sit * (Math.PI / 2 + 0.15 * Math.sin(phase.pat * 0.5 + i * Math.PI)) +
       (i ? 0 : 0.6 * stamp);
+    if (legHold) {
+      const [h, k] = legHold.legs[i];
+      hip.outer.rotation.x += legHold.w * (h - hip.outer.rotation.x);
+      knee.outer.rotation.x += legHold.w * (k - knee.outer.rotation.x);
+    }
   });
 
   // Arms swing against the legs; both hold the cucumber, the cup or the bag, or clap; with the rice the

@@ -69,6 +69,85 @@
   }
 }
 
+// The clock, in the top left corner: the time of day in the home (clicking it skips to the evening or the
+// morning), the time in figures that keep their width.
+.playground-clock {
+  @extend .playground-turn;
+  right: auto;
+  left: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+// Up and down between the floors, under the turning button: a column of floor buttons as on a map of a
+// building, the floor in view filled in, and beside each a dot for everyone on that floor.
+.playground-floors {
+  position: absolute;
+  z-index: 3;
+  top: 2.6rem;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--global-divider-color);
+  border-radius: 0.8rem;
+  background: var(--global-card-bg-color);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+
+  .playground-off &,
+  .playground:not(.loaded) & {
+    display: none;
+  }
+}
+
+.playground-floor {
+  position: relative;
+  width: 2.6rem;
+  height: 2.2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--global-text-color);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background-color 0.25s,
+    color 0.25s;
+
+  & + & {
+    border-top: 1px solid var(--global-divider-color);
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: var(--global-theme-color);
+  }
+
+  &[aria-pressed="true"] {
+    background: var(--global-theme-color);
+    color: #fff;
+  }
+}
+
+// The dots, along the bottom of the button.
+.playground-floor-who {
+  position: absolute;
+  bottom: 0.22rem;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+
+  i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85);
+  }
+}
+
 // The loading bar, in the middle of the space the home will take, until it is all there (playground.md).
 .playground:not(.loaded) {
   min-height: 60vh;

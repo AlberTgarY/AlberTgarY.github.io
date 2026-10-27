@@ -33,7 +33,7 @@
  ******************************************************************************/
 
 import { rnd, pick } from "../stage.js";
-import { X1 } from "./house.js";
+import { BEDTIME, DAWN } from "./daytime.js";
 import { PET_AGAIN, makeContext } from "./acts/common.js";
 import { livingActs } from "./acts/living.js";
 import { kitchenActs } from "./acts/kitchen.js";
@@ -43,10 +43,12 @@ import { gardenActs } from "./acts/garden.js";
 import { outingsActs } from "./acts/outings.js";
 import { outdoorsActs } from "./acts/outdoors.js";
 import { petsActs } from "./acts/pets.js";
+import { basementActs } from "./acts/basement.js";
 
 export function makeActs(home, life) {
   const c = makeContext(home, life);
-  for (const make of [livingActs, kitchenActs, pcActs, wardrobeActs, gardenActs, outingsActs, outdoorsActs, petsActs]) Object.assign(c, make(c));
+  for (const make of [livingActs, kitchenActs, pcActs, wardrobeActs, gardenActs, outingsActs, outdoorsActs, petsActs, basementActs])
+    Object.assign(c, make(c));
   const {
     house,
     byName,
@@ -54,6 +56,7 @@ export function makeActs(home, life) {
     spots,
     holder,
     available,
+    rousable,
     t,
     other,
     SOFA,
@@ -86,6 +89,17 @@ export function makeActs(home, life) {
     sprinklerOff,
     shelter,
     splash,
+    teeth,
+    loo,
+    soak,
+    refill,
+    shower,
+    washPet,
+    bathable,
+    fish,
+    fishWatch,
+    gym,
+    gymWatch,
     outing,
     fetch,
     petPet,
@@ -118,7 +132,7 @@ export function makeActs(home, life) {
   const can = {
     tv: () => freeSeat(SOFA),
     nap: (a) => !a.human || freeSeat(),
-    sleep: () => home.night && freeSeat(["bed0", "bed1"]),
+    sleep: () => home.night && (home.hour() >= BEDTIME || home.hour() < DAWN) && freeSeat(["bed0", "bed1"]), // (the evening up first)
     snack: () => !holder("fridge"),
     // A meal is made for the two of them: not while the other is in bed.
     cook: (a) => a.name === "girl" && !holder("stove") && !other(a)?.abed,
@@ -132,7 +146,7 @@ export function makeActs(home, life) {
     game: (a) => available(other(a)) && house.tv.docked && !holder("sofa1") && (!holder("sofa0") || !holder("sofa2")),
     chat: (a) => available(other(a)),
     // One outing at a time.
-    walk: () => available(byName.collie) && !outingOn(),
+    walk: () => rousable(byName.collie) && !outingOn(),
     wander: (a) => a.human && !outingOn(),
     fetch: () => byName.collie && available(byName.collie) && home.ball.landed() && !holder("ball"),
     pet: (a) => t() > (a.petAgainAt ?? 0) && pets.some((p) => available(p) && p.above() < 0.5),
@@ -166,14 +180,28 @@ export function makeActs(home, life) {
       !gardenWet() &&
       !holder("sunny") &&
       home.actors.every((o) => o === a || o.out || Math.hypot(o.x - spots.sunny[0], o.z - spots.sunny[1]) > 20),
-    chase: () => !home.night && !gardenWet() && !holder("butterfly"),
+    // (the cat only goes out to the front garden after it while someone is out there seeing to the vegetables)
+    chase: () =>
+      !home.night && !gardenWet() && !holder("butterfly") && home.humans.some((h) => h.out && ["garden", "water", "sprinkle"].includes(h.jobName)),
     sprinkle: (a) =>
       !home.night &&
       t() - sprinkler.since > 120 && // not just turned off
       !gardenWet() &&
       !home.weather.raining &&
       ["sprinkler", "garden", "sunny", "butterfly", "splash"].every((k) => !holder(k)) &&
-      home.actors.every((o) => o === a || o.out || o.x < X1 - 4),
+      home.actors.every((o) => o === a || !house.garden.contains(o.x, o.z)),
+    // Down in the basement: what they do there, while nobody else is at it (a bath or the loo while nobody
+    // else is in private; the gym while a station is free); the cat at the fish while they are about.
+    teeth: (a) => !holder(`vanity${a.name === "girl" ? 0 : 1}`),
+    loo: () => !holder("loo") && !holder("privacy"),
+    soak: () => !holder("bath") && !holder("privacy"),
+    // The bath seen let out (by a visitor) by someone down there: run again (life.js, before anything else).
+    refill: (a) => a.below && house.basement.bath.fill < 0.05 && !house.basement.bath.flow && !holder("bath"),
+    shower: () => !holder("shower") && !holder("privacy"),
+    washPet: () => !holder("shower") && !holder("privacy") && ["collie", "cat"].some((n) => bathable(byName[n])),
+    fish: () => !holder("fish") && t() - (house.basement.tank.fedAt ?? -Infinity) > 240,
+    fishWatch: () => !holder("pouf"),
+    gym: (a) => ["treadmill", "rower", "weights", "bike", "lat", "mat", ...(a.name === "girl" ? [] : ["bag"])].some((s) => !holder(s)), // (she leaves the bag to him)
     splash: () =>
       sprinkler.on &&
       !sprinkler.wrong &&
@@ -226,7 +254,17 @@ export function makeActs(home, life) {
     chase,
     sprinkle,
     splash,
+    teeth,
+    loo,
+    soak,
+    refill,
+    shower,
+    washPet: (a, which = null) => washPet(a, which),
+    fish,
+    fishWatch,
+    gym: (a, station = null) => gym(a, station), // (a given station: for trying one out)
     // Only when asked.
+    gymWatch,
     tvOff,
     sprinklerOff,
     shelter,

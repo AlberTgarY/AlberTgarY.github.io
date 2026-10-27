@@ -26,6 +26,7 @@ export function outingsActs(c) {
     act,
     event,
     available,
+    rouse,
     invite,
     later,
     onEnd,
@@ -54,7 +55,7 @@ export function outingsActs(c) {
     const kind = dog ? "walk" : "wander";
     const b = other(a);
     const party = [];
-    if (dog && byName.collie && available(byName.collie)) party.push({ who: byName.collie, lead: true });
+    if (dog && rouse(byName.collie)) party.push({ who: byName.collie, lead: true }); // (woken if she was dozing)
     party.push({ who: a });
     if (b && available(b) && Math.random() < (dog ? 0.45 : 0.55)) party.push({ who: b });
     if (dog && !party.some((m) => m.lead)) return; // (she was just taken up with something)
@@ -71,7 +72,8 @@ export function outingsActs(c) {
       ev,
       ev.party.find((m) => m.who === a)
     );
-    if (!(yield* until(() => ev.ready.size === ev.party.length || ev.over, 25))) return;
+    // (Not going after all if called in the meantime: to a meal, acts/kitchen.js; by a visitor's pick, life.js.)
+    if (!(yield* until(() => ev.ready.size === ev.party.length || ev.over || ev.hurry, 25)) || ev.hurry) return;
     // Clip on the leads, and open the door.
     const walked = ev.party.filter((m) => m.lead).map((m) => m.who);
     a.leads = walked.length > 0;

@@ -304,7 +304,10 @@ export function buildGirl() {
     },
     // `seated` sits her on a seat that is already there (the playground's), `hold` takes her arms over
     // (chibi.js) and `talk` moves her mouth, for what she does there.
-    animate(dt, { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress, leash, stroke, company, seated, hold, talk }) {
+    animate(
+      dt,
+      { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress, leash, stroke, company, seated, hold, legHold, talk }
+    ) {
       const doing = (name) => state === "trick" && trick === name;
       const snacking = state === "trick" && progress < 0.88;
       const pouring = state === "serve" && elapsed < POUR_TIME;
@@ -377,6 +380,7 @@ export function buildGirl() {
         strokes,
         pats,
         hold,
+        legHold,
       });
       cucumberMesh.visible = eat > 0.05;
       bag.visible = offer > 0.05;

@@ -20,6 +20,7 @@ import { makePrints } from "./prints.js";
 import { part, ellipsoid } from "../models/voxels.js";
 import { makeView } from "./view.js";
 import { makeMirror } from "./mirror.js";
+import { UNCUT } from "./view.js";
 import { makeOutlooks } from "./outlook.js";
 import { makePeek } from "./peek.js";
 import { makeWildlife } from "./wildlife.js";
@@ -28,6 +29,7 @@ import { makeNav } from "./nav.js";
 import { makeActor } from "./actor.js";
 import { propsFor, buildBall, buildLaptop } from "./props.js";
 import { makeLife } from "./life.js";
+import { DAY_SECS, DAWN, NIGHTFALL, lightAt, isNightAt } from "./daytime.js";
 import { makeActs } from "./acts.js";
 import { buildGirl } from "../models/girl.js";
 import { dressGirl } from "../models/girl-outfits.js";
@@ -59,15 +61,18 @@ export function* buildingRoom(stage) {
   const scene = new THREE.Scene();
   const sky = new THREE.HemisphereLight(0xffffff, 0x9a948a, 2.2);
   const sun = new THREE.DirectionalLight(0xffffff, 1.1);
-  // Where the sun shines from: high overhead as at noon (72 degrees up, a little to the front and the east), so
-  // that out in the front garden each thing's shadow lies short, just under it. It stays put. Its shadow camera
-  // is on the garden and sees only what is out there (house/yard.js), so nothing indoors casts its shadow.
-  const NOON = { up: 1.26, bearing: 0.8, r: 300 };
+  // Where the sun shines from goes with the time of day (daytime.js): `up` from the level, `bearing` round from
+  // the front; at noon high overhead (72 degrees up, a little to the front and the east), so that out in the
+  // front garden each thing's shadow lies short, just under it, long early and late. Its shadow camera is on
+  // the garden and sees only what is out there (house/yard.js), so nothing indoors casts its shadow.
+  const SUN_R = 300;
   sun.target.position.set(28, 0, -184);
-  sun.position
-    .set(Math.cos(NOON.up) * Math.sin(NOON.bearing), Math.sin(NOON.up), Math.cos(NOON.up) * Math.cos(NOON.bearing))
-    .multiplyScalar(NOON.r)
-    .add(sun.target.position);
+  const sunTo = (up, bearing) =>
+    sun.position
+      .set(Math.cos(up) * Math.sin(bearing), Math.sin(up), Math.cos(up) * Math.cos(bearing))
+      .multiplyScalar(SUN_R)
+      .add(sun.target.position);
+  sunTo(1.26, 0.8);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -220, right: 220, top: 220, bottom: -220, near: 1, far: 1200 });
@@ -75,24 +80,107 @@ export function* buildingRoom(stage) {
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.5;
   scene.add(sky, sun, sun.target);
-  const light = { sky: 2.2, sun: 1.1 }; // as bright as it is by day or by night, before any rain
+  // The time of day: `hour` 0 to 24 (daytime.js), moving on with the clock; when its light (`L`) was last worked
+  // out, and where the sun was put (moved on a little at a time: its shadows out the front are drawn again);
+  // how bright the sky and the sun are with the rain (`sky`, `sun`).
+  const day = { hour: DAWN, litAt: -Infinity, L: lightAt(DAWN), sun: [1.26, 0.8], sky: 2.2, sunK: 1.1 };
+  // The basement is lit much as the house over it (no jump going down), but no daylight comes down there: its
+  // light goes only three quarters of the way with the hour and the weather (the rest as at noon), a little
+  // dimmer, and its sun never moves round. Each floor lit as its own before it is drawn (lightFloor()).
+  const BELOW = lightAt(12);
+  const [STILL, DIM] = [0.25, 0.92];
+  // Each floor lit by its own lamps only (`floorLights`, below: each with the `floor` it is on, 0 or 1).
+  const floorLights = [];
+  // The sun's shadows are drawn the way it shines on the floor being drawn: between floors, drawn again as the
+  // other floor is lit (else the basement takes the low evening sun's long shadows of the garden).
+  // Drawn without the other floor's things: three.js picks what casts a shadow by the layers of the camera
+  // viewing the scene, not by the light's, so what casts the lamps' shadows on one floor cast the sun's on
+  // the other too while the view went between them, both floors whole (the computer up in the loft threw one
+  // through the floors onto the basement's). They cast none (`muted`) through the pass the sun's are drawn
+  // in, and again from the next (unmute(), each pass and at the end of the frame). So each lamp's are drawn
+  // only in a pass of its own floor (`undrawn`: shadows() asks for them), with its own floor's things whole.
+  let sunFor = null; // the floor its shadows were last drawn for (below or not; null: to be drawn again)
+  const muted = [];
+  const undrawn = new Set(); // the lamps whose shadows are to be drawn again
+  function unmute() {
+    muted.forEach((o) => (o.castShadow = true));
+    muted.length = 0;
+  }
+  function lightFloor(below) {
+    unmute();
+    if (sunFor !== below) {
+      sun.shadow.needsUpdate = view.renderer.shadowMap.needsUpdate = true;
+      sunFor = below;
+      (below ? house.group : house.basement.group).traverse((o) => {
+        if (!o.castShadow || o.isLight || o.layers.isEnabled(SUN_LAYER)) return;
+        o.castShadow = false;
+        muted.push(o);
+      });
+    }
+    for (const l of floorLights) l.shown = l.floor === (below ? 1 : 0) ? 1 : 0;
+    for (const l of undrawn)
+      if (l.shown) {
+        l.shadow.needsUpdate = view.renderer.shadowMap.needsUpdate = true;
+        undrawn.delete(l);
+      }
+    const L = day.L;
+    const k = below ? STILL : 0;
+    sky.color.copy(L.sky).lerp(BELOW.sky, k);
+    sky.groundColor.copy(L.ground).lerp(BELOW.ground, k);
+    sun.color.copy(L.sun).lerp(BELOW.sun, k);
+    sky.intensity = (below ? DIM : 1) * (day.sky + (BELOW.skyK - day.sky) * k);
+    sun.intensity = (below ? DIM : 1) * (day.sunK + (BELOW.sunK - day.sunK) * k);
+    if (below) sunTo(BELOW.up, BELOW.bearing);
+    else sunTo(...day.sun);
+  }
 
   // The water, its drops landing on the floor (or the soil in a bed, or the pond out the front), or falling off
   // the edge of it.
   let house = null;
-  const bedAt = (x, z) => (x > 169.5 && x < 202.5 ? house.garden.beds.find((b) => z > b.z[0] + 0.5 && z < b.z[1] - 0.5) : null);
+  const bedAt = (x, z) => house.garden.bedAt(x, z);
   const inPond = (x, z) => {
     const p = house.yard.pond;
     return ((x - p.x) / p.rx) ** 2 + ((z - p.z) / p.rz) ** 2 < 1;
   };
-  const water = makeWater(scene, (x, z) => {
+  const water = makeWater(scene, (x, z, y) => {
+    if (y < -9) return house.basement.groundAt(x, z); // (down in the basement)
     if (bedAt(x, z)) return 3;
     if (x < YARD.x0 || x > SIDE || z < YARD.z0 || z > FRONT || (x < X0 && z > BACK)) return -Infinity;
     if (z < BACK) return inPond(x, z) ? 0.5 : -0.5;
     return floorY(x, z) - 0.5;
   });
   house = yield* within(buildingHouse(scene, water), 0, 0.8);
+  // The basement's lamps out (in effect) while the house is drawn, and the house's and the garden's while the
+  // basement is: else the lamps up there shone down through the gaps in the floor in yellow stripes while the
+  // view went between floors (the house there whole again), and the lounge lamp lit the house from below.
+  // Each light's `intensity` reads as what it was set to times `shown` (lightFloor()), so whatever sets it
+  // goes on setting it as before.
+  const downstairs = new Set();
+  house.basement.group.traverse((o) => o.isLight && downstairs.add(o));
+  scene.traverse((o) => {
+    if (!o.isLight || o === sky || o === sun) return;
+    let set = o.intensity;
+    Object.defineProperty(o, "intensity", { get: () => set * o.shown, set: (v) => (set = v) });
+    Object.assign(o, { shown: 1, floor: downstairs.has(o) ? 1 : 0 });
+    floorLights.push(o);
+  });
   const drawReflection = makeMirror(house.closet.glass, view, scene);
+  const drawGymMirror = makeMirror(house.basement.gymGlass, view, scene); // (the big mirror down in the gym)
+  // Down in the basement the house over it is cut away (view.js), but the flight of stairs and anyone on it
+  // are drawn whole, on the UNCUT layer (the lights shine on that layer too); up in the house, anyone indoors
+  // is on it, so as not to be cut off where they show over the back wall's top (view.js INDOORS).
+  scene.traverse((o) => o.isLight && o.layers.enable(UNCUT));
+  const onUncut = new Map(); // what is on the UNCUT layer just now: true or false
+  const toLayer = (o, whole) => {
+    if (onUncut.get(o) === whole) return;
+    onUncut.set(o, whole);
+    o.traverse((p) => p.layers.set(whole ? UNCUT : 0));
+  };
+  function uncut() {
+    const below = view.floor > 0;
+    toLayer(house.stairs.flight, below);
+    for (const a of home.actors) toLayer(a.rig.group, !a.out && (!below || house.stairs.on(a.x, a.z)));
+  }
   const peek = makePeek(house);
 
   const clock = { t: 0, dt: 0 };
@@ -102,12 +190,18 @@ export function* buildingRoom(stage) {
     view,
     overlay,
     clock,
+    hour: () => day.hour, // the time of day (daytime.js)
     pointer,
     house,
     nav: makeNav(house.bounds, house.obstacles, floorY),
     yardNav: makeNav(house.yard.bounds, house.yard.obstacles, floorY), // out in the front garden
+    belowNav: makeNav(house.basement.bounds, [...house.basement.obstacles, ...house.stairs.under], (x, z) => floorY(x, z, true)), // in the basement
+    belowObstacles: [...house.basement.obstacles, ...house.stairs.under],
     // Whether what is out the front can be seen just now: the view turned to it, or the back wall faded.
     outSeen: () => view.turn > 0.5 || peek.k > 0.5,
+    // Whether `a` can be seen on the floor in view: from the house's, only down the stairwell if below; from
+    // the basement's, only down there (or on the stairs down to it).
+    floorSeen: (a) => (view.floor < 0.5 ? !a.below || house.stairs.on(a.x, a.z) : a.y < -9 || (!a.out && house.stairs.on(a.x, a.z))),
     actors: [],
     humans: [],
     pets: [],
@@ -236,8 +330,12 @@ export function* buildingRoom(stage) {
   dog.rig.raincoat = coat.mesh({ coat: "#f6c63c", trim: "#e0a92a", band: "#f4f4ee" });
   dog.rig.raincoat.visible = false;
   dog.rig.pose.add(dog.rig.raincoat);
-  // Something popping up over a point in the room, like the sparkle over the watered plant.
+  // Something popping up over a point in the room, like the sparkle over the watered plant: only if that
+  // point can be seen (on the floor in view, not out the front while that is out of sight), as anyone's pops.
   home.popAt = ([x, y, z], className) => {
+    const below = y < -9;
+    if (view.floor < 0.5 ? below : !below) return;
+    if (z < house.bounds[2] - 4 && !home.outSeen()) return; // (beyond the back wall)
     const [px, py] = view.project(x, y, z);
     const el = document.createElement("span");
     el.className = className;
@@ -257,14 +355,74 @@ export function* buildingRoom(stage) {
   // The lamps' and the sun's shadows are of things that stay put, so they are drawn once: as a lamp comes on,
   // or as something casting one moves, or the sun does (`dirty`).
   const shadowLights = [...house.shadowLights, house.yard.sun];
+  // Night falls (or the day breaks): the lamps, the pyjamas and all that go by it.
+  function nightfall(night) {
+    home.night = night;
+    house.dress(night);
+    home.actors.forEach((a) => a.dress(night));
+  }
+  // The light of the time of day (worked out every half second of it, or `now`); the sun moved on when it has
+  // gone round a little, its shadows drawn again.
+  function daylight(now = false) {
+    house.setHour(day.hour); // (the clocks, each frame)
+    if (!now && Math.abs(day.hour - day.litAt) < 0.005) return;
+    day.litAt = day.hour;
+    const L = (day.L = lightAt(day.hour));
+    if (now || Math.abs(L.up - day.sun[0]) + Math.abs(L.bearing - day.sun[1]) > 0.02) {
+      day.sun = [L.up, L.bearing];
+      house.yard.sun.dirty = true;
+    }
+    house.daylight(L, day.hour);
+  }
+  // (Each light's shadows drawn only when asked for, by shadows(): the sun's and each lamp's as lightFloor()
+  // next lights its floor.)
+  const casters = [];
+  scene.traverse((o) => o.isLight && o.castShadow && casters.push(o));
+  casters.forEach((l) => (l.shadow.autoUpdate = false));
   function shadows() {
     const lights = shadowLights;
-    view.renderer.shadowMap.needsUpdate = lights.some((l) => l.on) && lights.some((l) => l.dirty);
-    if (view.renderer.shadowMap.needsUpdate) lights.forEach((l) => (l.dirty = false));
+    if (!lights.some((l) => l.on) || !lights.some((l) => l.dirty)) return;
+    lights.forEach((l) => (l.dirty = false));
+    casters.forEach((l) => l !== sun && undrawn.add(l));
+    sunFor = null;
+  }
+
+  // Each floor drawn only where it can be seen: from the house, of the basement only what shows down the
+  // stairwell; from the basement, of the house only the flight down (the rest is cut away there; its meshes
+  // moved to a layer no camera draws, its lights left as they are, or every shader would change). Both while
+  // the view goes from one to the other.
+  const HIDDEN = 5;
+  const houseMasks = new Map(); // what of the house is hidden, and its layers as they were
+  let culled = null; // the floor the other is cut down for just now: 0, 1, or null for neither
+  function cullFloors() {
+    const want = view.fading() ? null : view.floor;
+    if (want === culled) return;
+    culled = want;
+    house.basement.seenFromAbove(want === 0);
+    if (want === 1) {
+      const hide = (o) => {
+        if (o === house.stairs.flight || o.isLight) return;
+        houseMasks.set(o, o.layers.mask);
+        o.layers.set(HIDDEN);
+        o.children.forEach(hide);
+      };
+      house.group.children.forEach(hide);
+    } else if (houseMasks.size) {
+      for (const [o, mask] of houseMasks) o.layers.mask = mask;
+      houseMasks.clear();
+    }
+    // (Each floor's shadows drawn without the other's things, hidden: drawn again as the view sets off, with
+    // both floors whole, and again once there. Left as they were, the basement's lamp would throw the
+    // shadows of only the part of it seen from upstairs while the view goes down.)
+    shadowLights.forEach((l) => (l.dirty = true));
   }
 
   const life = makeLife(home);
   home.acts = makeActs(home, life);
+  house.basement.claims.held = (key) => !!life.holder(key); // (what a visitor may switch down there)
+  house.basement.presence.actors = () => home.actors; // (the gym's lights come on for anyone there)
+  house.sink.busy = () => !!life.holder("sink"); // (the kitchen tap, likewise)
+  home.pets.forEach((p) => house.basement.suds(p, 0)); // (made now, hidden, so their shader is ready: warm())
 
   /* ----- the dog's lead, from the walker's hand to her harness, sagging a little ----- */
 
@@ -329,6 +487,8 @@ export function* buildingRoom(stage) {
   // Whether anything shown that hides (but `own`) is on the ray before raycaster.far. A mesh whose box the ray
   // only reaches beyond that (the floor and the walls behind, say) is passed over without testing its
   // triangles: the big ones would take the best part of a frame.
+  const DRAWN = new THREE.Layers(); // (the layers the view draws: view.js)
+  DRAWN.enable(UNCUT);
   const box = new THREE.Box3();
   const boxAt = new THREE.Vector3();
   const hits = [];
@@ -336,6 +496,7 @@ export function* buildingRoom(stage) {
     let hidden = false;
     scene.traverseVisible((o) => {
       if (hidden || !o.isMesh || (o.material.transparent && !peek.faded(o)) || own(o)) return;
+      if (!o.layers.test(DRAWN)) return; // (not drawn just now: the house's floor, seen from the basement)
       if (!o.isInstancedMesh) {
         if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
         box.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
@@ -361,9 +522,11 @@ export function* buildingRoom(stage) {
     for (let o = object; o; o = o.parent) if (owners.has(o)) return owners.get(o);
     return null;
   };
+  // (Not one that cannot be switched just now: the bath while someone is using it, say.)
   const thingAt = (x, y) => {
     const first = firstSeen(x, y, [...owners.keys()], ownerOf);
-    return first ? ownerOf(first.object) : null;
+    const thing = first && ownerOf(first.object);
+    return thing && (!thing.can || thing.can()) ? thing : null;
   };
 
   // A visitor's pick of the other kind given up (`kind` "outfit" or "watch", acted on by `act`): no longer
@@ -458,37 +621,70 @@ export function* buildingRoom(stage) {
         return parallel ? renderer.compileAsync(scene, camera) : renderer.compile(scene, camera);
       });
       offscreen.dispose();
-      if (!parallel) return Promise.resolve();
-      return Promise.race([Promise.all(compiled), new Promise((done) => setTimeout(done, 4000))]);
+      view.warm(); // (what is drawn between floors)
+      // A frame each other way it can be seen (round to the front garden, down in the basement), by night and
+      // by day, before the page shows it: what is first drawn there (its buffers and textures, a shader for
+      // that view, the lamps and glows lit only at night) ready before it is needed, not a hitch as the view
+      // first gets there or the night first falls. Then the time of day as it was.
+      const views = () => {
+        const [night, hour] = [home.night, day.hour];
+        for (const dark of [!night, night]) {
+          nightfall(dark);
+          for (const [turned, below] of [
+            [true, false],
+            [false, true],
+            [false, false],
+          ]) {
+            view.turnTo(turned, true);
+            view.floorTo(below, true);
+            this.step(0);
+          }
+        }
+        day.hour = hour;
+        daylight(true);
+      };
+      if (!parallel) return Promise.resolve(views());
+      return Promise.race([Promise.all(compiled), new Promise((done) => setTimeout(done, 4000))]).then(views);
     },
     // Turn the view round to the front garden (true), or back to the house; `now`, all at once.
     turn: (out, now = false) => view.turnTo(out, now),
+    // Down the view goes to the basement (true), or back up to the house; `now`, all at once. Who is down
+    // there just now, and who up.
+    floor: (below, now = false) => view.floorTo(below, now),
+    whoIsWhere: () => ({ below: home.actors.filter((a) => a.below).map((a) => a.name), up: home.actors.filter((a) => !a.below).map((a) => a.name) }),
     // Whether canvas px (x, y) is on the front door, shut, from the front, with nothing in front of it (to fade
     // the back wall while the pointer is there; an open door shows the way out already), and a tap on it,
     // fading it for a few seconds.
     onDoor: (x, y) =>
       view.turn === 0 &&
+      view.floor === 0 &&
       house.door.k < 0.02 &&
       !home.actors.some((a) => !a.out && a.over(x, y)) && // (not anyone out behind it, seen only while it is faded)
       !!firstSeen(x, y, house.doorParts, among(house.doorParts)),
     peekFor: (secs) => (peek.until = clock.t + secs),
+    // Day or night, as the visitor switches it (playground.js): the time on to the start of the day or the night.
     dress(night) {
-      home.night = night;
-      house.dress(night);
-      home.actors.forEach((a) => a.dress(night));
-      sky.color.set(night ? 0xffd2a8 : 0xffffff);
-      sky.groundColor.set(night ? 0x3a3048 : 0x9a948a);
-      light.sky = night ? 0.95 : 2.2;
-      light.sun = night ? 0.25 : 1.1;
-      sun.color.set(night ? 0xb4c4ff : 0xffffff);
+      day.hour = night ? NIGHTFALL : DAWN;
+      nightfall(night);
+      daylight(true);
+    },
+    // The time of day, 0 to 24 (daytime.js); or on to `hour` at once.
+    hour: () => day.hour,
+    timeTo(hour) {
+      day.hour = hour % 24;
+      if (isNightAt(day.hour) !== home.night) nightfall(!home.night);
+      daylight(true);
     },
     // Move on by dt seconds; `draw` false runs it without drawing (for tests). Returns who is hovered.
     step(dt, draw = true) {
       clock.dt = dt;
       clock.t += dt;
+      day.hour = (day.hour + (dt * 24) / DAY_SECS) % 24;
+      if (isNightAt(day.hour) !== home.night) nightfall(!home.night);
+      daylight();
       // The view turning; the back wall fading while the pointer is on it.
       view.update(dt);
-      peek.want = pointer.mouse && pointer.onDoor && view.turn === 0 && !house.door.open;
+      peek.want = pointer.mouse && pointer.onDoor && view.turn === 0 && view.floor === 0 && !house.door.open;
       if (house.door.open) peek.until = -Infinity;
       peek.update(clock.t, dt);
       life.step();
@@ -505,8 +701,8 @@ export function* buildingRoom(stage) {
       prints.update();
       // Rain greys the light and the view out, and sends the butterfly, the bees and the fireflies to shelter.
       house.rain(weather.k, clock.t, weather.cloud, weather.sky);
-      sky.intensity = light.sky * (1 - 0.3 * weather.k);
-      sun.intensity = light.sun * (1 - Math.max(0.7 * weather.k, 0.35 * weather.cloud));
+      day.sky = day.L.skyK * (1 - 0.3 * weather.k);
+      day.sunK = day.L.sunK * (1 - Math.max(0.7 * weather.k, 0.35 * weather.cloud));
       if (weather.k > 0.3) [house.garden.butterfly, house.garden.bees, ...house.garden.fireflies].forEach((m) => (m.visible = false));
       const hovered = pointer.mouse ? hit(pointer.x, pointer.y) : null;
       home.actors.forEach((a) => a.update(dt, a === hovered));
@@ -514,12 +710,27 @@ export function* buildingRoom(stage) {
       if (draw) {
         // The front garden, and who lives in it, only drawn while it can be seen at all: the view turned to it,
         // the back wall faded or the front door open (from the front, the back wall hides all the rest).
-        house.yard.group.visible = home.wildlife.group.visible = view.turn > 0 || peek.k > 0 || house.door.k > 0.002;
+        house.yard.group.visible = home.wildlife.group.visible = view.floor < 1 && (view.turn > 0 || peek.k > 0 || house.door.k > 0.002);
         drawLeads();
+        cullFloors();
+        uncut();
         shadows(); // (drawn by the first view drawn this frame)
-        drawOutlooks(pointer);
-        drawReflection();
-        view.render(scene);
+        // The windows and the dressing corner's mirror up in the house; the gym's mirror down in the basement.
+        // Between floors both, each lit and cut as its own floor (else the house's mirror, cut as the
+        // basement, shows nothing of the house till the view is all the way up).
+        if (view.floor < 1) {
+          lightFloor(false);
+          view.clipFloor(false);
+          drawOutlooks(pointer);
+          drawReflection();
+        }
+        if (view.floor > 0) {
+          lightFloor(true);
+          view.clipFloor(true);
+          drawGymMirror();
+        }
+        view.render(scene, lightFloor);
+        unmute();
       }
       return hovered;
     },

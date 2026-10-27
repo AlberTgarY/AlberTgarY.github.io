@@ -29,7 +29,8 @@ const KINDS = {
 const KIND_NAMES = Object.keys(KINDS);
 const RAIN = KIND_NAMES.indexOf("rain");
 
-// `groundAt(x, z)` is how high the ground is under (x, z), or -Infinity off the edge of the floor (the drop
+// `groundAt(x, z, y)` is how high the ground is under (x, z) for a drop at height y (the house's floors are
+// one over the other), or -Infinity off the edge of the floor (the drop
 // falls away). `water.hit(x, y, z, kind)` may be set to catch drops before they land (someone in the way);
 // it returns true for a drop it caught. `water.landed(x, z, kind)` is told where each drop lands.
 export function makeWater(scene, groundAt) {
@@ -107,7 +108,7 @@ export function makeWater(scene, groundAt) {
         const settles = name === "splash" || name === "mist";
         if (!gone && !settles && water.hit?.(x, y, z, name)) gone = true;
         if (!gone) {
-          const ground = groundAt(x, z);
+          const ground = groundAt(x, z, y);
           if (y <= ground) {
             gone = true;
             if (!settles) {

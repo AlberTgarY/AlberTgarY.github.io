@@ -136,8 +136,10 @@ const TREE = [-114, -176];
 const SWING = { x: -82, z: -198, top: 56, seat: 8.5 }; // hung from a branch at `top`, the seat at `seat`
 const POND = { x: 60, z: -192, rx: 30, rz: 15 };
 const BENCH = { x: -8, z: -148, half: 17, turn: TURNED_YAW - Math.PI }; // on the lawn by the path, facing the turned view and the pond
-const BATH = [150, -172];
-const HAMMOCK = { x: 124, z: -140, yaw: Math.PI / 2 }; // on the lawn by the wall, the head to the west (between the flower beds' sniffing spots)
+const BATH = [50, -145]; // (out on the lawn between the bench and the hammock, left of the vegetable garden: house/garden.js)
+// On the lawn by the wall, the head to the west, its foot end clear of the garden's fence (the way along
+// the fence to the tap: sprinkler.js).
+const HAMMOCK = { x: 100, z: -140, yaw: Math.PI / 2 };
 const PICNIC = { x: 118, z: -202 }; // the blanket out on the open lawn past the pond, by the bird bath
 // The lamps: a lantern on top of each gatepost, low lanterns on posts either side of the path, the street
 // lamp at the kerb out on the lane (a basket of flowers hanging off it) and the porch lantern by the door.
@@ -395,14 +397,12 @@ export function buildYard(shared) {
   }
   hedge(YARD.x0, YARD.x0 + 6, YARD.fence + 1, YARD.z1 - 1, 15);
   hedge(YARD.x1 - 7, YARD.x1 - 1, YARD.fence + 1, YARD.z1 - 1, 15);
-  shrub(186, -142, 7);
   // Tufts round the foot of the tree, the pond's stones, the bench and the bird bath, and along the hedges.
   const tufts = [
     ...Array.from({ length: 10 }, (_, k) => [TREE[0] + Math.cos(k * 0.63) * 12, TREE[1] + Math.sin(k * 0.63) * 12]),
     ...Array.from({ length: 12 }, (_, k) => [POND.x + Math.cos(k * 0.52 + 0.2) * (POND.rx + 6), POND.z + Math.sin(k * 0.52 + 0.2) * (POND.rz + 6)]),
     ...Array.from({ length: 6 }, (_, k) => [BATH[0] + Math.cos(k * 1.05) * 9, BATH[1] + Math.sin(k * 1.05) * 9]),
     ...Array.from({ length: 9 }, (_, k) => [YARD.x0 + 10, YARD.fence + 18 + k * 12]),
-    ...Array.from({ length: 9 }, (_, k) => [YARD.x1 - 11, YARD.fence + 22 + k * 12]),
   ];
   tufts.forEach(([x, z], k) => tuft(Math.round(x), Math.round(z), k));
 
@@ -523,11 +523,10 @@ export function buildYard(shared) {
   wallBed(YARD.x0 + 8, PORCH.x0 - 4, ["hydrangea", "tulip", "daisy", "tulip"], 50);
   wallBed(PORCH.x1 + 4, 2, ["lavender", "tulip", "daisy"], 60);
   wallBed(48, 104, ["tulip", "daisy", "lavender", "tulip"], 70);
-  wallBed(110, YARD.x1 - 9, ["hydrangea", "lavender", "tulip", "daisy"], 80);
   const fenceBed = (x0, x1, kinds, seed) => bed(x0, x1, YARD.fence + 3, YARD.fence + 10, kinds, 5, seed);
   fenceBed(YARD.x0 + 8, GATE.x0 - 12, ["hollyhock", "daisy", "sunflower", "hollyhock", "tulip"], 90);
   fenceBed(GATE.x1 + 12, 26, ["daisy", "tulip", "lavender"], 100);
-  fenceBed(100, YARD.x1 - 9, ["hollyhock", "lavender", "daisy", "sunflower", "tulip"], 110);
+  fenceBed(100, 110, ["hollyhock", "lavender", "daisy", "sunflower", "tulip"], 110);
 
   /* ---------- the cherry tree, its swing and the bird box ---------- */
 
@@ -904,7 +903,7 @@ export function buildYard(shared) {
   group.add(bathWater);
   // A wheelbarrow spilling over with flowers.
   {
-    const [x, z] = [180, -206];
+    const [x, z] = [126, -224]; // (by the fence, out of the way of the vegetable garden)
     for (let y = 2; y <= 7; y++)
       for (let dx = -6; dx <= 5; dx++)
         for (let dz = -4; dz <= 4; dz++) {
@@ -922,7 +921,7 @@ export function buildYard(shared) {
       for (let y = 0; y <= 3; y++) things.add(x + 3, y, z + dz, "iron");
     }
   }
-  block(169, 191, -212, -200);
+  block(115, 133, -230, -218);
   // A garden gnome by the pond, fishing rod and all.
   {
     const [x, z] = [POND.x + POND.rx + 8, POND.z - 12];
@@ -1001,7 +1000,7 @@ export function buildYard(shared) {
     block(bx - 5, bx + 5, bz - 4, bz + 4);
   }
 
-  /* ---------- by the house: the porch, his bike, the tap ---------- */
+  /* ---------- by the house: the porch and his bike ---------- */
 
   // A pot either side of the door with a clipped box ball in it, and the mat.
   for (const dx of [-16, 16]) {
@@ -1060,17 +1059,6 @@ export function buildYard(shared) {
     group.add(m);
   }
   block(6, 40, YARD.z1 - 9, YARD.z1);
-  // The outside tap, a green hose coiled on its reel beneath it.
-  {
-    const x = 107;
-    box(things, [x - 1, x + 1], [16, 17], [YARD.z1 - 2, YARD.z1 - 1], "steel");
-    things.add(x, 15, YARD.z1 - 2, "steel");
-    for (let y = -6; y <= 6; y++)
-      for (let z = -6; z <= 6; z++)
-        if (Math.hypot(y, z) <= 6 && Math.hypot(y, z) >= 2.5) things.add(x, 7 + y, YARD.z1 - 8 + z, (y + z) % 2 ? "hose" : "leafDark");
-    for (let y = 0; y <= 2; y++) for (const z of [-4, 4]) things.add(x, y, YARD.z1 - 8 + z, "iron");
-  }
-  block(101, 113, YARD.z1 - 16, YARD.z1);
 
   /* ---------- on the wall ---------- */
 
@@ -1399,13 +1387,13 @@ export function buildYard(shared) {
       end: byHammock([7, 2]),
       front: byHammock([19, 2]),
       side: byHammock([7, -38]), // (past the head end of the stand, not in front of her)
-      dog: byHammock([8, 38]), // where the dog lies, off its lead; on it, by whoever holds it:
+      dog: byHammock([24, 10]), // where the dog lies, off its lead; on it, by whoever holds it:
       dogBySide: byHammock([16, -34]), // beside him at the head end
       dogByHer: byHammock([16, 12]), // on the grass in front of her
     },
     swing,
     swingWatch: [SWING.x + 26, SWING.z + 4],
-    bath: { at: [BATH[0] - 18, BATH[1] + 12], bowl: [BATH[0], 16, BATH[1]] }, // (clear of the hammock)
+    bath: { at: [BATH[0] + 14, BATH[1] - 6], bowl: [BATH[0], 16, BATH[1]] }, // (clear of the hammock)
     tree: { at: [TREE[0] + 18, TREE[1] + 16], trunk: [TREE[0], 20, TREE[1]] },
     // The middle of the blanket, by the plate (they kneel either side of it, apart on screen), and where the
     // dog lies, off to one side.
@@ -1415,11 +1403,8 @@ export function buildYard(shared) {
       { at: [-128, YARD.z1 - 22], bloom: [-128, 6, YARD.z1 - 7] },
       { at: [-96, YARD.z1 - 22], bloom: [-96, 6, YARD.z1 - 7] },
       { at: [-22, YARD.z1 - 20], bloom: [-16, 5, YARD.z1 - 7] },
-      { at: [86, YARD.z1 - 22], bloom: [86, 6, YARD.z1 - 7] },
-      { at: [160, YARD.z1 - 24], bloom: [160, 6, YARD.z1 - 7] },
       { at: [-100, YARD.fence + 20], bloom: [-100, 10, YARD.fence + 6] },
       { at: [0, YARD.fence + 20], bloom: [0, 6, YARD.fence + 6] },
-      { at: [140, YARD.fence + 20], bloom: [140, 10, YARD.fence + 6] },
     ],
     // Open lawn, for throwing a ball.
     lawn: [
@@ -1428,8 +1413,8 @@ export function buildYard(shared) {
         [-212, -150],
       ],
       [
-        [96, 190],
-        [-186, -150],
+        [96, 132],
+        [-186, -158],
       ], // (clear of the picnic blanket)
     ],
   };
@@ -1501,9 +1486,8 @@ export function buildYard(shared) {
       flowerBeds: [
         [YARD.x0 + 10, PORCH.x0 - 6, YARD.z1 - 10, YARD.z1 - 2],
         [48, 104, YARD.z1 - 10, YARD.z1 - 2],
-        [110, YARD.x1 - 11, YARD.z1 - 10, YARD.z1 - 2],
         [YARD.x0 + 10, GATE.x0 - 14, YARD.fence + 4, YARD.fence + 9],
-        [100, YARD.x1 - 11, YARD.fence + 4, YARD.fence + 9],
+        [100, 108, YARD.fence + 4, YARD.fence + 9],
       ], // where butterflies go (wildlife.js)
       tree: TREE,
       bath: BATH,

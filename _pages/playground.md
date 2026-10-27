@@ -19,7 +19,7 @@ nav_order: 4
 of the playground's script files, counted as it comes in); playground.js takes it on from there as it builds
 the home, and shows the home once it is all there. -->
 
-{% assign pets = site.static_files | where_exp: "f", "f.path contains 'assets/js/pets/'" %}
+{% assign pets = site.static_files | where_exp: "f", "f.path contains 'assets/js/pets/'" | where_exp: "f", "f.name != 'pet.js'" | where_exp: "f", "f.name != 'together.js'" %}
 
 <script>
   (() => {

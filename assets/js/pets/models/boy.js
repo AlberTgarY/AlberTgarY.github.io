@@ -343,7 +343,10 @@ export function buildBoy() {
     },
     // As the girl's (girl.js): `seated` sits him on a seat, `hold` takes his arms over, `talk` moves his
     // mouth; `phones` puts his headphones on his head.
-    animate(dt, { happy, lying, sleeping, stride, gait, state, trick, elapsed, progress, leash, stroke, company, seated, hold, talk, phones }) {
+    animate(
+      dt,
+      { happy, lying, sleeping, stride, gait, state, trick, elapsed, progress, leash, stroke, company, seated, hold, legHold, talk, phones }
+    ) {
       phonesOn.visible = !!phones;
       const pouring = state === "serve" && elapsed < POUR_TIME;
       const cheering = state === "serve" && !pouring;
@@ -389,6 +392,7 @@ export function buildBoy() {
         strokes,
         pats,
         hold,
+        legHold,
       });
       bag.visible = offer > 0.05;
       showRice(rice, rice > 0.9 && Math.sin(elapsed * Math.PI * 2 * 0.7) > 0, eating ? progress : 0);

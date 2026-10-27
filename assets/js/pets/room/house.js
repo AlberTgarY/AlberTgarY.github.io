@@ -34,7 +34,7 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { solid, turned } from "./house/kit.js";
-import { X0, SIDE, BACK, FRONT, DOOR, GARDEN_DOOR, floorY } from "./house/layout.js";
+import { X0, SIDE, BACK, FRONT, DOOR, floorY } from "./house/layout.js";
 import { buildShell } from "./house/shell.js";
 import { buildWindows } from "./house/windows.js";
 import { buildKitchen } from "./house/kitchen.js";
@@ -43,8 +43,10 @@ import { buildLiving } from "./house/living.js";
 import { buildGarden } from "./house/garden.js";
 import { buildDecor } from "./house/decor.js";
 import { buildYard } from "./house/yard.js";
+import { buildStairs } from "./house/stairs.js";
+import { buildBasement } from "./house/basement.js";
 
-export { X0, X1, SIDE, BACK, FRONT, WALL_H, LOFT, DOOR, YARD, floorY } from "./house/layout.js";
+export { X0, X1, SIDE, BACK, FRONT, WALL_H, LOFT, DOOR, YARD, BASE_Y, DOWN, floorY } from "./house/layout.js";
 
 // Runs a building generator (buildingHouse, room.js's buildingRoom) through all at once; what it returns.
 export function built(steps) {
@@ -95,10 +97,25 @@ export function* buildingHouse(scene, water) {
     footprint(Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs), shade);
   }
 
-  // What the parts share as they are built (each adds what the later ones need); `night` and `overcast`
-  // change with the time of day and the weather (dress() and rain() below).
-  const shared = { scene, water, house, mesh, updates, clickables, footprint, turnedFootprint, floorShadow, night: false, overcast: false };
-  const parts = [buildShell, buildWindows, buildKitchen, buildLoft, buildLiving, buildGarden, buildDecor, buildYard];
+  // What the parts share as they are built (each adds what the later ones need); `night`, `hour` (daytime.js)
+  // and `overcast` change with the time of day and the weather (dress(), daylight() and rain() below); `sky`
+  // is the windows' sky just now (its top and bottom, how high the sun is and its colour).
+  const shared = {
+    scene,
+    water,
+    house,
+    mesh,
+    updates,
+    clickables,
+    footprint,
+    turnedFootprint,
+    floorShadow,
+    night: false,
+    hour: 12,
+    sky: null,
+    overcast: false,
+  };
+  const parts = [buildShell, buildWindows, buildKitchen, buildLoft, buildLiving, buildStairs, buildDecor, buildYard, buildGarden, buildBasement];
   for (const [k, build] of parts.entries()) {
     Object.assign(shared, build(shared));
     yield (k + 1) / parts.length;
@@ -152,6 +169,7 @@ export function* buildingHouse(scene, water) {
     beds,
     lamps,
     underShelf,
+    underCupboards,
     bedLight,
     floorLight,
     moth,
@@ -172,9 +190,10 @@ export function* buildingHouse(scene, water) {
     DINE_Z,
     TREE,
     DOGBED,
-    PLANT_X,
     garden,
     yard,
+    stairs,
+    basement,
     doorLeaf,
     doorFrame,
   } = shared;
@@ -285,21 +304,8 @@ export function* buildingHouse(scene, water) {
     closet: { at: [184, -88], yaw: Math.PI, rail: [184, RAIL_Y - 12, -104] },
     mirror: { at: [176, -86], yaw: -Math.PI / 2, glass: [161, Y + 30, -88] },
     change: { at: [191, -61] },
-    // The garden: through the door, the can by it, and each bed (from the path, facing it).
-    gardenDoor: { inside: [134, GARDEN_DOOR.z], outside: [158, GARDEN_DOOR.z] },
-    can: { at: [164, 29], yaw: -Math.PI / 2 },
-    // For each bed: on the path facing it (to water it), the middle of it, where to kneel to its marker,
-    // behind each plant (facing it and the viewer) with the basket set down at the right hand, and where the
-    // dog sits on the path to watch.
-    beds: garden.beds.map(({ z: [z0], zc }) => ({
-      at: [161, zc],
-      yaw: Math.PI / 2,
-      mid: [186, 8, zc],
-      marker: { at: [164, z0 + 3], look: [171, 9, z0 + 3] },
-      plants: PLANT_X.map((x) => ({ at: [x, z0 - 3], basket: [x - 7, z0 - 3], plant: [x, 5, zc] })),
-      watch: [157, z0 - 2],
-    })),
-    sunny: [177, 31], // a patch of grass between the beds, by the sprinkler, out of the way of the beds' work
+    // The vegetable garden out the front (house/garden.js): each bed, the can, a patch of sun, the way in.
+    ...garden.spots,
     watchPc: { at: [CHAIR[0] - 30, CHAIR[1] + 16] }, // beside his chair, not in front of him or the headphones
     // Where the dog sits hoping for a bite, the dish, and where to stand to set a dish down (at the left end
     // of the table, out of the way of the chairs).
@@ -326,6 +332,14 @@ export function* buildingHouse(scene, water) {
 
   // Paths keep to the house and the garden.
   const bounds = [X0 + 4, SIDE - 4, BACK + 4, FRONT - 4];
+  // A point in the basement, marked as being down there (steps.js walks there down the stairs); its spots all are.
+  const below = (p) => Object.assign([...p], { below: true });
+  (function mark(o) {
+    for (const [k, v] of Object.entries(o)) {
+      if (Array.isArray(v) && v.length >= 2 && v.length <= 3 && v.every((n) => typeof n === "number")) o[k] = below(v);
+      else if (v && typeof v === "object" && !v.isObject3D) mark(v);
+    }
+  })(basement.spots);
 
   function dress(isNight) {
     shared.night = isNight;
@@ -335,6 +349,22 @@ export function* buildingHouse(scene, water) {
     yard.dress(shared.night);
     lamps.forEach((l) => l.set(shared.night)); // whatever was switched, as it was, now it is day or night
     underShelf.set(shared.night);
+    underCupboards.set(shared.night);
+  }
+  // The time of day (daytime.js's hour, its light): the clocks keep it; the sky in the windows and the haze
+  // out there change with it (the sky drawn again every few minutes of it).
+  let skyAt = -Infinity;
+  function daylight(light, hour) {
+    views.haze(light.haze);
+    if (Math.abs(hour - skyAt) < 0.1) return;
+    skyAt = hour;
+    shared.sky = {
+      top: `#${light.top.getHexString()}`,
+      bottom: `#${light.bottom.getHexString()}`,
+      up: light.up,
+      sun: `#${light.sun.getHexString()}`,
+    };
+    drawSky();
   }
   drawScreen(0);
   drawMonitor(0);
@@ -364,6 +394,8 @@ export function* buildingHouse(scene, water) {
     spots,
     floorY,
     dress,
+    daylight,
+    setHour: (hour) => (shared.hour = hour),
     rain,
     // The umbrellas on the rack by the door: `take(who)` and `put(who)` (who: "girl" or "boy").
     umbrellas: {
@@ -421,7 +453,7 @@ export function* buildingHouse(scene, water) {
     beds,
     moth, // her plush moth, on the bed or the nightstand (loft.js)
     bedLight, // the bedside lamp's light, which casts shadows (loft.js)
-    shadowLights: [bedLight, floorLight], // the lamps whose shadows are drawn once, when they need it (room.js)
+    shadowLights: [bedLight, floorLight, ...shared.basement.shadowLights], // the lamps whose shadows are drawn once, when they need it (room.js)
     bird,
     outlooks, // the windows' glass and what is out there (outlook.js)
     books: shelfBooks,
@@ -436,5 +468,8 @@ export function* buildingHouse(scene, water) {
     doorParts: [doorLeaf, doorFrame], // the front door and its frame (the pointer on them fades the back wall: peek.js)
     garden,
     yard,
+    stairs, // the way down (house/stairs.js)
+    below,
+    basement, // and what is down there, with its own floor plan (house/basement.js)
   };
 }

@@ -2,7 +2,7 @@
  * The weather in the playground: now and then it clouds over for a while,
  * and now and then, by day or by night, it rains for a minute or two (the TV
  * forecast says which, screens.js). The windows show it (house.js), the light
- * goes grey (room.js), and over the garden and the front garden the rain comes
+ * goes grey (room.js), and over the front garden the rain comes
  * down in streaks (water.js), splashing on the grass, the beds and the pond,
  * watering the beds, and filling little puddles on the stepping stones, the
  * path and the lane, rings spreading on them, that dry up again after. Anyone going out takes an umbrella, the dog wears her
@@ -17,16 +17,8 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 import { rnd } from "../stage.js";
 import { YARD } from "./house.js";
 
-const GARDEN = { x: [151, 209], z: [-27, 109] }; // where the rain falls (the rest is under the roof)
-const FRONT_GARDEN = { x: [YARD.x0, YARD.x1], z: [YARD.z0, YARD.z1] }; // and out of the front door
+const FRONT_GARDEN = { x: [YARD.x0, YARD.x1], z: [YARD.z0, YARD.z1] }; // where the rain falls: out of the front door
 const PUDDLES = [
-  [161, -12, 3.2],
-  [161, 20, 2.6],
-  [159, 41, 3.6],
-  [161, 84, 3],
-  [182, 48, 4.2],
-  [192, 79, 3],
-  [180, 112 - 8, 2.6],
   [-50, -126, 2.6],
   [-49, -158, 3.2],
   [-51, -204, 3.6],
@@ -81,7 +73,6 @@ export function makeWeather(scene, water) {
     return { m, ring, x, z, r, ringAt: 0 };
   });
 
-  let rainDebt = 0;
   let yardDebt = 0;
   w.update = (t, dt) => {
     if (!w.raining && t > w.nextAt) {
@@ -101,15 +92,7 @@ export function makeWeather(scene, water) {
     w.cloud += ((w.raining || w.cloudy ? 1 : 0) - w.cloud) * (1 - Math.exp(-0.25 * dt));
     w.wet = Math.min(1, Math.max(0, w.wet + (w.k > 0.3 ? dt / 25 : -dt / 140)));
 
-    // The rain over the garden: streaks falling fast, a little slanted by the wind, already at full speed
-    // (picked up from the height of the house, so as not to be seen falling over the rooms behind).
-    rainDebt += 330 * w.k * dt;
-    for (; rainDebt >= 1; rainDebt--) {
-      const x = rnd(...GARDEN.x) - 4;
-      const z = rnd(...GARDEN.z);
-      water.emit("rain", x, rnd(30, 48), z, 14, -240, 0, 1.2);
-    }
-    // Out the front, nothing overhead: from higher up, and (spread over a much bigger garden) a little thinner.
+    // Out the front: streaks falling fast, a little slanted by the wind, already at full speed.
     yardDebt += 1100 * w.k * dt;
     for (; yardDebt >= 1; yardDebt--) {
       const [x, z] = [rnd(...FRONT_GARDEN.x), rnd(...FRONT_GARDEN.z)];

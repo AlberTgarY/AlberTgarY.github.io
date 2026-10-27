@@ -23,11 +23,18 @@ import { isDark } from "./pets/stage.js";
 import { buildGirl } from "./pets/models/girl.js";
 import { LOOKS, dressGirl } from "./pets/models/girl-outfits.js";
 import { CLIP_SHOWS, DRAMAS, drawClipThumb, drawPoster, POSTER } from "./pets/room/screens.js";
+import { hhmm } from "./pets/room/daytime.js";
 
 // A quarter turn to the left, round an arrow (the button turning the view). (Above start(): it runs before
 // the constants below it are set.)
 const TURN_ICON =
   '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3.5 6.5A5 5 0 1 1 4 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M1.5 3.5 3.6 7 7 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+// A sun and a moon (the clock's button: by day and by night).
+const SUN_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+const MOON_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M10.8 2.2a6 6 0 1 0 3 8.6A5 5 0 0 1 10.8 2.2Z" fill="currentColor"/></svg>';
 
 const host = document.querySelector(".playground");
 if (host) start();
@@ -75,9 +82,71 @@ async function start() {
     out = !out;
     room.turn(out, reducedMotion);
     label();
+    if (out) markFloor(false); // (turning round, up to the house's floor first)
     if (reducedMotion) room.step(0);
   });
   host.append(turner);
+
+  // Up and down between the floors, as on a map of a building: the house's (1F) and the basement under it
+  // (B1), the one in view marked, and on each a dot for everyone on that floor just now.
+  const floors = Object.assign(document.createElement("div"), { className: "playground-floors", role: "group" });
+  floors.setAttribute("aria-label", "Floors");
+  const floorButtons = [
+    ["1F", "The house", false],
+    ["B1", "The basement", true],
+  ].map(([text, name, below]) => {
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "playground-floor" });
+    b.innerHTML = `<span>${text}</span><span class="playground-floor-who" aria-hidden="true"></span>`;
+    b.setAttribute("aria-label", name);
+    b.addEventListener("click", () => {
+      if (out) {
+        out = false; // (only the house's floor turns round: back to it first)
+        label();
+      }
+      room.floor(below, reducedMotion);
+      markFloor(below);
+      if (reducedMotion) room.step(0);
+    });
+    floors.append(b);
+    return b;
+  });
+  function markFloor(below) {
+    floorButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(i === (below ? 1 : 0))));
+  }
+  markFloor(false);
+  host.append(floors);
+  // Who is on which floor (a dot each, in their colours), looked at now and then.
+  const DOTS = { girl: "#f2a3b8", boy: "#6f95d6", collie: "#3a3a40", cat: "#d9893a" };
+  let whoWas = "";
+  function showWho() {
+    const { below, up } = room.whoIsWhere();
+    const now = `${up}|${below}`;
+    if (now === whoWas) return;
+    whoWas = now;
+    [up, below].forEach((names, i) => {
+      floorButtons[i].querySelector(".playground-floor-who").innerHTML = names.map((n) => `<i style="background:${DOTS[n]}"></i>`).join("");
+    });
+  }
+  showWho();
+
+  // The clock, top left: the time of day in the home, a sun by day and a moon by night; clicking it goes on to
+  // the start of the night (18:00), or of the day (06:00).
+  const clock = Object.assign(document.createElement("button"), { type: "button", className: "playground-clock" });
+  let clockWas = "";
+  function showTime() {
+    const night = room.home.night;
+    const now = `${night}${hhmm(room.hour())}`;
+    if (now === clockWas) return;
+    clockWas = now;
+    clock.innerHTML = `${night ? MOON_ICON : SUN_ICON}<span>${hhmm(room.hour())}</span>`;
+    clock.setAttribute("aria-label", `${hhmm(room.hour())}: skip to ${night ? "the morning" : "the evening"}`);
+  }
+  clock.addEventListener("click", () => {
+    room.dress(!room.home.night);
+    showTime();
+    if (reducedMotion) room.step(0);
+  });
+  host.append(clock);
 
   // The canvas spans the whole width of the window, out past the page's margins, and the house is fitted
   // into it and into the height of the window.
@@ -203,6 +272,7 @@ async function start() {
   window.addEventListener("resize", layout);
 
   room.dress(isDark());
+  showTime();
   layout();
   loading.show(0.9); // built; the shaders next
   await painted();
@@ -229,6 +299,10 @@ async function start() {
     if (moved) underMouse();
     const hovered = room.step(dt);
     document.documentElement.classList.toggle("pet-hover", !!hovered || overThing);
+    if (Math.floor(now / 500) !== Math.floor((now - between) / 500)) {
+      showWho(); // (twice a second)
+      showTime();
+    }
     if (between > 100) return; // (back from a hidden tab, or a hitch)
     pace.frames++;
     pace.between += between;

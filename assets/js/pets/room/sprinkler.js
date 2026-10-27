@@ -19,13 +19,23 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 import { part, box, ellipsoid, pivotGroup } from "../models/voxels.js";
 import { GRAVITY } from "./water.js";
 
-const AT = [186, 38]; // the sprinkler, on the beds' middle line, between the near pair and the far pair
-const TAP = [151, 70]; // the outside tap, on the garden side of the low wall
-const REEL = [153, 63]; // the hose reel, against the wall just along from the tap, its axle out from the wall
+// Out in the vegetable garden (house/garden.js).
+const AT = [182, -172]; // the sprinkler, on the beds' middle line, between the near pair and the far pair
+// The outside tap is on the house wall just along from the garden's fence, the hose reel beside it: built
+// as if on a wall along z, the tap at [0, 0] and out along +x, then turned (WALL_TURN) onto the house wall.
+const WALL_AT = [137, -114.5];
+const WALL_TURN = Math.PI / 2; // (out from the wall is -z out here)
+const TAP = [0, 0];
+const REEL = [2, -7]; // the hose reel, against the wall just along from the tap, its axle out from the wall
+// A point on the wall's own [x, z] (or [x, y, z]), out in the world.
+const onWall = ([x, z]) => [
+  WALL_AT[0] + x * Math.cos(WALL_TURN) + z * Math.sin(WALL_TURN),
+  WALL_AT[1] - x * Math.sin(WALL_TURN) + z * Math.cos(WALL_TURN),
+];
 const NOZZLE_Y = 6.5;
 const ELEVATION = 0.47; // the jet's angle up from the level, as the real ones (about 27°)
 const REACH = 66; // how far the jet carries at full pressure
-const BEDS = { x: [169, 203], z: [-21, 103] }; // what it waters: the four beds (house.js)
+const BEDS = { x: [165, 199], z: [-222, -122] }; // what it waters: the four beds
 const TICK = 0.2; // s between the arm's knocks
 const STEP = 0.07; // how far round each knock turns it (round once in about 18 s)
 
@@ -82,12 +92,16 @@ export function buildSprinkler(scene, water) {
   box(tapPart, [0, 1], [8, 8], [0, 0], "steel");
   box(tapPart, [2, 3], [7, 9], [-1, 1], (x, y) => (y === 9 ? "brassDark" : "brass"));
   box(tapPart, [3, 3], [5, 6], [0, 0], "brass");
+  const wall = new THREE.Group();
+  wall.position.set(WALL_AT[0], 0, WALL_AT[1]);
+  wall.rotation.y = WALL_TURN;
+  group.add(wall);
   const tapMesh = tapPart.mesh(COLORS);
   tapMesh.position.set(TAP[0], 0, TAP[1]);
-  group.add(tapMesh);
+  wall.add(tapMesh);
   const handle = new THREE.Group();
   handle.position.set(TAP[0] + 2.5, 10.4, TAP[1]);
-  group.add(handle);
+  wall.add(handle);
   const handleMat = new THREE.MeshLambertMaterial({ color: COLORS.reel });
   handle.add(new THREE.Mesh(new THREE.BoxGeometry(4, 0.8, 0.8), handleMat), new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 4), handleMat));
 
@@ -118,14 +132,15 @@ export function buildSprinkler(scene, water) {
       "hose"
     );
   }
-  group.add(reel.mesh(COLORS));
+  wall.add(reel.mesh(COLORS));
 
-  // The hose, lying in loose curves on the grass from the reel to the sprinkler, clear of the beds.
+  // The hose, lying in loose curves on the grass from the reel, in under the garden's fence and along the
+  // path, to the sprinkler, clear of the beds.
   const hose = part();
-  const from = [REEL[0] + 3, REEL[1] - 4];
+  const from = onWall([REEL[0] + 3, REEL[1] - 4]).map(Math.round);
   const ctrl = [
-    [REEL[0] + 9, REEL[1] - 14],
-    [AT[0] - 26, AT[1] + 16],
+    [from[0] + 22, from[1] - 6],
+    [AT[0] - 30, AT[1] + 14],
   ];
   let last = null;
   for (let k = 0; k <= 160; k++) {
@@ -140,24 +155,28 @@ export function buildSprinkler(scene, water) {
   for (let y = 0; y <= 2; y++) hose.add(from[0] - 1, y, from[1], "hose"); // up off the bottom of the drum
   group.add(hose.mesh(COLORS));
 
-  const tapAt = [TAP[0] + 9, TAP[1] - 1]; // where to kneel to the tap, facing the wall
+  const tapAt = onWall([TAP[0] + 9, TAP[1] - 1]); // where to kneel to the tap, facing the wall
   const fixAt = [AT[0] - 12, AT[1] + 3]; // where to crouch to turn the head round
   const s = {
     spots: {
-      tap: { at: tapAt, yaw: -Math.PI / 2 },
+      tap: { at: tapAt, yaw: -Math.PI / 2 + WALL_TURN },
       fix: { at: fixAt, yaw: Math.atan2(AT[0] - fixAt[0], AT[1] - fixAt[1]) },
       head: [AT[0], 6, AT[1]],
-      tap3: [TAP[0] + 2.5, 10, TAP[1]], // the handle
+      tap3: [onWall([TAP[0] + 2.5, TAP[1]])[0], 10, onWall([TAP[0] + 2.5, TAP[1]])[1]], // the handle
     },
     at: AT,
     footprint: [AT[0] - 3, AT[0] + 3, AT[1] - 3, AT[1] + 3],
-    reelFootprint: [REEL[0] - 3, REEL[0] + 2, REEL[1] - 5, REEL[1] + 5], // (along the wall: clear of the way past it)
+    reelFootprint: (() => {
+      const [a, b] = [onWall([REEL[0] - 3, REEL[1] - 5]), onWall([REEL[0] + 2, REEL[1] + 5])];
+      return [Math.min(a[0], b[0]), Math.max(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[1], b[1])];
+    })(),
     on: false, // the tap on
     wrong: false, // facing the tap, until turned round
     since: 0, // when the tap was last turned
     offAt: Infinity, // when someone should come and turn it off
     pressure: 0,
     heading: 0,
+    bearing: () => s.heading, // which way the head faces
     nextTick: 0,
     lastTick: -1,
     // Turn the tap on at time t, the head left facing the tap or not.
