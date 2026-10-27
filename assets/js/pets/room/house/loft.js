@@ -19,7 +19,7 @@ import {
   episodeOf,
 } from "../screens.js";
 import { BACK, LOFT } from "./layout.js";
-import { COLORS, pixelTexture, solid, glowing, place } from "./kit.js";
+import { COLORS, pixelTexture, solid, solidMaterial, glowing, place } from "./kit.js";
 
 // `shared`: what the house so far has to share (house.js), with `night` and `overcast` as they are now.
 export function buildLoft(shared) {
@@ -27,7 +27,7 @@ export function buildLoft(shared) {
 
   const Y = LOFT.y;
   // The boy's desk: a white top on a drawer unit and legs; his monitor on its stand with a second one on
-  // its left stood on end, a keyboard with a glow under its keys, a mouse on its pad and a mug; in front of
+  // its left stood on end, his keyboard and mouse on a desk mat and a bottle of water (deskTop below); in front of
   // the screen on end, his white headphones on their stand while he is not wearing them, and at the right
   // end a little Kirby on a Warp Star. His computer stands on the floor beside the desk (the cat lies on top
   // to watch him play), its fans glowing in colours that slowly change, and the white power light on its top
@@ -44,10 +44,6 @@ export function buildLoft(shared) {
   box(desk, [-2, 5], [16, 16], [-7, -3], "tvEdge"); // the main monitor's stand, and the monitor
   box(desk, [1, 2], [17, 21], [-6, -6], "tvEdge");
   box(desk, [-12, 15], [22, 38], [-5, -5], "tvBody");
-  box(desk, [-5, 8], [16, 16], [5, 8], (x, y, z) => (z === 8 || (x + z) % 3 ? "keyboard" : "keyLight"));
-  box(desk, [9, 14], [16, 16], [5, 9], "keyboard"); // the mouse pad
-  box(desk, [11, 12], [17, 17], [7, 8], "chairWhite"); // the mouse
-  for (let y = 16; y <= 19; y++) ellipsoid(desk, [-11, y, 5], [1.7, 0.5, 1.7], y === 19 ? "coffee" : "mugBlue");
   box(desk, [-23, -19], [16, 16], [2, 6], "pcCase"); // the headphone stand: a foot, a post and a hook
   box(desk, [-21, -21], [17, 30], [4, 4], "pcCase");
   const tower = [
@@ -69,6 +65,28 @@ export function buildLoft(shared) {
     DESK[1] + 3.2,
   ]);
   footprint(DESK[0] - 27, DESK[0] + 38, BACK, DESK[1] + 10);
+  const deskTop = deskGear();
+  place(house, deskTop.group, [DESK[0], Y, DESK[1]]);
+  // A lead from the back of each monitor, curving down beside its stand onto the desk, over its back edge,
+  // sagging along behind it and into the back of the computer: half hidden, showing here and there.
+  const leadMat = new THREE.MeshLambertMaterial({ color: "#26272b" });
+  for (const [x0, y0, plug, sag] of [
+    [DESK[0] + 1.5, Y + 28, [DESK[0] + 31, Y + 16], 3.5],
+    [DESK[0] - 19, Y + 25, [DESK[0] + 31, Y + 19], 5],
+  ]) {
+    const back = DESK[1] - 9.75; // (between the desk and the wall)
+    const points = [
+      [x0, y0, DESK[1] - 5.7],
+      [x0 + 0.3, Y + 17, DESK[1] - 6.6],
+      [x0 + 0.5, Y + 15.8, DESK[1] - 8],
+      [x0 + 0.7, Y + 15.8, back],
+      [x0 + 1, Y + 11, back],
+      [(x0 + plug[0]) / 2, Y + 2 + sag, back],
+      [plug[0] - 2, plug[1] - 1, back],
+      [plug[0], plug[1], DESK[1] - 8.6],
+    ].map((v) => new THREE.Vector3(...v));
+    house.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points, false, "centripetal"), 80, 0.24, 6), leadMat));
+  }
 
   // His white headphones on their stand, the band over the hook and a cup hanging either side, their
   // black cushions turned in.
@@ -137,7 +155,7 @@ export function buildLoft(shared) {
   rgbLight.position.set(DESK[0] + 33, Y + 12, DESK[1] + 8);
   house.add(monLight, rgbLight);
 
-  // The gaming chair: black with white panels, on a five-star base. Its seat and back turn with whoever
+  // The gaming chair: black with a lime green back, on a five-star base. Its seat and back turn with whoever
   // sits in it. To watch her shows she rolls it back from the desk and to the left (LOUNGE), so as not to sit
   // between the screen and the room; it is rolled back in after.
   const CHAIR = [DESK[0], -84];
@@ -152,7 +170,7 @@ export function buildLoft(shared) {
   const base = place(house, mesh(chairBase), [CHAIR[0], Y, CHAIR[1]]);
   const chairTop = part();
   box(chairTop, [-6, 6], [6, 8], [-5, 5], (x, y) => (y === 8 && Math.abs(x) <= 2 ? "chairWhite" : "chairBlack"));
-  box(chairTop, [-6, 6], [9, 21], [6, 7], (x, y) => (Math.abs(x) === 4 && y < 20 ? "chairWhite" : "chairBlack"));
+  box(chairTop, [-6, 6], [9, 21], [6, 7], (x, y) => (Math.abs(x) === 4 && y < 20 ? "chairGreenDark" : "chairGreen"));
   for (const side of [-1, 1]) {
     box(chairTop, [side * 7, side * 7], [9, 10], [0, 0], "steelDark");
     box(chairTop, [side * 7, side * 7], [11, 11], [-4, 3], "chairBlack");
@@ -203,6 +221,8 @@ export function buildLoft(shared) {
     rgbLight.color.copy(hue);
     rgbLight.intensity = shared.night ? 30 : 0;
     power.material.color.set(pc.mode === "off" ? "#3b3d47" : "#ffffff");
+    deskTop.glow.color.setScalar(pc.mode === "off" ? 0.12 : 1);
+    if (pc.mode !== "off") deskTop.flow(t);
     // The chair turns with whoever sits in it, and back to the desk after; it rolls to where it is wanted
     // (`pc.rolled`, or the desk), and back in once whoever sat in it is up (called away while sitting).
     if (pc.sitter && !pc.sitter.seated) pc.sitter = pc.rolled = null;
@@ -721,6 +741,7 @@ export function buildLoft(shared) {
 
   // The bedside lamp's shadows: cast only by what never moves (his desk and computer, the nightstand; the floor
   // too: shell.js), so that they are drawn once (room.js); taken by those and by the rest up here.
+  pcParts.push(deskTop.group); // (after the screens: they are pcParts 1 and 2)
   for (const o of [...pcParts, rgb, standMesh]) o.castShadow = true;
   for (const o of [...pcParts, rgb, kirby, phonesOnStand, base, chair, standMesh, mothToy, bedMesh, ...quilts])
     o.traverse((m) => (m.receiveShadow = true));
@@ -749,4 +770,193 @@ export function buildLoft(shared) {
     closet,
     pcParts,
   };
+}
+
+// A part in cells finer than voxels, `n` to the voxel (cell u covering u / n - 1 / n to u / n), each coloured
+// by the hex colour it is given: its mesh, put in `parent` (and returned).
+const HEX = new Proxy({}, { get: (_, hex) => hex });
+function finer(p, n, parent, material = solidMaterial) {
+  const m = solid(p, HEX, material);
+  m.scale.setScalar(1 / n);
+  m.position.setScalar(-1 / (2 * n));
+  parent.add(m);
+  return m;
+}
+
+// What is on his desk top, in finer cells (the desk top, y 15.5, is the bottom of cell 15.5 n + 1): a low
+// tenkeyless keyboard in dark gunmetal, black keycaps each lit by its legend, a blue light and round buttons
+// along the top and the volume roller at the right; a rounded gaming mouse, its buttons split by the wheel,
+// rubber grips and a lit logo; both on a dark desk mat with a stitched edge (in quarter voxels). On the left a
+// bottle of Fiji water (in eighths): square clear plastic with rounded corners, the blue cap, the label
+// shading from pale to deep blue with FIJI in white and a red hibiscus. `glow`: the lights' material, dimmed
+// while the computer is off; `flow(t)`: the rainbow across the legends and the mouse's logo, moving left to
+// right.
+function deskGear() {
+  const group = new THREE.Group();
+  const hsl = (h, s, l) => `#${new THREE.Color().setHSL(h, s, l).getHexString()}`;
+  const glow = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const quarters = part();
+  const lights = part(); // (quarters too)
+  const rainbow = part(); // (the same; coloured by flow())
+
+  // The desk mat, x -8 to 17 and z 2 to 9.25, a dashed stitch just in from its edge.
+  const [MAT, MAT_EDGE, STITCH] = ["#1b1c20", "#131417", "#34363d"];
+  for (let x = -31; x <= 68; x++)
+    for (let z = 9; z <= 37; z++) {
+      const [ex, ez] = [Math.min(x + 31, 68 - x), Math.min(z - 9, 37 - z)];
+      if (ex + ez === 0) continue; // the corners rounded off
+      const stitch = Math.min(ex, ez) === 1 && (ex === 1 ? z : x) % 2 === 0;
+      quarters.add(x, 63, z, Math.min(ex, ez) === 0 ? MAT_EDGE : stitch ? STITCH : MAT);
+    }
+
+  // The keyboard: 58 cells across from x -6 and 23 deep from z 3, two cells thick, the caps one more.
+  const [X0, Z0] = [-23, 13];
+  const [SIDE, PLATE, EDGE, CAP, GLYPH] = ["#1e2025", "#2b2e34", "#5a5f69", "#131418", "#8a909a"];
+  for (let x = X0; x < X0 + 58; x++)
+    for (let z = Z0; z < Z0 + 23; z++) {
+      if ((x === X0 || x === X0 + 57) && (z === Z0 || z === Z0 + 22)) continue;
+      quarters.add(x, 64, z, SIDE);
+      quarters.add(x, 65, z, z === Z0 + 22 ? EDGE : PLATE);
+    }
+  // A key `kx` key widths from the left (3 cells to a key width), `kw` wide, in the row `rz` cells from the
+  // back: a cap two cells deep, its legend lit in its back left corner (none on the space bar).
+  const key = (rz, kx, kw, legend = true) => {
+    const x0 = X0 + 1 + Math.round(kx * 3);
+    const w = Math.round(kw * 3) - 1;
+    for (let x = x0; x < x0 + w; x++)
+      for (let z = Z0 + rz; z < Z0 + rz + 2; z++)
+        if (legend && x === x0 && z === Z0 + rz) rainbow.add(x, 66, z, "#ffffff");
+        else quarters.add(x, 66, z, CAP);
+  };
+  // Each row: how far from the back, and its keys' widths left to right (a negative one: a gap that wide).
+  const ones = (n, w = 1) => Array(n).fill(w);
+  const NAV = [-0.5, ...ones(3)]; // the block over the arrows
+  const ROWS = [
+    [4, [1, -1, ...ones(4), -0.5, ...ones(4), -0.5, ...ones(4), ...NAV]],
+    [8, [...ones(13), 2, ...NAV]],
+    [11, [1.5, ...ones(12), 1.5, ...NAV]],
+    [14, [1.75, ...ones(11), 2.25]],
+    [17, [2.25, ...ones(10), 2.75, -1.5, 1]],
+    [20, [...ones(3, 1.25), 6.25, ...ones(4, 1.25), ...NAV]],
+  ];
+  for (const [rz, widths] of ROWS) {
+    let kx = 0;
+    for (const kw of widths) {
+      if (kw > 0) key(rz, kx, kw, kw < 6);
+      kx += Math.abs(kw);
+    }
+  }
+  // Along the top: the blue light, four round buttons, the little dark window, the media keys and the roller.
+  for (let x = X0 + 2; x <= X0 + 3; x++) for (let z = Z0 + 1; z <= Z0 + 2; z++) lights.add(x, 66, z, hsl(0.6, 1, 0.6));
+  for (const kx of [1.5, 2.5, 3.5, 4.5, 12.5, 13.5]) {
+    key(1, kx, 0.7, false);
+    quarters.add(X0 + 2 + Math.round(kx * 3), 66, Z0 + 1, GLYPH);
+  }
+  for (let x = X0 + 22; x < X0 + 30; x++) for (let z = Z0 + 1; z <= Z0 + 2; z++) quarters.add(x, 66, z, "#0b0c0e");
+  lights.add(X0 + 26, 66, Z0 + 2, "#dfe8ff");
+  for (let x = X0 + 47; x <= X0 + 55; x++)
+    for (const [y, z] of [
+      [66, Z0 + 1],
+      [66, Z0 + 2],
+      [67, Z0 + 1],
+      [67, Z0 + 2],
+    ])
+      quarters.add(x, y, z, x === X0 + 47 || x === X0 + 55 ? SIDE : x % 2 ? "#5c616b" : "#2a2c31");
+
+  // The mouse, its middle at x 13.25, z 6, its buttons to the back: a rounded shell up to six cells high,
+  // widest at the palm, highest just behind the middle.
+  const [MX, MZ] = [53, 24];
+  const [SHELL, BUTTON, GROOVE, GRIP] = ["#1d1e23", "#25272d", "#08090b", "#3a3d45"];
+  for (let x = MX - 6; x <= MX + 6; x++)
+    for (let z = MZ - 10; z <= MZ + 10; z++) {
+      const u = (z - MZ) / 9.5; // -1 the front, 1 the palm
+      const v = (x - MX) / (5.5 * (0.9 + 0.1 * u));
+      if (v * v + Math.abs(u) ** 3 > 1) continue;
+      const top = Math.max(1, Math.round(6 * Math.sqrt(Math.max(0, 1 - ((u - 0.25) / 1.2) ** 2)) * Math.sqrt(Math.max(0, 1 - 0.75 * v * v))));
+      const grip = Math.abs(v) > 0.75;
+      for (let y = 64; y < 63 + top; y++) quarters.add(x, y, z, grip ? GRIP : SHELL);
+      const y = 63 + top;
+      if (x === MX && u > 0.3 && u < 0.55) rainbow.add(x, y, z, "#ffffff"); // the logo
+      else quarters.add(x, y, z, grip ? GRIP : u >= -0.12 ? SHELL : x === MX ? GROOVE : BUTTON);
+      if (x === MX && u >= -0.62 && u <= -0.32) quarters.add(x, y + 1, z, z % 2 ? "#5c616b" : "#2a2c31"); // the wheel
+    }
+  finer(quarters, 4, group);
+  finer(lights, 4, group, glow);
+  // The rainbow: each corner of a legend's faces coloured by how far across it is, the hues sliding to the
+  // right with the clock (redone every 0.05 s).
+  const { geometry } = finer(rainbow, 4, group, glow);
+  const [where, colour] = [geometry.getAttribute("position"), geometry.getAttribute("color")];
+  const hue = new THREE.Color();
+  let flowedAt = -1;
+  const flow = (t) => {
+    if (Math.abs(t - flowedAt) < 0.05) return;
+    flowedAt = t;
+    for (let i = 0; i < where.count; i++) {
+      const across = (where.getX(i) - X0) / 58; // 0 at the keyboard's left, the mouse past 1
+      hue.setHSL((((across * 0.8 - t * 0.2) % 1) + 1) % 1, 0.95, 0.6);
+      colour.setXYZ(i, hue.r, hue.g, hue.b);
+    }
+    colour.needsUpdate = true;
+  };
+
+  // The bottle: 20 cells square (x and z -10 to 9) with rounded corners, the bottom two rows clear, the label
+  // to row 41, clear above it, the shoulders rounding in to the neck from row 52, a white ring on the neck,
+  // and the cap from row 63 to 70. Turned a little to the room.
+  const bottle = new THREE.Group();
+  bottle.position.set(-10.5, 0, 5);
+  bottle.rotation.y = 0.35;
+  group.add(bottle);
+  const label = part();
+  const clear = part();
+  const within = (x, z, half, r) => Math.max(0, Math.abs(x + 0.5) - (half - r)) ** 2 + Math.max(0, Math.abs(z + 0.5) - (half - r)) ** 2 <= r * r;
+  const BLUES = ["#0a3a94", "#0f4fae", "#1564c4", "#1f7fd6", "#3a9de6", "#5fb9ef", "#95d5f6", "#c4ebfb"];
+  const WHITE = "#ffffff";
+  // FIJI in bold capitals seven rows high, from x -8, rows 26 to 32.
+  const FIJI = [
+    "1111101100011011",
+    "1100001100011011",
+    "1100001100011011",
+    "1111001100011011",
+    "1100001100011011",
+    "1100001101011011",
+    "1100001100110011",
+  ];
+  const PETALS = ["#8c0c2a", "#c8163f", "#ee3d64", "#ff86a2"];
+  const STAMEN = { "-1,1": "#f5c02a", "-2,2": "#f5c02a", "-2,3": "#f5c02a", "-3,4": "#ffe066" }; // from the middle of the flower
+  const labelAt = (x, dy, z) => {
+    if (z === 9) {
+      const row = 32 - dy;
+      if (row >= 0 && row < 7 && FIJI[row][x + 8] === "1") return WHITE;
+      if (dy === 35 && x >= -6 && x <= 5 && hash(x, dy, 4) < 0.7) return WHITE; // "from the islands of"
+      if (dy === 23 && x >= -6 && x <= 5 && (x + 6) % 3 !== 2) return "#dff3ff"; // "natural artesian water"
+      const [fx, fy] = [x - 3, dy - 15]; // the hibiscus
+      const r = Math.hypot(fx, fy);
+      const edge = 4.3 + 1.9 * Math.cos(5 * (Math.atan2(fy, fx) - 0.3));
+      if (STAMEN[`${fx},${fy}`]) return STAMEN[`${fx},${fy}`];
+      if (r <= edge) return PETALS[r < 1.1 ? 0 : r < 2.4 ? 1 : r > edge - 1.1 ? 3 : 2];
+    }
+    const k = Math.round(((dy - 2) / 39 + (hash(x, dy, z) - 0.5) * 0.12) * (BLUES.length - 1));
+    return BLUES[Math.max(0, Math.min(BLUES.length - 1, k))];
+  };
+  const [WATER, SHINE, DEEP] = ["#a6d8f2", "#eef9ff", "#82c0e8"];
+  const clearAt = (x, dy, z) => (z >= 8 && (x === -7 || x === -6) ? SHINE : x >= 8 || dy < 2 ? DEEP : WATER);
+  for (let dy = 0; dy <= 70; dy++) {
+    const s = Math.min(1, Math.max(0, (dy - 52) / 8));
+    const shoulder = [4 + 6 * Math.cos((s * Math.PI) / 2), 3 + s];
+    const [half, r] = dy < 2 ? [9.5, 3] : dy < 52 ? [10, 3] : dy <= 60 ? shoulder : dy < 63 ? [3.5, 3.5] : [4.5, 4.5];
+    for (let x = -10; x <= 9; x++)
+      for (let z = -10; z <= 9; z++) {
+        if (!within(x, z, half, r)) continue;
+        const y = 125 + dy;
+        if (dy >= 63) {
+          const rib = Math.floor(((Math.atan2(z + 0.5, x + 0.5) + Math.PI) * 24) / (2 * Math.PI)) % 2;
+          label.add(x, y, z, dy === 70 ? "#3a78e6" : rib ? "#1d58cc" : "#1648a8");
+        } else if (dy === 61) label.add(x, y, z, "#dce8f2");
+        else if (dy >= 2 && dy <= 41) label.add(x, y, z, labelAt(x, dy, z));
+        else clear.add(x, y, z, clearAt(x, dy, z));
+      }
+  }
+  finer(label, 8, bottle);
+  finer(clear, 8, bottle, new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.7 }));
+  return { group, glow, flow };
 }
