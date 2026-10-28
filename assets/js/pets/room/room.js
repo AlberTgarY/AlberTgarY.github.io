@@ -165,7 +165,7 @@ export function* buildingRoom(stage) {
     floorLights.push(o);
   });
   const drawReflection = makeMirror(house.closet.glass, view, scene);
-  const drawGymMirror = makeMirror(house.basement.gymGlass, view, scene); // (the big mirror down in the gym)
+  const drawGymMirror = makeMirror(house.basement.gymGlass, view, scene, house.basement.still, view.down); // (the big mirror down in the gym)
   // Down in the basement the house over it is cut away (view.js), but the flight of stairs and anyone on it
   // are drawn whole, on the UNCUT layer (the lights shine on that layer too); up in the house, anyone indoors
   // is on it, so as not to be cut off where they show over the back wall's top (view.js INDOORS).

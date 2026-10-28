@@ -3071,6 +3071,7 @@ export function buildBasement(shared) {
 
   // The static parts, one mesh each.
   // (All of it casting the arc lamp's shadows, and the floors and all of it taking them: room.js draws them.)
+  const still = []; // (only what the gym's mirror shows of them drawn in it: mirror.js)
   for (const { n, glow, far, near } of grids.values())
     for (const [p, into] of [
       [far, rest],
@@ -3080,6 +3081,7 @@ export function buildBasement(shared) {
       const m = meshOf(p, n, glow ? glowing : solidMaterial);
       m.castShadow = m.receiveShadow = !glow;
       into.add(m);
+      still.push(m);
     }
   floors.forEach((m) => (m.receiveShadow = true));
 
@@ -3596,6 +3598,7 @@ export function buildBasement(shared) {
       update,
       dress() {}, // (lit the same by day and by night: there are no windows down here)
       gymGlass,
+      still,
       // Seen from the house (true), only what shows down the stairwell; else all of it.
       seenFromAbove: (only) => (rest.visible = !only),
       mosaic,

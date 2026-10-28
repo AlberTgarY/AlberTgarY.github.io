@@ -63,10 +63,15 @@ export function makeView() {
   let goal = 0; // where the turn is going: 0 the house, 1 the front garden
   let floorGoal = 0; // and the floor: 0 the house's, 1 down in the basement
 
+  // Where the camera is, looking at `target` from heading `yaw` (in `at`).
+  const eyeAt = (yaw, target, at = new THREE.Vector3()) =>
+    at
+      .set(Math.sin(yaw) * Math.cos(PITCH), Math.sin(PITCH), Math.cos(yaw) * Math.cos(PITCH))
+      .multiplyScalar(DISTANCE)
+      .add(target);
   // The camera looking at `target` from heading `yaw`.
   function aim(yaw, target) {
-    v.set(Math.sin(yaw) * Math.cos(PITCH), Math.sin(PITCH), Math.cos(yaw) * Math.cos(PITCH));
-    camera.position.copy(target).addScaledVector(v, DISTANCE);
+    eyeAt(yaw, target, camera.position);
     camera.lookAt(target);
     camera.updateMatrixWorld();
   }
@@ -143,6 +148,7 @@ export function makeView() {
   let out = null; // the garden's and the house's, turned
   let basement = null; // the basement's
   const DROP = new THREE.Vector3(0, BASE_Y, 0); // the view's way down a floor
+  view.down = [eyeAt(VIEW_YAW, TARGETS[0]), eyeAt(VIEW_YAW, TARGETS[0].clone().add(DROP))]; // (the camera's way: mirror.js)
   function frame(k, f = view.floor) {
     const e = smoothstep(0, 1, k);
     const d = f * f * f * (f * (6 * f - 15) + 10); // (smoother still: it sinks a long way)

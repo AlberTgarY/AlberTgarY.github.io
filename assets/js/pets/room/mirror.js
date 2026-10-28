@@ -4,17 +4,20 @@
  * the glass, cropped to just the glass, into a small texture (about as many
  * texels as the glass has pixels on screen); the glass shows it a little soft
  * (a small gaussian blur) and silvered, with a faint gleam across it. Whatever
- * is behind the glass is cut away while drawing it.
+ * is behind the glass is cut away while drawing it. Of the floor's big meshes
+ * that never move, only the triangles the glass can show are drawn.
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { UNCUT } from "./view.js";
 
 const MAX_SIZE = 256; // texels across the texture at most
+const BLUR = 1.5 / 8; // how far past its edges the glass shows, of its size: the blur's reach, 1.5 texels, at 8 across (the fewest)
 
-// `glass` is a plane facing out of the mirror (house.js's closet.glass); returns the drawing of the
-// reflection, to run each frame just before the view is drawn.
-export function makeMirror(glass, view, scene) {
+// `glass` is a plane facing out of the mirror (house.js's closet.glass); `still`, meshes that never move
+// (one indexed geometry each), drawn in it cut down to what shows from the camera's way `ends`. Returns the drawing of the reflection, to run each frame just before the view
+// is drawn.
+export function makeMirror(glass, view, scene, still = [], ends = [new THREE.Vector3(), new THREE.Vector3()]) {
   const { renderer, camera } = view;
   const target = new THREE.WebGLRenderTarget(1, 1);
   const mirrored = new THREE.PerspectiveCamera();
@@ -81,6 +84,77 @@ export function makeMirror(glass, view, scene) {
     return [0, 1].map((k) => [Math.min(...ndc.map((p) => p[k])), Math.max(...ndc.map((p) => p[k]))]);
   };
 
+  // Of the meshes that never move (`still`), only the triangles the glass can show from anywhere on the
+  // camera's `way` ([from, to], a straight line: down to the basement and back; the camera moves only as the
+  // view turns or goes up or down a floor, never as it is laid out or zoomed). From one place, those in the
+  // pyramid from its mirror image through the glass (wider all round by the blur's reach, BLUR); from anywhere
+  // on the way, in the wedge round the glass holding the pyramids from both ends (each side, the flatter of
+  // theirs through that edge). Drawn in the mirror by a stand-in each: its own vertices, and the first
+  // `drawRange.count` of its index those triangles. Worked out once.
+  const way = new THREE.Line3(...ends);
+  const nowhere = new THREE.PerspectiveCamera(1, 1, 1, 2);
+  nowhere.position.set(0, 1e7, 0); // (nothing in view)
+  nowhere.updateMatrixWorld();
+  const standIns = still.map((m) => {
+    const g = new THREE.BufferGeometry();
+    for (const [name, a] of Object.entries(m.geometry.attributes)) g.setAttribute(name, a);
+    g.setIndex(new THREE.BufferAttribute(new m.geometry.index.array.constructor(m.geometry.index.count), 1));
+    const s = new THREE.Mesh(g, m.material);
+    s.position.copy(m.position);
+    s.quaternion.copy(m.quaternion);
+    s.scale.copy(m.scale);
+    s.receiveShadow = m.receiveShadow;
+    s.visible = false;
+    m.parent.add(s);
+    return s;
+  });
+  if (still.length) {
+    glass.updateWorldMatrix(true, false);
+    at.setFromMatrixPosition(glass.matrixWorld);
+    normal.set(0, 0, 1).transformDirection(glass.matrixWorld);
+    plane.setFromNormalAndCoplanarPoint(normal, at);
+    const edge = [-1, 1, 1, -1].map((sx, i) =>
+      new THREE.Vector3(sx * width, (i < 2 ? -1 : 1) * height, 0).multiplyScalar(0.5 + BLUR).applyMatrix4(glass.matrixWorld)
+    );
+    const apexes = ends.map((p) => mirror(p.clone()));
+    const beyond = (p, e) => p.clone().multiplyScalar(2).sub(e); // on past p from e, as far again
+    const sides = edge.map((a, i) => {
+      const b = edge[(i + 1) % 4];
+      const middle = a.clone().add(b).multiplyScalar(0.5);
+      const through = apexes.map((e) => {
+        const side = new THREE.Plane().setFromCoplanarPoints(a, b, e);
+        return side.distanceToPoint(beyond(at, e)) < 0 ? side.negate() : side;
+      });
+      return through.find((side) => apexes.every((e) => side.distanceToPoint(beyond(middle, e)) > -1e-3));
+    });
+    const bounds = [plane, ...sides].map((b) => [b.normal.x, b.normal.y, b.normal.z, b.constant]);
+    still.forEach((m, k) => {
+      m.updateWorldMatrix(true, false);
+      const e = m.matrixWorld.elements;
+      const p = m.geometry.attributes.position.array;
+      const outside = new Uint8Array(p.length / 3); // which bounds each vertex is beyond
+      for (let i = 0, j = 0; j < p.length; i++, j += 3) {
+        const [x, y, z] = [p[j], p[j + 1], p[j + 2]];
+        const [wx, wy, wz] = [
+          e[0] * x + e[4] * y + e[8] * z + e[12],
+          e[1] * x + e[5] * y + e[9] * z + e[13],
+          e[2] * x + e[6] * y + e[10] * z + e[14],
+        ];
+        bounds.forEach(([a, b, c, d], n) => a * wx + b * wy + c * wz + d < 0 && (outside[i] |= 1 << n));
+      }
+      const from = m.geometry.index.array;
+      const index = standIns[k].geometry.index.array;
+      let n = 0;
+      for (let t = 0; t < from.length; t += 3)
+        if (!(outside[from[t]] & outside[from[t + 1]] & outside[from[t + 2]])) {
+          index[n++] = from[t];
+          index[n++] = from[t + 1];
+          index[n++] = from[t + 2];
+        }
+      standIns[k].geometry.setDrawRange(0, n);
+    });
+  }
+
   return function drawReflection() {
     glass.updateWorldMatrix(true, false);
     at.setFromMatrixPosition(glass.matrixWorld);
@@ -120,10 +194,21 @@ export function makeMirror(glass, view, scene) {
     c.multiplyScalar(2 / c.dot(q));
     [e[2], e[6], e[10], e[14]] = [c.x, c.y, c.z + 1, c.w];
 
+    // The stand-ins drawn instead while the camera is on its way. Any shadows to be drawn this frame are drawn
+    // first, from the meshes whole (three.js draws them in the first render after they are asked for: here
+    // one that sees nothing, but by the same layers, so with the same things casting them).
+    const standing = still.length && way.closestPointToPoint(camera.position, true, v).distanceTo(camera.position) < 1e-3;
+    const swap = (on) => still.forEach((m, k) => ((m.visible = !on), (standIns[k].visible = on)));
     glass.visible = false;
     renderer.setRenderTarget(target);
+    if (standing && renderer.shadowMap.needsUpdate) {
+      nowhere.layers.mask = mirrored.layers.mask;
+      renderer.render(scene, nowhere);
+    }
+    if (standing) swap(true);
     renderer.render(scene, mirrored);
     renderer.setRenderTarget(null);
     glass.visible = true;
+    if (standing) swap(false);
   };
 }
