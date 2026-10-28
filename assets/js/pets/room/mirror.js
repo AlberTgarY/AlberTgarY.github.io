@@ -92,9 +92,6 @@ export function makeMirror(glass, view, scene, still = [], ends = [new THREE.Vec
   // theirs through that edge). Drawn in the mirror by a stand-in each: its own vertices, and the first
   // `drawRange.count` of its index those triangles. Worked out once.
   const way = new THREE.Line3(...ends);
-  const nowhere = new THREE.PerspectiveCamera(1, 1, 1, 2);
-  nowhere.position.set(0, 1e7, 0); // (nothing in view)
-  nowhere.updateMatrixWorld();
   const standIns = still.map((m) => {
     const g = new THREE.BufferGeometry();
     for (const [name, a] of Object.entries(m.geometry.attributes)) g.setAttribute(name, a);
@@ -194,17 +191,14 @@ export function makeMirror(glass, view, scene, still = [], ends = [new THREE.Vec
     c.multiplyScalar(2 / c.dot(q));
     [e[2], e[6], e[10], e[14]] = [c.x, c.y, c.z + 1, c.w];
 
-    // The stand-ins drawn instead while the camera is on its way. Any shadows to be drawn this frame are drawn
-    // first, from the meshes whole (three.js draws them in the first render after they are asked for: here
-    // one that sees nothing, but by the same layers, so with the same things casting them).
-    const standing = still.length && way.closestPointToPoint(camera.position, true, v).distanceTo(camera.position) < 1e-3;
+    // The stand-ins drawn instead while the camera is on its way, but not while this pass draws the shadows too
+    // (the meshes cast theirs whole): every frame between floors, each lit in turn. (Drawing the shadows first,
+    // in a pass of their own, cost more than the stand-ins saved.)
+    const standing =
+      still.length && !renderer.shadowMap.needsUpdate && way.closestPointToPoint(camera.position, true, v).distanceTo(camera.position) < 1e-3;
     const swap = (on) => still.forEach((m, k) => ((m.visible = !on), (standIns[k].visible = on)));
     glass.visible = false;
     renderer.setRenderTarget(target);
-    if (standing && renderer.shadowMap.needsUpdate) {
-      nowhere.layers.mask = mirrored.layers.mask;
-      renderer.render(scene, nowhere);
-    }
     if (standing) swap(true);
     renderer.render(scene, mirrored);
     renderer.setRenderTarget(null);
