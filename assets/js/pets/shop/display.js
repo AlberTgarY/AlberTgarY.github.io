@@ -10,7 +10,8 @@
  * Drawn cheaply: the buckets of each kind are one instanced mesh, the
  * cellophane one more, the tags one (their words on one canvas), the timber
  * one; each bucketful of blooms is a mesh of its own, so that it can be
- * thinned out as she picks from it (pick()) and sway in the breeze.
+ * thinned out as she picks from it (pick()), sway in the breeze and shake when
+ * clicked (and, while the shop is open, she makes up a bouquet of it).
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -298,7 +299,7 @@ function tagBoard() {
 // Built a bucket at a time (a yield after each: shop.js spreads the work over frames); returns the display.
 export function* buildingDisplay(shared) {
   const group = new THREE.Group();
-  const selling = { on: true }; // (the buckets clicked for a bouquet only while the shop is open)
+  const selling = { on: true }; // (a bucket clicked asks for a bouquet only while the shop is open)
   const forward = new THREE.Vector3(Math.sin(VIEW_YAW), 0, Math.cos(VIEW_YAW)); // towards the viewer
 
   // The timber under it all.
@@ -367,6 +368,7 @@ export function* buildingDisplay(shared) {
   const buckets = [];
   const clickables = [];
   const swaying = [];
+  const shake = new Map(); // blooms -> when they were last clicked (a shake dying away)
   const clickMaterial = new THREE.MeshBasicMaterial({ visible: false }); // (hit by a click, never drawn)
   let tags = 0;
   for (const [i, [kind, x, z, y, flower, colors, text]] of PLAN.entries()) {
@@ -427,7 +429,7 @@ export function* buildingDisplay(shared) {
       },
     };
     buckets.push(bucket);
-    // Clicked anywhere on the bucket or its flowers: she makes up a bouquet of them.
+    // Clicked anywhere on the bucket or its flowers: its flowers shake, and (open) she makes up a bouquet of them.
     const box = new THREE.Mesh(new THREE.BoxGeometry(2 * k.r + 2, rim + H - y, 2 * k.r + 2), clickMaterial);
     box.position.set(x, (y + rim + H) / 2, z);
     group.add(box);
@@ -436,10 +438,11 @@ export function* buildingDisplay(shared) {
     clickables.push({
       key: "bucket",
       bucket,
-      can: () => selling.on && !bucket.away,
+      can: () => !bucket.away,
       parts: [box, blooms],
       toggle(home) {
-        home.life?.want?.({ bouquet: bucket.kind });
+        shake.set(blooms, shared.clock.t);
+        if (selling.on) home.life?.want?.({ bouquet: bucket.kind });
       },
     });
     yield;
@@ -578,12 +581,23 @@ export function* buildingDisplay(shared) {
     },
     dress() {},
     daylight() {},
-    // The breeze: the tall bunches nodding, now and then in a gust.
+    // The breeze: the tall bunches nodding, now and then in a gust; a bucket clicked, its flowers shaken.
     update(t) {
       const gust = 0.55 + 0.45 * Math.sin(t * 0.31) * Math.sin(t * 0.17 + 1);
       for (const { mesh, phase, amp } of swaying) {
         mesh.rotation.x = amp * gust * Math.sin(t * 1.6 + phase);
         mesh.rotation.z = amp * 0.7 * gust * Math.sin(t * 1.2 + phase * 1.7);
+      }
+      for (const [mesh, at] of shake) {
+        const s = t - at;
+        if (!swaying.some((w) => w.mesh === mesh)) mesh.rotation.set(0, 0, 0); // (no breeze in it to add to)
+        if (s > 1.6) {
+          shake.delete(mesh);
+          continue;
+        }
+        const k = 0.14 * Math.exp(-3 * s);
+        mesh.rotation.z += k * Math.sin(s * 19);
+        mesh.rotation.x += 0.6 * k * Math.sin(s * 15 + 1);
       }
     },
   };

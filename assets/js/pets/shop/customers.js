@@ -43,7 +43,7 @@ import { voxels } from "./kit.js";
 import { bouquet } from "./flowers.js";
 import { setFade, comeIn, goOff } from "./fade.js";
 import { box } from "../models/voxels.js";
-import { HOURS, STREET, GROUND, KIOSK, SHUTTER } from "./layout.js";
+import { HOURS, STREET, GROUND, KIOSK, SHUTTER, AWNING } from "./layout.js";
 
 const CROWD = 12; // the people of the town who come by (two of them children; each looks anew at every page)
 const KIDS = 2;
@@ -478,10 +478,10 @@ function makeCustomers(home, people) {
       life.release(a);
     }
     if (kind === "hours") {
-      // Up to the shutter, a look up at the hours over it, a nod, and on.
-      yield* walk(a, [rnd(-75, -45), SHUTTER.z + 18]);
+      // Up to the shutter, a look up at the hours on the awning's fascia over it, a nod, and on.
+      yield* walk(a, [rnd(-50, -30), SHUTTER.z + 26]);
       yield* turn(a, Math.PI);
-      a.look = [a.x, SHUTTER.top + 6, SHUTTER.z];
+      a.look = [a.x, AWNING.y - 2.5, AWNING.z1];
       yield* wait(a, rnd(2, 3));
       a.nod = 0.25;
       yield* wait(a, 0.5);

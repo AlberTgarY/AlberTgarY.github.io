@@ -1,6 +1,6 @@
 /*******************************************************************************
  * Where everything is in the playground's flower shop (shop.js): a market
- * florist's kiosk of dark green steel and glass at the back left, its curved
+ * florist's kiosk of dark green steel and glass at the back left, its flat
  * glass awning out over the pavement, buckets of flowers banked in front of it
  * and along to the right, a plinth of house plants at the back right, a mural
  * of painted flowers behind it all and a plane tree in the corner. In voxels:
@@ -19,10 +19,11 @@ export const FLOOR = 1; // the kiosk's floor, over the pavement
 export const DOOR = { x0: -95, x1: -35 };
 export const POSTS = [-150, -95, -35, 0];
 export const SILL = 26; // the frosted panels below the glass, up to here
-export const LINTEL = 62; // the beam over the doorway (the sign hangs behind it)
+export const LINTEL = 62; // the beam over the doorway
 
-// The awning: glass from the roof's front edge out over the pavement, along the front, its edge curving up.
-export const AWNING = { x0: -150, x1: 60, z0: -30, z1: -4, y0: 71, y1: 77 };
+// The awning: a flat glass canopy from the roof's front edge out over the pavement, along the front, at `y`
+// (its underside), a deep fascia board hanging from its front edge.
+export const AWNING = { x0: -152, x1: 2, z0: -30, z1: -10, y: 72 };
 
 // Inside the kiosk.
 export const BENCH = { x0: -148, x1: -126, z0: -104, z1: -48, h: 24 }; // the wrapping bench along the left wall
@@ -55,7 +56,7 @@ export const BOWL = { x: -26, z: -2 }; // the dog's water bowl, outside by the d
 export const HOURS = { arrive: 10, open: 10, close: 22 };
 // The roller shutter over the whole front: its housing under the awning, its curtain coming down just in
 // front of the posts (behind the step) to the pavement.
-export const SHUTTER = { x0: KIOSK.x0, x1: KIOSK.x1, z: KIOSK.z1 + 1.3, top: 63 };
+export const SHUTTER = { x0: KIOSK.x0, x1: KIOSK.x1, z: KIOSK.z1 + 1.3, top: 66 };
 // The lock-up cool room against the kiosk's right wall, outside: where the flowers out along to the right go
 // for the night; its sliding door on the front, to the right.
 export const LOCKUP = { x0: 2, x1: 28, z0: -108, z1: -64, h: 46, door: [13, 27] };

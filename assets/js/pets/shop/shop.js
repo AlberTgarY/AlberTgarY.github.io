@@ -1,6 +1,6 @@
 /*******************************************************************************
  * The playground's flower shop, put together: a market florist's kiosk of
- * dark green steel and glass under a curved glass awning, buckets of flowers
+ * dark green steel and glass under a flat glass awning, buckets of flowers
  * banked out over the pavement, house plants on a concrete plinth, a mural of
  * painted flowers behind (layout.js; built by kiosk.js, display.js and
  * grounds.js), and the girl who keeps it, the boy who helps her and her collie
@@ -219,7 +219,8 @@ export function* buildingShop(stage) {
 
   // Out of each other's way: people (the two of them, customers) walking close by someone step aside, a
   // little a frame and onto free ground only, and walk on round them (each step of a walk heads for where it
-  // is going from wherever they are); someone standing at something is left be.
+  // is going from wherever they are); someone standing at something is left be (and anyone walking up to
+  // them steps round them).
   const SPACE = 9; // between two people, at the closest
   function giveWay(dt) {
     const all = home.actors;
@@ -237,8 +238,19 @@ export function* buildingShop(stage) {
         aside(b, -dx * push, -dz * push);
       }
   }
+  // (Never back the way they are going: that only holds two coming face to face where they are, each walking
+  // into the push. That part of it turns into a step to the side, to their right, or else their left: two
+  // face to face so slip past each other.)
   function aside(a, dx, dz) {
-    if (a.walking && home.nav.free(a.x + dx, a.z + dz)) {
+    if (!a.walking) return;
+    const [hx, hz] = a.heading ?? [0, 0];
+    const back = dx * hx + dz * hz;
+    if (back < 0) {
+      [dx, dz] = [dx - back * hx, dz - back * hz];
+      const right = [dx + back * hz, dz - back * hx];
+      [dx, dz] = home.nav.free(a.x + right[0], a.z + right[1]) ? right : [dx - back * hz, dz + back * hx];
+    }
+    if (home.nav.free(a.x + dx, a.z + dz)) {
       a.x += dx;
       a.z += dz;
     }

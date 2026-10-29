@@ -8,6 +8,9 @@
  * wall with the watering can by it, the dog's water bowl, petals and leaves
  * on the ground (petals), and the pigeons and the sparrow pecking about out
  * front (birds).
+ *
+ * Things to click: the tap (it runs), the tree (shaken), the birds (off they
+ * go) and the A-frame (turned round, its other board to the street).
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -834,6 +837,7 @@ export function* buildingGrounds(shared) {
     },
   };
   let shook = -Infinity; // when the tree was last shaken
+  const turned = { round: false, k: 0 }; // the A-frame turned round (its other board to the street), how far
   let shaking = false;
 
   const clickables = [
@@ -854,6 +858,7 @@ export function* buildingGrounds(shared) {
       },
     },
     { key: "birds", parts: birds.meshes, toggle: () => birds.scare(shared.clock.t) },
+    { key: "sign", parts: [signGroup], can: () => !things.sign.away, toggle: () => (turned.round = !turned.round) },
   ];
 
   // Where she (and the dog) stand to do things here.
@@ -928,6 +933,11 @@ export function* buildingGrounds(shared) {
       // The bowl's water down as it is drunk.
       water.position.y = 0.3 + bowl.level * 0.95;
       water.visible = bowl.level > 0.02 && bowlMesh.visible;
+      // The A-frame turning round, rocking on its feet as it goes.
+      turned.k += Math.sign(+turned.round - turned.k) * Math.min(Math.abs(+turned.round - turned.k), dt / 0.8);
+      const k = turned.k * turned.k * (3 - 2 * turned.k);
+      signGroup.rotation.y = VIEW_YAW + Math.PI * k;
+      signGroup.rotation.z = 0.05 * Math.sin(Math.PI * k) * Math.sin(t * 14);
       // The crown shaken: a sway dying away.
       const s = t - shook;
       crownGroup.rotation.z = s < 2.5 ? 0.025 * Math.exp(-2 * s) * Math.sin(16 * s) : 0;

@@ -78,11 +78,24 @@ export function part() {
       const c = new THREE.Color();
       for (const [x, y, z, name] of voxels.values()) {
         c.set(palette[name]);
+        // Painted on (a voxel a fraction proud of a whole one, surfaceOf(); a lid on an eye a fraction more):
+        // its open sides drawn in a hair, the less the further out it is. Round the curve of a face they would
+        // lie in one plane with the sides of the head's voxels (a lid's with its eye's), and which of them
+        // showed would change from frame to frame.
+        const inset = 0.06 * (1 - (z - Math.floor(z)));
+        const [px, nx, py, ny] = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ].map(([dx, dy]) => (z % 1 && !voxels.has(key(x + dx, y + dy, z)) ? 0.5 - inset : 0.5));
+        const side = (d, plus, minus) => (d > 0 ? plus : d < 0 ? -minus : 0);
         for (const [n, u, v] of FACES) {
           if (voxels.has(key(x + n[0], y + n[1], z + n[2]))) continue;
           const base = position.length / 3;
           for (const [su, sv] of CORNERS) {
-            position.push(x + n[0] / 2 + su * u[0] + sv * v[0], y + n[1] / 2 + su * u[1] + sv * v[1], z + n[2] / 2 + su * u[2] + sv * v[2]);
+            const [dx, dy] = [n[0] / 2 + su * u[0] + sv * v[0], n[1] / 2 + su * u[1] + sv * v[1]];
+            position.push(x + side(dx, px, nx), y + side(dy, py, ny), z + n[2] / 2 + su * u[2] + sv * v[2]);
             normal.push(...n);
             color.push(c.r, c.g, c.b);
             names?.push(name);

@@ -3,22 +3,28 @@
  * green steel and glass, as in the photos. Steel-framed glass in a grid of
  * slim bars, frosted panels below the sill, painted sunflowers, daisies and
  * gerberas on some of the panes; a wide doorway, its folding glass doors
- * folded back inside against the windows either side; "flowers for every
- * moment" in white neon script hanging behind the beam over it, the number 90
- * on the post; a flat roof, seen cut open like a dolls' house, and the curved
- * glass awning out over the pavement on slim steel ribs, two tube lights
- * under it.
+ * folded back inside against the windows either side; the number 90 on the
+ * post; a flat roof and the right wall (the sides seen) cut open like a
+ * dolls' house's; a flat glass awning out over the pavement on four ribs over
+ * the posts, the shop's name and hours on its fascia, downlights under it.
  *
- * Inside, seen through the doorway and the glass: grey damask wallpaper, the
- * wire shelving of vases, pots and boxed roses, the cool room's door (it
- * swings open on a cold blue room of buckets), the air conditioner, the notice
- * board, the wrapping bench along the left wall (the till at its front end,
- * the kraft paper roll, ribbons on a rod, scissors, the radio), a tall stool,
- * the dog's bed, a few buckets of stock waiting by the back wall.
+ * Inside, seen through the doorway and the glass: grey damask wallpaper,
+ * "flowers for every moment" in pink neon script on the left wall over the
+ * wrapping bench, the wire shelving of vases, pots, succulents and boxed
+ * roses, dried flowers hung from a branch and a bucket of pampas grass in the
+ * corner, the cool room's door (it swings open on a cold blue room of
+ * buckets) with the clock over it and its thermometer by it, the air
+ * conditioner, the notice board, the bench along the left wall (the till at
+ * its front end, the kraft paper roll, ribbons on a rod, scissors, the
+ * radio), a tall stool, the dog's bed, a few buckets of stock waiting by the
+ * back wall.
  *
- * Things to click: the radio (music), the till (it rings), the neon sign (the
- * lights), the OPEN / CLOSED sign, the wind chime in the doorway (it chimes as
- * anyone passes under it too) and the cool room's door.
+ * Things to click: the radio (music), the till (it rings), the neon sign or
+ * the downlights (the lights), the OPEN / CLOSED sign, the wind chime in the
+ * doorway (it chimes as anyone passes under it too), the cool room's door,
+ * the air conditioner (it blows: a note on the board lifts in the draught),
+ * the clock (wound round, it chimes), the dried flowers (they swing, bits
+ * falling off) and the stool (it spins).
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -49,7 +55,23 @@ const PALETTE = paletteOf({
   acLed: "#5bd17a",
   potPinkRib: "#e0aca8",
   potCreamRib: "#ddd2bf",
-  potSageRib: "#a5b794",
+  terracotta: "#c8734f",
+  terracottaDark: "#a95a3b",
+  terracottaLight: "#d98d68",
+  charcoal: "#3a3b3d",
+  charcoalLight: "#55585c",
+  glazeBlue: "#3f6fa3",
+  glazeWhite: "#f3f0e8",
+  sageGlaze: "#a9bf9c",
+  sageGlazeDark: "#8ea883",
+  ochre: "#d5a24a",
+  ochreDark: "#b5832f",
+  stoneware: "#e8e1d3",
+  speck: "#8d8478",
+  basket: "#c49a5c",
+  basketDark: "#a37a42",
+  eucalyptus: "#9db5a6",
+  eucalyptusDark: "#7d9888",
   roseRed: "#c8283c",
   roseRedDark: "#9e1a2c",
   rosePink: "#f08fae",
@@ -89,6 +111,30 @@ const PALETTE = paletteOf({
   plate: "#f4f2ec",
   digit: "#22392f",
   doorWindow: "#c3d6dc",
+  clockFace: "#f6f1e4",
+  clockHand: "#262d2a",
+  lavender: "#9a86c0",
+  lavenderDark: "#76639f",
+  driedRose: "#c98c8f",
+  driedRoseDark: "#a96f74",
+  yarrow: "#dcb44e",
+  yarrowDark: "#b9902f",
+  gyp: "#f1ece0",
+  gypDark: "#d9d1bf",
+  driedStem: "#8c7a52",
+  twine: "#bf9f6c",
+  pampas: "#eadcc0",
+  pampasDark: "#d2bf9b",
+  zinc: "#aab3b7",
+  zincDark: "#8b9599",
+  succulent: "#86ad91",
+  succulentLight: "#b0cdb2",
+  succulentTip: "#d4919a",
+  tag: "#fbfaf5",
+  photoSky: "#bcd6e8",
+  photoGrass: "#7fae6b",
+  dogCream: "#f0e2c4",
+  dogBrown: "#9a6a3e",
 });
 
 // Where things stand inside (the bench's top, the stool's seat), in voxels.
@@ -98,6 +144,7 @@ const ROOF_Y = KIOSK.h; // the roof's underside (its rim, cut open)
 const MULLIONS_Z = [-97, -84, -71, -57, -44]; // the bars between the panes of the side walls
 const RAILS = [SILL, 44, LINTEL]; // and across them, as on the front
 const WALL = 2; // how thick the back and side walls are
+const OFF = { sign: 0xeab8c6, lights: 0x9fa9a6 }; // the neon's tubes and the downlights, switched off
 
 // Voxels at `s` voxels a voxel (1, 0.5 or 0.25), each filling [i s, (i + 1) s) along each axis, put in by the
 // world ranges they fill (half open: [x0, x1) and so on).
@@ -349,8 +396,8 @@ function slatTexture() {
   return tex;
 }
 
-// The shutter's housing, painted the kiosk's green, the shop's name and hours on it in cream.
-function housingTexture(w, h) {
+// The awning's fascia board, painted the kiosk's green, the shop's name and hours on it in cream.
+function fasciaTexture(w, h) {
   const S = 8; // texels a voxel
   const canvas = document.createElement("canvas");
   canvas.width = w * S;
@@ -374,12 +421,6 @@ function housingTexture(w, h) {
   tex.anisotropy = 4;
   return tex;
 }
-
-// How high the awning's glass is over z: level off the roof's front edge, curving up to its front edge.
-export const awningY = (z) => {
-  const u = Math.min(1, Math.max(0, (z - AWNING.z0) / (AWNING.z1 - AWNING.z0)));
-  return AWNING.y0 - (AWNING.y0 - AWNING.y1) * (1 - Math.cos((u * Math.PI) / 2));
-};
 
 // Built a part at a time (a yield after each: shop.js spreads the work over frames); returns the kiosk.
 export function* buildingKiosk(shared) {
@@ -424,19 +465,20 @@ export function* buildingKiosk(shared) {
   // `t` its thickness at `at`), or the front: bars `bars` between the panes up to the roof, rails across them
   // (as in the photos, no deep band at the top: it would hide the bench behind the front); below the sill
   // frosted panels; above it frosted glass (`frosted`: the left wall, seen from inside, all milky) or nothing
-  // (the clear glass is a sheet of its own).
-  function glazed(alongZ, at, t, [a0, a1], bars, frosted) {
+  // (the clear glass is a sheet of its own). `low`: cut off at the sill, as a dolls' house's near wall is.
+  function glazed(alongZ, at, t, [a0, a1], bars, frosted, low = false) {
     const put = (a, b, [y0, y1], color) =>
       alongZ ? shell.box([at, at + t], [y0, y1], [a, b], color) : shell.box([a, b], [y0, y1], [at, at + t], color);
     put(a0, a1, [0, 2], "steel"); // the base rail
     put(a0, a1, [2, SILL], (x, y) => (y === 2 ? "frostedShade" : "frosted"));
+    if (low) return put(a0, a1, [SILL, SILL + 1], "steel");
     RAILS.forEach((y) => put(a0, a1, [y, y + 1], "steel"));
     put(a0, a1, [ROOF_Y - 1, ROOF_Y], "steel"); // the rail along the top
     for (const b of bars) put(b, b + 1, [SILL, ROOF_Y], "steel");
     if (frosted) put(a0, a1, [SILL + 1, ROOF_Y - 1], (x, y, z) => ((alongZ ? z : x) === a0 ? "steel" : y % 9 === 0 ? "frostedShade" : "frostGlass"));
   }
   glazed(true, X0, WALL, [Z0, Z1], MULLIONS_Z, true); // the left wall
-  glazed(true, X1 - WALL, WALL, [Z0, Z1], MULLIONS_Z, false); // the right wall
+  glazed(true, X1 - WALL, WALL, [Z0, Z1], MULLIONS_Z, false, true); // the right wall, cut down to see in
   const sidesMesh = add(shell.mesh());
   yield;
   shell = grid(1);
@@ -450,12 +492,11 @@ export function* buildingKiosk(shared) {
   for (const x of [X0, DOOR.x0 - 2, DOOR.x1, X1 - 2]) shell.box([x, x + 2], [0, ROOF_Y], [Z1 - 1, Z1 + 1], "steelDark");
   for (const z of [Z0, Z1 - 2]) shell.box([X1 - 2, X1], [0, ROOF_Y], [z, z + 2], "steelDark");
   // The flat roof, cut open over the shop: its rim along the back and the left, dark on top; along the front
-  // and the right (the sides seen) only a thin steel edge, to see in over it.
+  // only a thin steel edge, to see in over it (and none along the right, cut down).
   const rim = (xs, zs) => shell.box(xs, [ROOF_Y, ROOF_Y + KIOSK.roof - 1], zs, (x, y) => (y === ROOF_Y + KIOSK.roof - 2 ? "roof" : "steel"));
   rim([X0, X1], [Z0, Z0 + 4]);
   rim([X0, X0 + 4], [Z0, Z1]);
   shell.box([X0, X1], [ROOF_Y, ROOF_Y + 1], [Z1 - 2, Z1], "steel");
-  shell.box([X1 - 2, X1], [ROOF_Y, ROOF_Y + 1], [Z0, Z1], "steel");
   const shellMesh = add(shell.mesh());
 
   // The wallpaper on the back wall (round the cool room's door) and the floor's terrazzo, as textures.
@@ -496,24 +537,22 @@ export function* buildingKiosk(shared) {
     sheet([X0 + 2, DOOR.x0 - 2], [SILL + 1, ROOF_Y - 1], Z1 - 0.5, glass),
     sheet([DOOR.x1 + 2, X1 - 2], [SILL + 1, ROOF_Y - 1], Z1 - 0.5, glass),
     sheet([DOOR.x0, DOOR.x1], [LINTEL + 1, ROOF_Y - 1], Z1 - 0.5, glass), // (the transom)
-    sheet([Z0 + 2, Z1 - 2], [SILL + 1, ROOF_Y - 1], X1 - 1, glass, true),
   ];
   panes.forEach((m) => add(m, false, false));
 
-  // The flowers painted on the glass: on the side windows outside (seen from the pavement; the back of the
-  // right wall is behind the lock-up), and on the left wall's frosted panes inside.
+  // The flowers painted on the glass: on the front windows outside (seen from the pavement), and on the left
+  // wall's frosted panes inside, clear of the neon.
   const decals = { sunflower: flowerDecal("sunflower"), daisy: flowerDecal("daisy"), gerbera: flowerDecal("gerbera") };
   const decalMat = Object.fromEntries(
     Object.entries(decals).map(([k, tex]) => [k, new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide })])
   );
   const decal = (kind, [a, y], size, at, alongZ) =>
     add(sheet([a - size / 2, a + size / 2], [y - size / 2, y + size / 2], at, decalMat[kind], alongZ), false, false);
-  decal("sunflower", [-50.5, 36], 14, X1 + 0.05, true);
+  decal("sunflower", [-141.5, 53], 14, Z1 + 0.05, false);
   decal("gerbera", [-25.5, 53], 13, Z1 + 0.05, false);
   decal("daisy", [-9.5, 36], 12, Z1 + 0.05, false);
-  decal("sunflower", [-102.5, 53], 16, X0 + WALL + 0.05, true);
-  decal("gerbera", [-77.5, 53], 14, X0 + WALL + 0.05, true);
   decal("daisy", [-63.5, 36], 12, X0 + WALL + 0.05, true);
+  decal("gerbera", [-49, 35], 13, X0 + WALL + 0.05, true);
   decal("sunflower", [-37.5, 52], 15, X0 + WALL + 0.05, true);
 
   yield;
@@ -553,13 +592,15 @@ export function* buildingKiosk(shared) {
   add(plate.mesh(), false);
 
   yield;
-  /* ----- the neon sign behind the beam, hung on two wires ----- */
+  yield;
+  /* ----- the neon sign on the left wall over the bench, hung a little off it on two wires ----- */
+  // (Pink: white on the milky glass would hardly show by day.)
 
   const signTex = neonTexture();
-  const SIGN_W = 56;
-  const SIGN_C = [(DOOR.x0 + DOOR.x1) / 2, 54.5, Z1 - 4];
-  const signMat = new THREE.MeshBasicMaterial({ map: signTex, transparent: true, depthWrite: false, color: 0xd8d8d4 });
-  const sign = sheet([SIGN_C[0] - SIGN_W / 2, SIGN_C[0] + SIGN_W / 2], [SIGN_C[1] - 6, SIGN_C[1] + 6], SIGN_C[2], signMat);
+  const SIGN_W = 54;
+  const SIGN_C = [X0 + WALL + 1.5, 53, -73]; // (off the wall, its middle's height, its middle along the wall)
+  const signMat = new THREE.MeshBasicMaterial({ map: signTex, transparent: true, depthWrite: false, color: OFF.sign });
+  const sign = sheet([SIGN_C[2] - SIGN_W / 2, SIGN_C[2] + SIGN_W / 2], [SIGN_C[1] - 6, SIGN_C[1] + 6], SIGN_C[0], signMat, true);
   group.add(sign);
   const haloMat = new THREE.MeshBasicMaterial({
     map: signTex,
@@ -567,67 +608,55 @@ export function* buildingKiosk(shared) {
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     opacity: 0,
-    color: 0xfff4e6,
+    color: 0xff9cc2,
   });
-  const halo = sheet([SIGN_C[0] - SIGN_W / 2 - 3, SIGN_C[0] + SIGN_W / 2 + 3], [SIGN_C[1] - 8, SIGN_C[1] + 8], SIGN_C[2] - 0.1, haloMat);
+  const halo = sheet([SIGN_C[2] - SIGN_W / 2 - 3, SIGN_C[2] + SIGN_W / 2 + 3], [SIGN_C[1] - 8, SIGN_C[1] + 8], SIGN_C[0] - 0.1, haloMat, true);
   group.add(halo);
-  for (const x of [SIGN_C[0] - 20, SIGN_C[0] + 20]) fine.box([x, x + 0.5], [SIGN_C[1] + 3.5, LINTEL], [SIGN_C[2], SIGN_C[2] + 0.5], "chromeDark");
+  for (const z of [SIGN_C[2] - 20, SIGN_C[2] + 20]) fine.box([SIGN_C[0], SIGN_C[0] + 0.5], [SIGN_C[1] + 3.5, ROOF_Y - 1], [z, z + 0.5], "chromeDark");
 
   yield;
-  /* ----- the awning: curved tinted glass on steel ribs, a post at its far end, two tube lights under it ----- */
+  /* ----- the awning: flat tinted glass on four steel ribs over the posts, a fascia board along its front
+     edge (the shop's name and hours on it), downlights let into its underside ----- */
+  // (Flat and only as wide as the kiosk, its ribs over the posts and no lamps hung below it: from above it
+  // lies over the front's own bars, not across them.)
 
+  const steelSide = new THREE.MeshLambertMaterial({ color: PALETTE.steel });
   const frame = grid(0.5);
   const AW = AWNING;
-  for (let x = AW.x0; x <= AW.x1; x += 30) {
-    const rx = Math.min(x, AW.x1 - 1);
-    for (let z = AW.z0; z < AW.z1 + 0.5; z += 0.5) frame.box([rx, rx + 1], [awningY(z) - 1, awningY(z) + 0.5], [z, z + 0.5], "steel");
-  }
-  frame.box([AW.x0, AW.x1], [AW.y1 - 0.5, AW.y1 + 0.5], [AW.z1 - 0.5, AW.z1 + 0.5], "steel"); // its front edge
-  frame.box([X1, AW.x1], [AW.y0 - 1, AW.y0 + 0.5], [AW.z0, AW.z0 + 1], "steel"); // the beam along its back, past the kiosk
-  frame.box([AW.x1 - 1, AW.x1], [0, AW.y0], [AW.z0 - 0.5, AW.z0 + 0.5], "steelDark"); // and the post holding it up
-  // The tube lights, hung under the ribs on two short rods each.
-  const TUBES = [
-    [-128, -100, -17],
-    [-14, 18, -17],
-  ];
-  const tubeMat = new THREE.MeshBasicMaterial({ color: 0xd9dfde });
-  const tubes = TUBES.map(([x0, x1, z]) => {
-    const y = awningY(z) - 4;
-    frame.box([x0 - 1, x1 + 1], [y + 0.5, y + 1.5], [z - 1, z + 1], "steelDark");
-    for (const x of [x0 + 4, x1 - 4]) frame.box([x, x + 0.5], [y + 1.5, awningY(z) - 1], [z, z + 0.5], "chromeDark");
-    const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 1, 1), tubeMat);
-    m.position.set((x0 + x1) / 2, y, z);
-    group.add(m);
-    return m;
-  });
+  const FASCIA = [AW.y - 5.5, AW.y + 0.5]; // the fascia board's bottom and top
+  for (const x of [X0, DOOR.x0 - 2, DOOR.x1, X1 - 2]) frame.box([x, x + 2], [AW.y - 1.5, AW.y], [Z1 + 1, AW.z1 - 1], "steelDark");
+  frame.box([AW.x0, AW.x1], [AW.y - 1, AW.y], [Z1 + 1, Z1 + 2], "steelDark"); // the beam along its back, on the posts
   const frameMesh = add(frame.mesh(), true, false);
-  // The glass itself: one curved sheet over the whole width.
-  const ROWS = 24;
-  const pos = [];
-  const index = [];
-  for (let r = 0; r <= ROWS; r++) {
-    const z = AW.z0 + ((AW.z1 - AW.z0) * r) / ROWS;
-    pos.push(AW.x0, awningY(z) + 0.6, z, AW.x1, awningY(z) + 0.6, z);
-    if (r) index.push(2 * r - 2, 2 * r - 1, 2 * r, 2 * r - 1, 2 * r + 1, 2 * r);
-  }
-  const awningGeo = new THREE.BufferGeometry();
-  awningGeo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  awningGeo.setIndex(index);
-  add(
-    new THREE.Mesh(
-      awningGeo,
-      new THREE.MeshBasicMaterial({
-        color: 0x7fae9b,
-        transparent: true,
-        opacity: 0.14,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        forceSinglePass: true,
-      })
-    ),
-    false,
-    false
+  const fascia = new THREE.Mesh(new THREE.BoxGeometry(AW.x1 - AW.x0, FASCIA[1] - FASCIA[0], 1), [
+    ...Array(4).fill(steelSide),
+    new THREE.MeshLambertMaterial({ map: fasciaTexture(AW.x1 - AW.x0, FASCIA[1] - FASCIA[0]) }),
+    steelSide,
+  ]);
+  fascia.position.set((AW.x0 + AW.x1) / 2, (FASCIA[0] + FASCIA[1]) / 2, AW.z1 - 0.5);
+  add(fascia, true, false);
+  // The downlights, a row of them along the middle of its underside.
+  const tubeMat = new THREE.MeshBasicMaterial({ color: OFF.lights });
+  const dots = grid(0.5);
+  for (let x = AW.x0 + 10; x < AW.x1 - 4; x += 16)
+    dots.box([x - 0.75, x + 0.75], [AW.y - 0.5, AW.y], [(Z1 + AW.z1) / 2 - 0.75, (Z1 + AW.z1) / 2 + 0.75], "chrome");
+  const downlights = dots.mesh(false);
+  downlights.material = tubeMat;
+  group.add(downlights);
+  // The glass itself: one flat sheet over the ribs.
+  const awningGlass = new THREE.Mesh(
+    new THREE.PlaneGeometry(AW.x1 - AW.x0, AW.z1 - 1 - AW.z0),
+    new THREE.MeshBasicMaterial({
+      color: 0x9cc4b4,
+      transparent: true,
+      opacity: 0.2,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      forceSinglePass: true,
+    })
   );
+  awningGlass.rotation.x = -Math.PI / 2;
+  awningGlass.position.set((AW.x0 + AW.x1) / 2, AW.y + 0.2, (AW.z0 + AW.z1 - 1) / 2);
+  add(awningGlass, false, false);
 
   yield;
   /* ----- inside: the shelving, the board, the air conditioner, the bench and what is on it ----- */
@@ -640,26 +669,108 @@ export function* buildingKiosk(shared) {
     fine.box([SX0, SX1], [y - 0.5, y], [SZ0, SZ1], (x, yy, z) => ((x * 2) % 3 === 0 ? "chrome" : "chromeDark"));
     fine.box([SX0, SX1], [y, y + 0.5], [SZ1 - 0.5, SZ1], "chrome"); // the deck's front lip
   }
-  const ribbed = (cx, cz, r, y, h, color, rib) =>
-    fine.cyl(cx, cz, r, [y, y + h], (x, yy, z) => (Math.round(Math.atan2(z - cz, x - cx) * 3) % 2 ? rib : color));
   const SZ = (SZ0 + SZ1) / 2;
-  // Bottom deck: black nursery pots stacked, a cream pot.
-  for (const [x, n] of [
-    [SX0 + 4, 3],
-    [SX0 + 11, 2],
+  // A vessel turned round (cx, SZ) in grid `g`, from y up `h`: its radius `r(u)` from the foot (u = 0) to the
+  // lip (u = 1), hollow from the top `open` down; `color(x, y, z, u)`.
+  function turned(g, cx, y, h, r, color, open = 1.5) {
+    for (let k = 0; k < h / g.s; k++) {
+      const [y0, u] = [y + k * g.s, ((k + 0.5) * g.s) / h];
+      const R = r(u);
+      g.cyl(cx, SZ, R, [y0, y0 + g.s], (x, yy, z) => color(x, y0, z, u), y0 >= y + h - open ? R - 0.7 : -1);
+    }
+  }
+  // Their shapes, a radius at u: a big-bellied urn with a flared lip, a round bubble, a bottle with a long neck,
+  // a column, a trumpet, a low bowl, a flowerpot with its rim.
+  const SHAPES = {
+    urn: (u) => (u < 0.72 ? 1.5 + 2 * Math.sin(Math.PI * (0.12 + (0.88 * u) / 0.72)) ** 0.8 : u < 0.9 ? 1.3 : 1.3 + (u - 0.9) * 9),
+    bubble: (u) => (u < 0.8 ? 0.9 + 2.3 * Math.sin(Math.PI * (0.1 + (0.9 * u) / 0.8)) ** 0.6 : 1.1),
+    bottle: (u) => (u < 0.5 ? 1 + 1.4 * Math.sin(Math.PI * (0.15 + (0.85 * u) / 0.5)) ** 0.5 : u < 0.92 ? 0.7 : 1),
+    column: (u) => 1.5 + 0.3 * u,
+    trumpet: (u) => 0.9 + 2.3 * u * u,
+    bowl: (u) => 1.6 + 2 * Math.sqrt(u),
+    pot: (u) => (u > 0.8 ? 2.5 : 1.9 + 0.5 * u),
+  };
+  // And their finishes: a glaze with its lip a shade darker, speckled stoneware, bands, flutes.
+  const glaze = (c, lip) => (x, y, z, u) => (u > 0.88 ? lip : c);
+  const speckled = (c) => (x, y, z) =>
+    (Math.imul(Math.round(x * 2) * 73 + Math.round(y * 2) * 151 + Math.round(z * 2) * 37, 2654435761) >>> 0) % 9 ? c : "speck";
+  const banded = (a, b, n) => (x, y, z, u) => (Math.floor(u * n) % 2 ? a : b);
+  const fluted = (cx, a, b) => (x, y, z) => (Math.round(Math.atan2(z + 0.25 - SZ, x + 0.25 - cx) * 4) % 2 ? a : b);
+  // Stems in them: eucalyptus (round leaves in pairs up thin stems), bunny tails, a single flower.
+  function eucalyptus(x, y, h, n = 3) {
+    for (let k = 0; k < n; k++) {
+      const lean = (k - (n - 1) / 2) * 0.3;
+      for (let j = 0; j < (h - (k % 2)) * 2; j++) {
+        const [xx, yy] = [x + lean * j * 0.5, y + j * 0.5];
+        fine.box([xx, xx + 0.5], [yy, yy + 0.5], [SZ, SZ + 0.5], "stemGreen");
+        if (j % 3 === 2) {
+          fine.box([xx - 1, xx], [yy, yy + 0.5], [SZ - 0.25, SZ + 0.75], "eucalyptus");
+          fine.box([xx + 0.5, xx + 1.5], [yy + 0.5, yy + 1], [SZ - 0.25, SZ + 0.75], "eucalyptusDark");
+        }
+      }
+    }
+  }
+  function tails(x, y, h, n = 4) {
+    for (let k = 0; k < n; k++) {
+      const [dx, top] = [(k - (n - 1) / 2) * 0.9, y + h - (k % 2) * 1.5];
+      fine.box([x + dx, x + dx + 0.5], [y, top], [SZ, SZ + 0.5], "driedStem");
+      fine.ball([x + dx + 0.25, top + 0.6, SZ + 0.25], [0.6, 1, 0.6], "gyp");
+    }
+  }
+  function bloom(x, y, h, c, d) {
+    fine.box([x, x + 0.5], [y, y + h], [SZ, SZ + 0.5], "stemGreen");
+    fine.box([x + 0.5, x + 1.5], [y + h * 0.5, y + h * 0.5 + 0.5], [SZ, SZ + 0.5], "stemGreen"); // a leaf
+    fine.ball([x + 0.25, y + h + 0.8, SZ + 0.25], [1.5, 1.2, 1.5], (xx, yy) => (yy > y + h + 1 ? c : d));
+  }
+  const D = DECKS;
+  // Bottom deck: a woven basket of kraft paper sheets, a stack of terracotta pots, a big charcoal urn.
+  const BK = SX0 + 5;
+  turned(
+    fine,
+    BK,
+    D[0],
+    6,
+    () => 3.6,
+    (x, y, z) => ((Math.round(y * 2) + Math.round(Math.atan2(z - SZ, x - BK) * 5)) % 2 ? "basket" : "basketDark"),
+    5
+  );
+  fine.box([BK - 2, BK + 1.5], [D[0] + 1, D[0] + 9], [SZ - 0.5, SZ], "kraft");
+  fine.box([BK - 1, BK + 2.5], [D[0] + 1, D[0] + 8], [SZ + 0.5, SZ + 1], "kraftDark");
+  for (let k = 0; k < 3; k++) turned(fine, SX0 + 13.5, D[0] + k * 1.5, 4, SHAPES.pot, glaze("terracotta", "terracottaDark"), k === 2 ? 1.5 : 0);
+  turned(fine, SX0 + 23.5, D[0], 11.5, SHAPES.urn, glaze("charcoal", "charcoalLight"));
+  // Second: a blue and white striped bottle with a protea, a cream fluted column of eucalyptus, a terracotta
+  // urn, a sage bubble of bunny tails.
+  turned(fine, SX0 + 4, D[1], 8, SHAPES.bottle, banded("glazeBlue", "glazeWhite", 6));
+  bloom(SX0 + 3.75, D[1] + 7, 2.5, "rosePink", "rosePinkDark");
+  turned(fine, SX0 + 10.5, D[1], 6, SHAPES.column, fluted(SX0 + 10.5, "potCream", "potCreamRib"));
+  eucalyptus(SX0 + 10.25, D[1] + 5, 6);
+  turned(fine, SX0 + 17.5, D[1], 9.5, SHAPES.urn, glaze("terracottaLight", "terracotta"));
+  turned(fine, SX0 + 25, D[1], 6.5, SHAPES.bubble, glaze("sageGlaze", "sageGlazeDark"));
+  tails(SX0 + 24.75, D[1] + 6, 4.5);
+  // Third: succulents (a rosette of fat leaves, pink at the tips) in a speckled bowl, an ochre pot, a little
+  // charcoal column, a fluted blush pot.
+  const succulent = (x, y) =>
+    fine.ball([x, y + 0.5, SZ], [2, 1.2, 2], (xx, yy, z) =>
+      Math.hypot(xx + 0.25 - x, z + 0.25 - SZ) > 1.6 ? "succulentTip" : (xx + z) % 1 ? "succulent" : "succulentLight"
+    );
+  turned(fine, SX0 + 5, D[2], 3.5, SHAPES.bowl, speckled("stoneware"), 3);
+  succulent(SX0 + 3.5, D[2] + 3);
+  succulent(SX0 + 6.5, D[2] + 3.2);
+  turned(fine, SX0 + 13, D[2], 5, SHAPES.pot, glaze("ochre", "ochreDark"));
+  succulent(SX0 + 13, D[2] + 5);
+  turned(fine, SX0 + 19, D[2], 4, SHAPES.column, glaze("charcoalLight", "charcoal"));
+  succulent(SX0 + 19, D[2] + 4);
+  turned(fine, SX0 + 25, D[2], 4.5, (u) => 1.8 + 0.6 * u, fluted(SX0 + 25, "potPink", "potPinkRib"));
+  succulent(SX0 + 25, D[2] + 4.5);
+  // Price tags on the decks' lips, under what is for sale.
+  for (const [x, d] of [
+    [SX0 + 3, 1],
+    [SX0 + 17, 1],
+    [SX0 + 12, 2],
+    [SX0 + 24, 2],
+    [SX0 + 15, 3],
   ])
-    for (let k = 0; k < n; k++) fine.cyl(x, SZ, 3 - k * 0.2, [DECKS[0] + k * 2, DECKS[0] + k * 2 + 2.5], k % 2 ? "potBlack" : "bucketBlackRim");
-  ribbed(SX1 - 7, SZ, 3.5, DECKS[0], 7, "potCream", "potCreamRib");
-  // Second: tall ribbed pink pots and a sage one.
-  [SX0 + 4, SX0 + 11, SX0 + 18].forEach((x) => ribbed(x, SZ, 2.8, DECKS[1], 9, "potPink", "potPinkRib"));
-  ribbed(SX1 - 5, SZ, 3, DECKS[1], 7, "potSage", "potSageRib");
-  // Third: small pots, cream and sage and pink.
-  [
-    [SX0 + 4, "potCream", "potCreamRib"],
-    [SX0 + 10, "potSage", "potSageRib"],
-    [SX0 + 16, "potPink", "potPinkRib"],
-    [SX0 + 22, "potCream", "potCreamRib"],
-  ].forEach(([x, c, r]) => ribbed(x, SZ, 2.3, DECKS[2], 5, c, r));
+    fine.box([x, x + 2], [D[d] - 1.5, D[d]], [SZ1, SZ1 + 0.5], "tag");
   // Top: clear boxes of preserved rose heads, pink, red and white; a trail of pothos down the front.
   const ROSE_BOXES = [
     [SX0 + 5, "rosePink", "rosePinkDark"],
@@ -676,41 +787,153 @@ export function* buildingKiosk(shared) {
     const y = DECKS[4] - 1 - k * 1.6 - (k % 3) * 0.5;
     fine.box([x, x + 1], [y, y + 1], [SZ1, SZ1 + 0.5], k % 2 ? "pothos" : "pothosLight");
   }
-  // The glass: vases on the fourth deck, the clear boxes round the roses on top.
+  // The glass on the fourth deck, each its own shape and tint: an amber bubble, a sea green bottle with a stem in
+  // it, a rose trumpet, a clear column of tulips (their stems seen through it), a smoky bud vase; the clear
+  // boxes round the roses on top.
   const clear = grid(0.5);
+  const hollow = (h) => h - 0.5; // (open all the way down to the foot)
   [
-    [SX0 + 4, 2.2, 9],
-    [SX0 + 10, 1.6, 7],
-    [SX0 + 16, 2.6, 6],
-    [SX0 + 22, 1.8, 10],
-    [SX0 + 27, 1.5, 7],
-  ].forEach(([x, r, h]) => clear.cyl(x, SZ, r, [DECKS[3], DECKS[3] + h], "#cfe6e8", r - 0.6));
+    [SX0 + 4, 6.5, SHAPES.bubble, "#e2b56a"],
+    [SX0 + 10, 9, SHAPES.bottle, "#8fc7b8"],
+    [SX0 + 16, 7, SHAPES.trumpet, "#e6a3b4"],
+    [SX0 + 22, 8.5, SHAPES.column, "#cfe6e8"],
+    [SX0 + 27, 5, (u) => 1.3 - 0.4 * u, "#a9b4bd"],
+  ].forEach(([x, h, r, tint]) => turned(clear, x, D[3], h, r, () => tint, hollow(h)));
+  fine.box([SX0 + 10, SX0 + 10.5], [D[3] + 3, D[3] + 11], [SZ, SZ + 0.5], "stemGreen");
+  for (const [dx, c, d] of [
+    [-0.75, "rosePink", "rosePinkDark"],
+    [0.75, "roseWhite", "roseWhiteDark"],
+  ]) {
+    fine.box([SX0 + 22 + dx, SX0 + 22.5 + dx], [D[3] + 0.5, D[3] + 10], [SZ, SZ + 0.5], "stemGreen");
+    fine.ball([SX0 + 22.25 + dx, D[3] + 10.8, SZ + 0.25], [0.9, 1.3, 0.9], (x, y) => (y > D[3] + 11 ? c : d));
+  }
   for (const [cx] of ROSE_BOXES) clear.box([cx - 4, cx + 4], [DECKS[4], DECKS[4] + 6.5], [SZ - 3, SZ + 3], "#e8f1f2");
   const clearMesh = clear.mesh();
-  clearMesh.material = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.35, depthWrite: false });
+  clearMesh.material = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false });
   add(clearMesh, false, false);
 
-  // The notice board: cork in an oak frame, notes pinned on it.
+  // The notice board: cork in an oak frame, notes pinned on it, a photo of the dog; the pink note pinned by
+  // its top only (it lifts in the air conditioner's draught).
   const bz = Z0 + WALL;
   fine.box([BOARD.x0, BOARD.x1], [BOARD.y0, BOARD.y1], [bz, bz + 0.5], (x, y) =>
     x < BOARD.x0 + 1 || x >= BOARD.x1 - 1 || y < BOARD.y0 + 1 || y >= BOARD.y1 - 1 ? "oak" : (x + y) % 3 ? "cork" : "corkDark"
   );
+  const note = (g, [x, y, w, h, c, pin]) => {
+    g.box([x, x + w], [y, y + h], [bz + 0.5, bz + 1], (xx, yy) =>
+      yy < y + h - 1.5 && yy > y + 0.5 && xx > x + 0.5 && xx < x + w - 1 && (yy * 2) % 2 === 0 ? "paperLine" : c
+    );
+    g.box([x + w / 2 - 0.5, x + w / 2], [y + h - 1, y + h - 0.5], [bz + 1, bz + 1.5], pin);
+  };
   [
     [BOARD.x0 + 2, BOARD.y1 - 9, 6, 7, "paperWhite", "pinRed"],
     [BOARD.x0 + 9.5, BOARD.y1 - 7, 5, 5, "paperYellow", "pinBlue"],
-    [BOARD.x0 + 15.5, BOARD.y1 - 10, 4.5, 8, "paperPink", "pinRed"],
     [BOARD.x0 + 3, BOARD.y0 + 2, 7, 6, "paperBlue", "pinBlue"],
-    [BOARD.x0 + 12, BOARD.y0 + 2.5, 7, 5, "paperWhite", "pinRed"],
-  ].forEach(([x, y, w, h, c, pin]) => {
-    fine.box([x, x + w], [y, y + h], [bz + 0.5, bz + 1], (xx, yy) =>
-      yy < y + h - 1.5 && yy > y + 0.5 && xx > x + 0.5 && xx < x + w - 1 && (yy * 2) % 2 === 0 ? "paperLine" : c
-    );
-    fine.box([x + w / 2 - 0.5, x + w / 2], [y + h - 1, y + h - 0.5], [bz + 1, bz + 1.5], pin);
+  ].forEach((n) => note(fine, n));
+  const [PX0, PY0] = [BOARD.x0 + 12.5, BOARD.y0 + 2]; // the photo: the dog lying on the grass
+  fine.box([PX0, PX0 + 6], [PY0, PY0 + 7], [bz + 0.5, bz + 1], (x, y) => {
+    const [u, v] = [x - PX0, y - PY0];
+    if (u < 0.5 || u >= 5.5 || v < 1.5 || v >= 6.5) return "tag";
+    if (Math.hypot((u - 3) / 1.8, (v - 3.2) / 1.1) < 1) return u > 4 && v > 3 ? "dogBrown" : "dogCream";
+    return v < 3.5 ? "photoGrass" : "photoSky";
   });
+  fine.box([PX0 + 2.5, PX0 + 3.5], [PY0 + 6.5, PY0 + 7.5], [bz + 1, bz + 1.25], "#e8e4d6"); // tape
+  const loose = grid(0.5);
+  note(loose, [BOARD.x0 + 15.5, BOARD.y1 - 10, 4.5, 8, "paperPink", "pinRed"]);
+  const looseNote = pivoted(loose.mesh(), [BOARD.x0 + 17.5, BOARD.y1 - 2.5, bz + 0.5]);
+  group.add(looseNote);
 
-  // The air conditioner, high on the back wall: white, its louvre along the bottom, a green light.
-  fine.box([-38, -14], [56, 63], [bz, bz + 5], (x, y) => (y < 57.5 ? ((x * 2) % 2 ? "acShade" : "acWhite") : y === 62.5 ? "acShade" : "acWhite"));
-  fine.box([-17, -16.5], [61, 61.5], [bz + 5, bz + 5.5], "acLed");
+  // The air conditioner, high on the back wall: white, its flap along the bottom (open while it runs), its
+  // light; its drain pipe along the wall and down to the floor past the board.
+  const AC = { x0: -38, x1: -14, y0: 56, y1: 63 };
+  fine.box([AC.x0, AC.x1], [AC.y0 + 0.5, AC.y1], [bz, bz + 5], (x, y) =>
+    y < AC.y0 + 1.5 ? ((x * 2) % 2 ? "acShade" : "acWhite") : y === AC.y1 - 0.5 ? "acShade" : "acWhite"
+  );
+  fine.box([AC.x1, -5], [AC.y0 + 1, AC.y0 + 2], [bz, bz + 1], "acShade");
+  fine.box([-5, -4], [FLOOR, AC.y0 + 2], [bz, bz + 1], "acShade");
+  const flapG = grid(0.5);
+  flapG.box([AC.x0 + 0.5, AC.x1 - 0.5], [AC.y0, AC.y0 + 0.5], [bz + 1, bz + 5], "acShade");
+  const flap = pivoted(flapG.mesh(), [0, AC.y0 + 0.5, bz + 1]);
+  group.add(flap);
+  const ledMat = new THREE.MeshBasicMaterial({ color: 0x4a5a50 });
+  const led = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), ledMat);
+  led.position.set(AC.x1 - 2.75, AC.y1 - 1.75, bz + 5.25);
+  group.add(led);
+  const acBox = new THREE.Mesh(new THREE.BoxGeometry(AC.x1 - AC.x0, AC.y1 - AC.y0, 5), new THREE.MeshBasicMaterial({ visible: false }));
+  acBox.position.set((AC.x0 + AC.x1) / 2, (AC.y0 + AC.y1) / 2, bz + 2.5);
+  group.add(acBox);
+  const acMouth = new THREE.Vector3((AC.x0 + AC.x1) / 2, AC.y0 - 1, bz + 6);
+
+  // The clock over the cool room's door: a cream face in a green rim, its hands at the shop's time.
+  const CLOCK = [(COOL.x0 + COOL.x1) / 2, 60, bz];
+  const dial = grid(0.25);
+  dial.rod(CLOCK[0], CLOCK[1], 4.5, [bz, bz + 1], (x, y, z, d) => (d > 3.8 ? "steel" : "clockFace"));
+  for (let k = 0; k < 12; k++) {
+    const [r, w] = k % 3 ? [3.25, 0.25] : [3, 0.5];
+    const [x, y] = [CLOCK[0] + Math.sin((k / 6) * Math.PI) * r, CLOCK[1] + Math.cos((k / 6) * Math.PI) * r];
+    dial.box([x - w, x + w], [y - w, y + w], [bz + 1, bz + 1.25], "clockHand");
+  }
+  dial.box([CLOCK[0] - 0.5, CLOCK[0] + 0.5], [CLOCK[1] - 0.5, CLOCK[1] + 0.5], [bz + 1, bz + 2.25], "pinRed"); // (its face clear of the hands')
+  const dialMesh = add(dial.mesh(), false, true);
+  const hand = (len, z) => {
+    const g = grid(0.25);
+    g.box([-0.25, 0.25], [-0.75, len], [0, 0.25], "clockHand");
+    const h = new THREE.Group();
+    h.position.set(CLOCK[0] - 0.125, CLOCK[1] - 0.125, z);
+    h.add(g.mesh());
+    group.add(h);
+    return h;
+  };
+  const hourHand = hand(2, bz + 1.25);
+  const minuteHand = hand(3, bz + 1.5);
+  const clockTop = new THREE.Vector3(CLOCK[0], CLOCK[1] + 5, bz + 2);
+
+  // The cool room's thermometer by its door: a dark box, its reading lit.
+  fine.box([COOL.x1 + 3, COOL.x1 + 7], [38, 41], [bz, bz + 0.5], "regDark");
+  fine.box([COOL.x1 + 4, COOL.x1 + 6], [39, 40], [bz + 0.5, bz + 0.75], "screen");
+
+  // Dried flowers hung upside down from a branch on the wall between the bench and the shelving (lavender,
+  // roses, yarrow, gypsophila), each bunch on a string; a zinc bucket of pampas grass in the corner below.
+  const DRY_Y = 64;
+  const DZ0 = bz + 2.5; // (out from the wall)
+  for (const x of [-123, -108.5]) fine.box([x, x + 0.5], [DRY_Y - 0.5, DRY_Y + 1], [bz, DZ0 + 0.5], "steelDark");
+  fine.box([-125, -106], [DRY_Y, DRY_Y + 1], [DZ0 - 0.5, DZ0 + 0.5], (x) => ((x * 2) % 7 ? "oakDark" : "oak"));
+  const bunches = [
+    [-121, "lavender", "lavenderDark", [0.8, 2.2, 0.8]],
+    [-117, "driedRose", "driedRoseDark", 1.5],
+    [-113, "yarrow", "yarrowDark", [1.8, 1, 1.8]],
+    [-109.5, "gyp", "gypDark", 1.4],
+  ].map(([x, c, d, r]) => {
+    const g = grid(0.5);
+    g.box([x - 0.25, x + 0.25], [DRY_Y - 2.5, DRY_Y], [DZ0, DZ0 + 0.5], "twine"); // the string
+    g.box([x - 1.5, x + 1.5], [DRY_Y - 4, DRY_Y - 3], [DZ0 - 1, DZ0 + 1.5], "twine"); // tied round the stems
+    for (let j = 0; j < 7; j++) {
+      const [sx, sz] = [x - 1.5 + ((j * 3) % 4), DZ0 - 1 + ((j * 5) % 3)];
+      const end = DRY_Y - 7 - (j % 3);
+      g.box([sx, sx + 0.5], [end, DRY_Y - 2.5], [sz, sz + 0.5], "driedStem");
+      g.ball([sx + 0.25, end - 1, sz + 0.25], r, (xx, y) => ((y * 2) % 2 ? c : d));
+    }
+    const m = pivoted(g.mesh(), [x, DRY_Y, DZ0]);
+    group.add(m);
+    return m;
+  });
+  const PB = [-108.5, bz + 5]; // the pampas's bucket
+  fine.cyl(PB[0], PB[1], 3, [FLOOR, FLOOR + 9], (x, y) => (y >= FLOOR + 8.5 ? "zincDark" : (y * 2) % 6 === 0 ? "zincDark" : "zinc"));
+  const plumes = grid(0.5);
+  [
+    [-0.24, 0.05, 30],
+    [-0.1, 0.12, 34],
+    [0.02, 0.02, 31],
+    [0.12, 0.1, 27],
+  ].forEach(([lx, lz, top]) => {
+    for (let y = FLOOR + 9; y < FLOOR + top - 4; y += 0.5) {
+      const u = y - FLOOR - 9;
+      plumes.box([PB[0] + lx * u, PB[0] + lx * u + 0.5], [y, y + 0.5], [PB[1] + lz * u, PB[1] + lz * u + 0.5], "driedStem");
+    }
+    const u = top - 13;
+    plumes.ball([PB[0] + lx * u + 0.25, FLOOR + top - 1, PB[1] + lz * u + 0.25], [1.6, 5, 1.6], (x, y) => ((x + y) % 1.5 ? "pampas" : "pampasDark"));
+  });
+  const pampas = pivoted(plumes.mesh(), [PB[0], FLOOR + 9, PB[1]]);
+  group.add(pampas);
 
   add(fine.mesh());
   yield;
@@ -814,9 +1037,12 @@ export function* buildingKiosk(shared) {
   const drawer = add(drawerG.mesh());
   const drawerAt = drawer.position.x;
 
-  // The stool: a round oak seat on four splayed black legs, a footrest ring.
+  // The stool: a round oak seat on four splayed black legs, a footrest ring (a mesh of its own: it spins).
   const STOOL_R = 3.5;
-  fine.cyl(STOOL.x, STOOL.z, STOOL_R, [SEAT - 1.5, SEAT], (x, y, z, d) => (y >= SEAT - 0.5 ? (d > STOOL_R - 0.8 ? "oakDark" : "oak") : "oakDark"));
+  const stoolG = grid(0.5);
+  stoolG.cyl(STOOL.x, STOOL.z, STOOL_R, [SEAT - 1.5, SEAT], (x, y, z, d) =>
+    y >= SEAT - 0.5 ? (d > STOOL_R - 0.8 ? "oakDark" : x % 2 ? "oakLight" : "oak") : "oakDark"
+  );
   for (const [dx, dz] of [
     [1, 1],
     [1, -1],
@@ -826,9 +1052,12 @@ export function* buildingKiosk(shared) {
     for (let y = FLOOR; y < SEAT - 1.5; y += 0.5) {
       const k = 1.2 + ((SEAT - 1.5 - y) / (SEAT - 1.5 - FLOOR)) * 2; // splaying out towards the floor
       const [x, z] = [STOOL.x + dx * k, STOOL.z + dz * k];
-      fine.box([x, x + 0.5], [y, y + 0.5], [z, z + 0.5], "steelDark");
+      stoolG.box([x, x + 0.5], [y, y + 0.5], [z, z + 0.5], "steelDark");
     }
-  fine.cyl(STOOL.x, STOOL.z, 2.6, [FLOOR + 4, FLOOR + 4.5], "steelDark", 2);
+  stoolG.cyl(STOOL.x, STOOL.z, 2.6, [FLOOR + 4, FLOOR + 4.5], "steelDark", 2);
+  const stool = pivoted(stoolG.mesh(), [STOOL.x + 0.25, 0, STOOL.z + 0.25]);
+  stool.children[0].castShadow = stool.children[0].receiveShadow = true;
+  group.add(stool);
 
   // The dog's bed: a round cushion in a sage rim, lower at the front, a rope toy beside it.
   const { x: DX, z: DZ, r: DR } = DOG_BED;
@@ -1014,10 +1243,11 @@ export function* buildingKiosk(shared) {
   under.position.set(-40, 56, 0);
   shared.scene.add(inside, under); // (in the scene itself: coldLight)
 
-  // Music notes over the radio, a sparkle over the till or the chime: a few sprites, each used again.
+  // Music notes over the radio or the clock, a sparkle over the till or the chime, the air conditioner's
+  // draught, bits of the dried flowers falling: a few sprites, each used again.
   const noteTex = [glyphTexture("♪", "#5a7fd6"), glyphTexture("♫", "#d65a8f"), glyphTexture("♪", "#3f9a6b")];
-  const sparkTex = glyphTexture("✦", "#f2b632");
-  const floaters = Array.from({ length: 8 }, () => {
+  const TEX = { spark: glyphTexture("✦", "#f2b632"), air: glyphTexture("≈", "#8fc3e0"), bit: glyphTexture("•", "#b58aa0") };
+  const floaters = Array.from({ length: 14 }, () => {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: noteTex[0], transparent: true, depthWrite: false, opacity: 0 }));
     s.visible = false;
     group.add(s);
@@ -1027,28 +1257,19 @@ export function* buildingKiosk(shared) {
     const f = floaters.reduce((a, b) => (a.born < b.born ? a : b)); // the oldest
     Object.assign(f, { born: clock.t, life, kind, drift: Math.random() * 2 - 1 });
     f.from.copy(at);
-    f.s.material.map = kind === "note" ? noteTex[Math.floor(Math.random() * noteTex.length)] : sparkTex;
+    f.s.material.map = kind === "note" ? noteTex[Math.floor(Math.random() * noteTex.length)] : TEX[kind];
     f.s.visible = true;
   }
 
   yield;
   /* ----- the roller shutter over the front ----- */
-  // Its housing under the awning (the shop's name and hours painted on it), a guide rail down each corner
+  // Its housing under the awning (plain: the shop's name and hours are on the fascia), a guide rail down each corner
   // post, and the curtain of slats from the housing down to its bottom bar: rolled up inside by day, down to
   // the pavement at night, just in front of the posts (behind the step), a padlock through the hasp at the
   // middle of the bottom bar.
   const SH = SHUTTER;
   const HOUSING = [SH.top, ROOF_Y]; // its bottom and top
-  const housingSide = new THREE.MeshLambertMaterial({ color: PALETTE.steel });
-  const housingFace = new THREE.MeshLambertMaterial({ map: housingTexture(SH.x1 - SH.x0, HOUSING[1] - HOUSING[0]) });
-  const housing = new THREE.Mesh(new THREE.BoxGeometry(SH.x1 - SH.x0, HOUSING[1] - HOUSING[0], 3), [
-    housingSide,
-    housingSide,
-    housingSide,
-    housingSide,
-    housingFace,
-    housingSide,
-  ]);
+  const housing = new THREE.Mesh(new THREE.BoxGeometry(SH.x1 - SH.x0, HOUSING[1] - HOUSING[0], 3), steelSide);
   housing.position.set((SH.x0 + SH.x1) / 2, (HOUSING[0] + HOUSING[1]) / 2, SH.z + 0.4);
   add(housing, true, false);
   const rails = grid(0.5);
@@ -1233,14 +1454,23 @@ export function* buildingKiosk(shared) {
     toggle: () => cool.set(!cool.open),
     set: (open) => (cool.open = open),
   };
+  // The air conditioner: on, its flap swings open and it blows (the pink note on the board lifts in it).
+  const aircon = { on: false, k: 0, next: 0, set: (on) => (aircon.on = on) };
+  // The clock: wound on a click, its minute hand going round once, and then it chimes.
+  const wallClock = { at: -Infinity, notes: 0, next: 0, wind: (t) => Object.assign(wallClock, { at: t, notes: 3, next: t + 1.4 }) };
+  // The dried flowers and the pampas: set swinging, a few dry bits dropping off.
+  const dried = { at: -Infinity, shake: (t) => (dried.at = t) };
+  const sways = [...bunches, pampas].map(() => ({ phase: Math.random() * 6, rate: 3 + Math.random() * 1.5 }));
+  // The stool's seat: set spinning, slowing to a stop (not while someone sits on it).
+  const spin = { speed: 0, taken: false, give: () => (spin.speed = spin.taken ? 0 : 9 + Math.random() * 4) };
 
-  // The lights' look: the sign white and glowing (a halo round it), the tubes bright, the lamps on; off, the
-  // sign's tubes grey-white, the tubes pale.
+  // The lights' look: the sign white and glowing (a halo round it), the downlights bright, the lamps on; off,
+  // the sign's tubes grey-white, the downlights pale.
   function look() {
     const on = lights.on;
-    signMat.color.set(on ? 0xffffff : 0xd8d8d4);
+    signMat.color.set(on ? 0xff86b0 : OFF.sign);
     haloMat.opacity = on ? 0.55 : 0;
-    tubeMat.color.set(on ? 0xf4fbff : 0xd9dfde);
+    tubeMat.color.set(on ? 0xf4fbff : OFF.lights);
     inside.intensity = on ? 1.25 : 0;
     under.intensity = on ? 0.9 : 0;
   }
@@ -1275,7 +1505,7 @@ export function* buildingKiosk(shared) {
         if (before !== undefined && before > Z1 - 1 !== a.z > Z1 - 1 && a.x > DOOR.x0 && a.x < DOOR.x1) chimeBell.ring(t, a.human ? 0.7 : 0.4);
         was.set(a, a.z);
       }
-    const c = t - chimeState.rangAt;
+    const c = Math.min(t - chimeState.rangAt, 4); // (still after 4 s: never rung, not NaN)
     const swing = c < 4 ? chimeState.strength * Math.exp(-1.4 * c) : 0;
     chime.rotation.z = 0.12 * swing * Math.sin(c * 4.2);
     chime.rotation.x = 0.08 * swing * Math.sin(c * 3.3 + 1);
@@ -1283,11 +1513,45 @@ export function* buildingKiosk(shared) {
       g.rotation.z = 0.35 * swing * Math.sin(c * (8 + k * 1.3) + k);
       g.rotation.x = 0.3 * swing * Math.sin(c * (7 + k) + 2 * k);
     });
-    // The tube lights flickering on.
+    // The downlights flickering on.
     if (lights.on) {
       const s = t - lights.at;
       tubeMat.color.set(s < 0.8 && Math.sin(s * 47) * Math.sin(s * 23) > 0.1 ? 0xb9c0c2 : 0xf4fbff);
     }
+    // The air conditioner's flap, its light, its draught; off once the shutter is down.
+    if (shutter.k > 0.99) aircon.on = false;
+    aircon.k += Math.sign((aircon.on ? 1 : 0) - aircon.k) * Math.min(Math.abs((aircon.on ? 1 : 0) - aircon.k), dt / 0.7);
+    flap.rotation.x = 0.8 * aircon.k * aircon.k * (3 - 2 * aircon.k);
+    ledMat.color.set(aircon.on ? 0x5bd17a : 0x4a5a50);
+    looseNote.rotation.x = -aircon.k * (0.25 + 0.12 * Math.sin(t * 9) + 0.06 * Math.sin(t * 23));
+    if (aircon.on && aircon.k > 0.9 && t >= aircon.next) {
+      aircon.next = t + 0.45 + Math.random() * 0.3;
+      float("air", acMouth, 1.6);
+    }
+    // The clock's hands at the shop's time (a turn round ahead while it is wound), its chime after.
+    const hour = home ? home.hour() : 12;
+    const w = Math.min(1, (t - wallClock.at) / 1.4);
+    const turn = w < 1 ? w * w * (3 - 2 * w) : 0;
+    minuteHand.rotation.z = -((hour % 1) + turn) * Math.PI * 2;
+    hourHand.rotation.z = -(((hour % 12) + turn) / 12) * Math.PI * 2;
+    if (wallClock.notes && t >= wallClock.next) {
+      wallClock.notes--;
+      wallClock.next = t + 0.3;
+      float("note", clockTop, 2);
+    }
+    // The dried flowers swinging, each its own way, dying down.
+    const d = Math.min(t - dried.at, 5); // (still after 5 s: never shaken, not NaN)
+    const sway = d < 5 ? Math.exp(-1.1 * d) : 0;
+    [...bunches, pampas].forEach((m, k) => {
+      const { phase, rate } = sways[k];
+      m.rotation.z = (k === bunches.length ? 0.06 : 0.22) * sway * Math.sin(d * rate + phase);
+      m.rotation.x = (k === bunches.length ? 0.04 : 0.12) * sway * Math.sin(d * rate * 0.8 + 2 * phase);
+    });
+    // The stool's seat spinning down.
+    spin.taken = !!home && home.actors.some((a) => a.seated && Math.hypot(a.x - STOOL.x, a.z - STOOL.z) < 4);
+    if (spin.taken) spin.speed = 0;
+    stool.rotation.y += spin.speed * dt;
+    spin.speed = Math.max(0, spin.speed - 4 * dt);
     // Music notes rising off the radio while it plays.
     if (radio.on && t >= radio.next) {
       radio.next = t + 0.5 + Math.random() * 0.35;
@@ -1304,6 +1568,16 @@ export function* buildingKiosk(shared) {
         fl.s.position.set(fl.from.x + 3 * u + fl.drift * 2 * Math.sin(u * 6), fl.from.y + 12 * u, fl.from.z + fl.drift * 3 * u);
         fl.s.scale.setScalar(3.2);
         fl.s.material.opacity = Math.min(1, u * 5) * (1 - u);
+      } else if (fl.kind === "air") {
+        // (down and out into the room from under the air conditioner)
+        fl.s.position.set(fl.from.x + fl.drift * 8, fl.from.y - 7 * u, fl.from.z + 9 * u);
+        fl.s.scale.setScalar(2.4 + 1.5 * u);
+        fl.s.material.opacity = 0.8 * Math.min(1, u * 4) * (1 - u);
+      } else if (fl.kind === "bit") {
+        // (fluttering down to the floor)
+        fl.s.position.set(fl.from.x + fl.drift * 1.5 * Math.sin(u * 9), fl.from.y - (fl.from.y - FLOOR - 0.5) * u, fl.from.z + 2 * u);
+        fl.s.scale.setScalar(1.3);
+        fl.s.material.opacity = u < 0.85 ? 1 : (1 - u) / 0.15;
       } else {
         fl.s.position.set(fl.from.x, fl.from.y + 3 * u, fl.from.z);
         fl.s.scale.setScalar(2 + 3 * Math.sin(Math.PI * Math.min(1, u * 1.5)));
@@ -1343,7 +1617,6 @@ export function* buildingKiosk(shared) {
     [SX0 - 1, SX1 + 1, SZ0 - 1, SZ1 + 1], // the shelving
     [STOOL.x - 3, STOOL.x + 3, STOOL.z - 3, STOOL.z + 3], // the stool
     [-36, -10, Z0, Z0 + WALL + 10], // the buckets of stock
-    [AWNING.x1 - 2.5, AWNING.x1 + 0.5, AWNING.z0 - 1.5, AWNING.z0 + 1.5], // the awning's post
     [LOCKUP.x0 - 2, LOCKUP.x1 + 1, LOCKUP.z0 - 2, LOCKUP.z1 + 3], // the lock-up
   ];
 
@@ -1352,16 +1625,30 @@ export function* buildingKiosk(shared) {
   const clickables = [
     { key: "radio", parts: [radioMesh], toggle: () => radio.set(!radio.on) },
     { key: "register", parts: [tillMesh, drawer], toggle: () => register.ring(clock.t) },
-    { key: "lights", parts: [sign, ...tubes], toggle: () => lights.set(!lights.on) },
+    { key: "lights", parts: [sign, downlights], toggle: () => lights.set(!lights.on) },
     { key: "openSign", parts: [signGroup], toggle: () => openSign.flip() },
     { key: "chime", parts: [chimeBox], toggle: () => chimeBell.ring(clock.t) },
     { key: "cool", parts: [coolDoor, curtain], toggle: () => cool.toggle() },
+    { key: "aircon", parts: [acBox, flap], toggle: () => aircon.set(!aircon.on) },
+    { key: "clock", parts: [dialMesh, hourHand, minuteHand], toggle: () => wallClock.wind(clock.t) },
+    {
+      key: "dried",
+      parts: [...bunches, pampas],
+      toggle() {
+        dried.shake(clock.t);
+        for (let k = 0; k < 3; k++) {
+          const m = bunches[Math.floor(Math.random() * bunches.length)];
+          float("bit", new THREE.Vector3(m.position.x, DRY_Y - 11, m.position.z + 1), 1.6 + Math.random() * 0.8);
+        }
+      },
+    },
+    { key: "stool", parts: [stool], toggle: () => spin.give() },
   ].map((c) => ({ ...c, can: up }));
 
   return {
     group,
     obstacles,
-    hides: [backMesh, sidesMesh, shellMesh, benchMesh, frameMesh, housing, rolled, lockupMesh],
+    hides: [backMesh, sidesMesh, shellMesh, benchMesh, frameMesh, fascia, housing, rolled, lockupMesh],
     clickables,
     spots,
     radio,
@@ -1370,6 +1657,7 @@ export function* buildingKiosk(shared) {
     openSign,
     chime: chimeBell,
     cool,
+    aircon,
     shutter,
     lockup,
     // Night: the lights on, unless it is shut up for the night (the sign is turned by hand: life.js).
