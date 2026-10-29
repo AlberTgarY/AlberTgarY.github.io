@@ -52,6 +52,7 @@ export function makeWater(scene, groundAt) {
   mesh.count = 0;
   scene.add(mesh);
   const palette = KIND_NAMES.map((k) => KINDS[k].colors.map((c) => new THREE.Color(c)));
+  mesh.setColorAt(0, palette[0][0]); // (coloured from the start: its shader made with the rest, not as the first drop falls)
 
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();

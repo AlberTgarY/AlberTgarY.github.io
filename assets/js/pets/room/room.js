@@ -18,9 +18,8 @@ import { makeWater, GRAVITY } from "./water.js";
 import { makeWeather } from "./weather.js";
 import { makePrints } from "./prints.js";
 import { part, ellipsoid } from "../models/voxels.js";
-import { makeView } from "./view.js";
+import { makeView, UNCUT } from "./view.js";
 import { makeMirror } from "./mirror.js";
-import { UNCUT } from "./view.js";
 import { makeOutlooks } from "./outlook.js";
 import { makePeek } from "./peek.js";
 import { makeWildlife } from "./wildlife.js";
@@ -430,6 +429,7 @@ export function* buildingRoom(stage) {
   const leadColors = { collie: new THREE.Color("#d9434f") };
   const leads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), new THREE.MeshLambertMaterial(), LINKS);
   leads.frustumCulled = false;
+  leads.setColorAt(0, leadColors.collie); // (coloured from the start: its shader made with the rest, not on the first walk)
   scene.add(leads);
   const m4 = new THREE.Matrix4();
   const [h, c] = [new THREE.Vector3(), new THREE.Vector3()];
@@ -607,20 +607,15 @@ export function* buildingRoom(stage) {
     layout: (width, maxHeight) => view.layout(width, maxHeight),
     // Gets the shaders ready to draw it all before the first frame: without holding up the page where the
     // browser can compile them in the background (three.js's compileAsync waits for ever without that, and
-    // it is given a few seconds at most anyway), or else all at once. Both for the screen and for the
-    // pictures in the mirror and the windows (drawn to textures, in linear colour: shaders of their own), so
-    // that nothing seen in those for the first time holds up a frame compiling one.
+    // it is given a few seconds at most anyway), or else all at once. (The pictures in the mirror and the
+    // windows are drawn with the screen's shaders: view.js srgbTarget().)
     warm() {
       const { renderer, camera } = view;
       const parallel = renderer.extensions.has("KHR_parallel_shader_compile");
-      const offscreen = new THREE.WebGLRenderTarget(1, 1);
-      renderer.setRenderTarget(offscreen);
       renderer.render(new THREE.Scene(), camera); // (a frame sets up the view's clipping planes, which the shaders are made for)
-      const compiled = [offscreen, null].map((target) => {
-        renderer.setRenderTarget(target); // (what is compiled for is settled as it starts)
-        return parallel ? renderer.compileAsync(scene, camera) : renderer.compile(scene, camera);
-      });
-      offscreen.dispose();
+      // (With what is painted beyond the windows, unlit scenes of their own: else made as a window first shows.)
+      const scenes = [scene, ...new Set(house.outlooks.map((o) => o.scene))];
+      const compiled = Promise.all(scenes.map((s) => (parallel ? renderer.compileAsync(s, camera) : renderer.compile(s, camera))));
       view.warm(); // (what is drawn between floors)
       // A frame each other way it can be seen (round to the front garden, down in the basement), by night and
       // by day, before the page shows it: what is first drawn there (its buffers and textures, a shader for
@@ -644,7 +639,7 @@ export function* buildingRoom(stage) {
         daylight(true);
       };
       if (!parallel) return Promise.resolve(views());
-      return Promise.race([Promise.all(compiled), new Promise((done) => setTimeout(done, 4000))]).then(views);
+      return Promise.race([compiled, new Promise((done) => setTimeout(done, 4000))]).then(views);
     },
     // Turn the view round to the front garden (true), or back to the house; `now`, all at once.
     turn: (out, now = false) => view.turnTo(out, now),

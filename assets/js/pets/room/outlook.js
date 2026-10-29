@@ -10,6 +10,7 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
+import { srgbTarget } from "./view.js";
 
 const MAX_SIZE = 320; // texels across a texture at most
 const BACKWARD = 40; // how far back in the room the eye is
@@ -26,8 +27,9 @@ export function makeOutlooks(outlooks, view, scene, outside) {
   const up = new THREE.Vector3(0, 1, 0);
   const v = new THREE.Vector3();
   const panes = outlooks.map(({ glass, at, out, size, scene: there, yard }) => {
-    const target = new THREE.WebGLRenderTarget(1, 1, { magFilter: THREE.NearestFilter, minFilter: THREE.NearestFilter });
+    const target = srgbTarget(1, 1, { magFilter: THREE.NearestFilter, minFilter: THREE.NearestFilter });
     glass.material.map = target.texture;
+    glass.material.defines = { DECODE_VIDEO_TEXTURE: "" }; // (three.js's decoding of a video's sRGB, for this: stored so)
     glass.material.needsUpdate = true;
     const middle = new THREE.Vector3(...at);
     const outward = new THREE.Vector3(...out);

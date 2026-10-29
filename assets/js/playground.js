@@ -399,6 +399,7 @@ async function start() {
   await room.warm();
   room.step(0);
   loading.show(0.62, "Home · shaders", 1);
+  lookPics = lookPictures(...PIC) || []; // (her looks' pictures for the picker now: drawn at its first opening, they held it up)
   await painted();
   await buildShop();
   await painted();
@@ -584,7 +585,7 @@ function picker(stage, view, toggles) {
 // What she should wear: each of her looks, with a picture of her in it, the one she has on (or is about to
 // put on) marked. At night she changes in the morning.
 const PIC = [64, 84]; // CSS px of a look's picture
-let lookPics = null; // drawn the first time they are wanted
+let lookPics = null; // drawn as the page loads (start())
 
 function outfitPage(room) {
   return {

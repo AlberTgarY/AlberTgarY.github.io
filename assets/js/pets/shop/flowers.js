@@ -536,16 +536,16 @@ function sleevesGeometry(bunches, head, rand) {
   g.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
   g.setIndex(index);
   g.computeVertexNormals();
+  g.addGroup(0, index.length, 0); // its back, then its front (sleeveMaterials)
+  g.addGroup(0, index.length, 1);
   return g;
 }
-const sleeveMaterial = new THREE.MeshLambertMaterial({
-  color: 0xf2f8fa,
-  emissive: 0x1c2224,
-  transparent: true,
-  opacity: 0.22,
-  depthWrite: false,
-  side: THREE.DoubleSide,
-});
+// Drawn as three.js draws a see-through two-sided material, its back faces and then its front ones, but by
+// a material for each: three.js's own way turns the one material over twice a draw, each time finding it a
+// shader afresh (and leaving garbage), for every bucket every frame.
+const sleeveMaterials = [THREE.BackSide, THREE.FrontSide].map(
+  (side) => new THREE.MeshLambertMaterial({ color: 0xf2f8fa, emissive: 0x1c2224, transparent: true, opacity: 0.22, depthWrite: false, side })
+);
 
 // Geometries joined end to end (indexed, with normals and colours: solid() meshes' and the leaves'), and
 // where each ends in the joined index: drawing up to an end draws only those before it.
@@ -595,7 +595,7 @@ export function bucketBlooms(kind, colors, R, H, seed) {
   const mesh = new THREE.Mesh(geometry, bloomMaterial);
   mesh.scale.setScalar(FINE);
   mesh.castShadow = mesh.receiveShadow = true;
-  mesh.add(new THREE.Mesh(sleevesGeometry(bunches, head, rand), sleeveMaterial));
+  mesh.add(new THREE.Mesh(sleevesGeometry(bunches, head, rand), sleeveMaterials));
   mesh.userData.level = (n) => geometry.setDrawRange(0, ends[Math.max(1, Math.min(3, n))]);
   return mesh;
 }

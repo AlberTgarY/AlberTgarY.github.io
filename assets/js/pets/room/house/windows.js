@@ -51,9 +51,17 @@ export function buildWindows(shared) {
   // The glass of each window, `w` x `h` voxels at `at` (turned by `rotY`), showing what is out there as seen
   // from in the room (outlook.js draws it each frame), the rain running down it in front, and in front of
   // that the glass itself: one thin sheet with the faintest cool tint, clear but not nothing. `out`: which way
-  // is out; `yard`: whether the real front garden is out there too.
+  // is out; `yard`: whether the real front garden is out there too. (The sheet drawn in one pass, which it looks
+  // the same in: three.js's two for what is see-through and two-sided find it a shader afresh twice a draw.)
   const outlooks = [];
-  const glassMat = new THREE.MeshBasicMaterial({ color: 0xcfe8ee, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide });
+  const glassMat = new THREE.MeshBasicMaterial({
+    color: 0xcfe8ee,
+    transparent: true,
+    opacity: 0.05,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    forceSinglePass: true,
+  });
   function pane(w, h, at, rotY, out, scene, yard) {
     const glass = place(house, new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial()), at, rotY);
     const wet = place(house, new THREE.Mesh(new THREE.PlaneGeometry(w, h), rainMat), at, rotY);

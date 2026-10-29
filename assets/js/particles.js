@@ -12,7 +12,8 @@
   if (!canvas) return;
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const hoverFine = window.matchMedia("(hover: hover) and (pointer: fine)");
+  const finePointer = hoverFine.matches;
   const saveData = !!(navigator.connection && navigator.connection.saveData);
 
   if (reducedMotion.matches || saveData || !finePointer) {
@@ -33,8 +34,8 @@
   const SHAPE_OPACITY = { min: 0.08, max: 0.16 };
 
   // Interaction is only live while the pointer is fine and motion is allowed.
-  const interactive = () =>
-    window.matchMedia("(hover: hover) and (pointer: fine)").matches && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // (The queries made once: made afresh each time, for every shape every frame, they were a heap of garbage.)
+  const interactive = () => hoverFine.matches && !reducedMotion.matches;
 
   let width, height;
   let mouseX = -1000, // smoothed pointer position
@@ -145,6 +146,8 @@
 
   function drawConnections() {
     const maxDist = !interactive() ? 160 : isSafari ? 180 : 250;
+    ctx.strokeStyle = `rgb(${strokeRGB()})`; // (each line's alpha as globalAlpha: no new colour string a line)
+    ctx.lineWidth = 1;
     for (let i = 0; i < shapes.length; i++) {
       for (let j = i + 1; j < shapes.length; j++) {
         const dx = shapes[i].x - shapes[j].x;
@@ -155,12 +158,12 @@
           ctx.beginPath();
           ctx.moveTo(shapes[i].x, shapes[i].y);
           ctx.lineTo(shapes[j].x, shapes[j].y);
-          ctx.strokeStyle = `rgba(${strokeRGB()}, ${alpha})`;
-          ctx.lineWidth = 1;
+          ctx.globalAlpha = alpha;
           ctx.stroke();
         }
       }
     }
+    ctx.globalAlpha = 1;
   }
 
   let paused = false;

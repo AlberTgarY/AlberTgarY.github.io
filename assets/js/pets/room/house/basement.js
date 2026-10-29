@@ -435,9 +435,24 @@ export function buildBasement(shared) {
   box3(capMat, [X0 - WALL_T, X0 + 1], [FLOOR + TOP - 1, FLOOR + TOP], [BACK, FRONT]);
 
   // Glass walls in oak frames, like the house's windows: a sill along the floor, a head along the top, a post
-  // at either end (`ends`: not where it meets the fish tank, whose sides are its posts).
-  const clearMat = new THREE.MeshLambertMaterial({ color: "#e6f4f6", transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide });
-  const reedMat = new THREE.MeshLambertMaterial({ map: reeds.tex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  // at either end (`ends`: not where it meets the fish tank, whose sides are its posts). (Sheets, as the reeds,
+  // the shower's smoked roof and the tank's glass, drawn in one pass, which they look the same in: three.js's two for
+  // what is see-through and two-sided find it a shader afresh twice a draw.)
+  const clearMat = new THREE.MeshLambertMaterial({
+    color: "#e6f4f6",
+    transparent: true,
+    opacity: 0.14,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    forceSinglePass: true,
+  });
+  const reedMat = new THREE.MeshLambertMaterial({
+    map: reeds.tex,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    forceSinglePass: true,
+  });
   function glassAlongZ(x, [z0, z1], mat, per = null, ends = [true, true]) {
     sheet(mat, [-z1, -z0], [W(1), W(GLASS_TOP)], x, "x", per).renderOrder = 2;
     fill(2, [x - 1, x + 1], [0, 1], [z0, z1], "woodMid");
@@ -1496,7 +1511,14 @@ export function buildBasement(shared) {
   );
   const smoked = new THREE.Mesh(
     new THREE.CircleGeometry(CABIN.r - 1.5, 16, 0, Math.PI / 2),
-    new THREE.MeshLambertMaterial({ color: "#2f343c", transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
+    new THREE.MeshLambertMaterial({
+      color: "#2f343c",
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      forceSinglePass: true,
+    })
   );
   smoked.rotation.x = Math.PI / 2; // (flat, round towards +x and +z)
   smoked.position.set(X0, W(CABIN.top + 1), CABIN.z);
@@ -1760,7 +1782,14 @@ export function buildBasement(shared) {
       }
     weeds.instanceMatrix.needsUpdate = true;
   }
-  const tankGlass = new THREE.MeshLambertMaterial({ color: "#c4e6d6", transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide });
+  const tankGlass = new THREE.MeshLambertMaterial({
+    color: "#c4e6d6",
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    forceSinglePass: true,
+  });
   for (const x of [TANK.x0 - 0.05, TANK.x1 + 0.05]) sheet(tankGlass, [-TANK.z1, -TANK.z0], [W(16), W(TANK.y1)], x, "x", null).renderOrder = 3;
   block(TANK.x0 - 2, TANK.x1 + 2, TANK.z0 - 2, TANK.z1 + 2);
   // The fish: a shoal of little ember tetras, glowing orange, keeping together round the first of them (each
@@ -3083,6 +3112,7 @@ export function buildBasement(shared) {
       into.add(m);
       still.push(m);
     }
+  grids.clear(); // (their cells, half the page's memory, let go: kept, every collection of it took longer)
   floors.forEach((m) => (m.receiveShadow = true));
 
   /* ---------- each frame ---------- */

@@ -9,7 +9,7 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { UNCUT } from "./view.js";
+import { UNCUT, srgbTarget } from "./view.js";
 
 const MAX_SIZE = 256; // texels across the texture at most
 const BLUR = 1.5 / 8; // how far past its edges the glass shows, of its size: the blur's reach, 1.5 texels, at 8 across (the fewest)
@@ -19,7 +19,7 @@ const BLUR = 1.5 / 8; // how far past its edges the glass shows, of its size: th
 // is drawn.
 export function makeMirror(glass, view, scene, still = [], ends = [new THREE.Vector3(), new THREE.Vector3()]) {
   const { renderer, camera } = view;
-  const target = new THREE.WebGLRenderTarget(1, 1);
+  const target = srgbTarget();
   const mirrored = new THREE.PerspectiveCamera();
   mirrored.layers.enable(UNCUT); // (anyone indoors: room.js)
   const textureMatrix = new THREE.Matrix4();
@@ -53,12 +53,17 @@ export function makeMirror(glass, view, scene, still = [], ends = [new THREE.Vec
       varying vec4 vAt;
       varying vec2 vUv;
       #include <clipping_planes_pars_fragment>
+      // A texel of the reflection, in linear colour (it is stored in sRGB: srgbTarget()).
+      vec4 seenAt(vec2 at) {
+        vec4 c = texture2D(map, at);
+        return vec4(mix(pow((c.rgb + 0.055) / 1.055, vec3(2.4)), c.rgb / 12.92, vec3(lessThanEqual(c.rgb, vec3(0.04045)))), c.a);
+      }
       void main() {
         #include <clipping_planes_fragment>
         vec2 at = vAt.xy / vAt.w;
         vec4 sum = vec4(0.0); // 1 2 1 / 2 4 2 / 1 2 1, over 16
         for (int i = -1; i <= 1; i++)
-          for (int j = -1; j <= 1; j++) sum += texture2D(map, at + vec2(i, j) * texel) * float((2 - abs(i)) * (2 - abs(j)));
+          for (int j = -1; j <= 1; j++) sum += seenAt(at + vec2(i, j) * texel) * float((2 - abs(i)) * (2 - abs(j)));
         sum /= 16.0;
         vec3 seen = sum.rgb + tint * (1.0 - sum.a); // the bare glass where nothing is drawn
         float gleam = step(fract((vUv.x * 17.0 + vUv.y * 43.0) / 11.0), 0.15);

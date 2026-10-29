@@ -52,6 +52,22 @@ const DOWN_CORNERS = [
   [X0 - 4, -9, FRONT],
 ];
 export const UNCUT = 3; // the layer of what is drawn whole from the basement (the stairs down, and anyone on them)
+
+// A render target drawn into just as the canvas is, in sRGB and blended so. three.js otherwise draws into a
+// target in linear colour, with shaders of their own: everything seen both on the canvas and in a target
+// (the mirror, the windows) switched between the two every frame, each switch a new heap of garbage that
+// held up a frame now and then as it was collected (and there glass, water and glows blended milky and dark
+// shading banded into patches). Marked as an XR target, three.js draws into it in its texture's colour space
+// (and nothing else changes); stored as plain RGBA8, or the GPU would encode it again. What samples it
+// decodes it (it is not marked for the GPU to).
+export function srgbTarget(w = 1, h = 1, options = {}) {
+  const target = new THREE.WebGLRenderTarget(w, h, options);
+  target.isXRRenderTarget = true;
+  target.texture.colorSpace = THREE.SRGBColorSpace;
+  target.texture.internalFormat = "RGBA8";
+  return target;
+}
+
 const CUT = -9.5; // where the house is sliced off, seen down in the basement (just under its floor slab)
 const SLAB = -8.6; // the underside of the house's floor slab (shell.js)
 
@@ -307,24 +323,15 @@ export function makeView() {
   flat.add(quad);
   const flatCamera = new THREE.Camera();
   const size = new THREE.Vector2();
-  // The basement and the house as seen between floors, the size of the canvas (made again as that changes).
-  // Each drawn into just as the canvas is, in sRGB and blended so: three.js draws into a render target in
-  // linear colour, and there glass, water and glows blended milky and dark shading banded into patches, only
-  // while the view went between floors. Marked as an XR target, three.js draws into it in its texture's colour
-  // space (and nothing else changes); its texture made first as plain RGBA8, or the GPU would encode it again.
+  // The basement and the house as seen between floors, the size of the canvas (made again as that changes),
+  // each drawn into just as the canvas is (srgbTarget()).
   const targets = [null, null];
   function target(i) {
     renderer.getDrawingBufferSize(size);
     const r = targets[i];
     if (r && r.width === size.x && r.height === size.y) return r;
     r?.dispose();
-    const made = new THREE.WebGLRenderTarget(size.x, size.y);
-    const was = renderer.getRenderTarget();
-    renderer.setRenderTarget(made); // (made now, as RGBA8)
-    renderer.setRenderTarget(was);
-    made.isXRRenderTarget = true;
-    made.texture.colorSpace = THREE.SRGBColorSpace;
-    return (targets[i] = made);
+    return (targets[i] = srgbTarget(size.x, size.y));
   }
   // A target drawn over what is on the canvas, `opacity` of it.
   function over(r, opacity) {

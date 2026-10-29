@@ -992,6 +992,7 @@ function makePetals(group) {
   mesh.count = 0;
   mesh.frustumCulled = false;
   mesh.receiveShadow = true;
+  mesh.setColorAt(0, new THREE.Color()); // (coloured from the start: its shader made with the rest, not as the first petal falls)
   group.add(mesh);
   const list = []; // { x, y, z, turn, tip, fall: { vx, vz, spin } | null, color }
   const m4 = new THREE.Matrix4();

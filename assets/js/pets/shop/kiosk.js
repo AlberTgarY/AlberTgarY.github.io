@@ -429,8 +429,17 @@ export function* buildingKiosk(shared) {
 
   yield;
   /* ----- glass: one plain, faintly green tinted sheet for every clear pane ----- */
+  // (Sheets drawn in one pass, which they look the same in: three.js's two for what is see-through and
+  // two-sided find it a shader afresh twice a draw. So the awning's glass and the cool room's curtain too.)
 
-  const glass = new THREE.MeshBasicMaterial({ color: 0xbfe0d6, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide });
+  const glass = new THREE.MeshBasicMaterial({
+    color: 0xbfe0d6,
+    transparent: true,
+    opacity: 0.07,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    forceSinglePass: true,
+  });
   const panes = [
     sheet([X0 + 2, DOOR.x0 - 2], [SILL + 1, ROOF_Y - 1], Z1 - 0.5, glass),
     sheet([DOOR.x1 + 2, X1 - 2], [SILL + 1, ROOF_Y - 1], Z1 - 0.5, glass),
@@ -558,7 +567,14 @@ export function* buildingKiosk(shared) {
   add(
     new THREE.Mesh(
       awningGeo,
-      new THREE.MeshBasicMaterial({ color: 0x7fae9b, transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({
+        color: 0x7fae9b,
+        transparent: true,
+        opacity: 0.14,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        forceSinglePass: true,
+      })
     ),
     false,
     false
@@ -856,12 +872,22 @@ export function* buildingKiosk(shared) {
   curtainGeo.computeVertexNormals();
   const curtain = new THREE.Mesh(
     curtainGeo,
-    new THREE.MeshLambertMaterial({ color: 0xe6f3f8, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide })
+    new THREE.MeshLambertMaterial({
+      color: 0xe6f3f8,
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      forceSinglePass: true,
+    })
   );
   group.add(curtain);
   const coldLight = new THREE.PointLight(0xd6ecff, 0, 60, 1);
   coldLight.position.set((COOL.x0 + COOL.x1) / 2, CR.h - 8, CR.z0 + 10);
-  group.add(coldLight);
+  // (The lamps in the scene itself, the kiosk's group being where it stands, unmoved: in the group, three.js's
+  // compiling of it (shop.js warm()) counted them twice, and what it left hidden then was made for twice the
+  // lamps, needing a shader of its own the first time it showed.)
+  shared.scene.add(coldLight);
   const doorG = grid(0.5);
   const DW = COOL.x1 - COOL.x0;
   doorG.box([COOL.x0 + 0.5, COOL.x1 - 0.5], [FLOOR, 48.5], [Z0 + 1, Z0 + 1.5], (x, y) => {
@@ -937,7 +963,7 @@ export function* buildingKiosk(shared) {
   inside.position.set(-75, 58, -70);
   const under = new THREE.PointLight(0xeef6ff, 0, 140, 0);
   under.position.set(-40, 56, 0);
-  group.add(inside, under);
+  shared.scene.add(inside, under); // (in the scene itself: coldLight)
 
   // Music notes over the radio, a sparkle over the till or the chime: a few sprites, each used again.
   const noteTex = [glyphTexture("♪", "#5a7fd6"), glyphTexture("♫", "#d65a8f"), glyphTexture("♪", "#3f9a6b")];
