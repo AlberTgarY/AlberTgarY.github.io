@@ -2,9 +2,8 @@
  * The flower shop's grounds (layout.js): the pavement of big bluestone pavers,
  * the painted hoarding along the back (big daisies, sunflowers and pink
  * dahlias on deep green, a market banner and a speech bubble), the house
- * plants on their concrete plinth and wire rack with trays in front (peace
- * lilies, rubber plants, monstera, calathea, peperomia, anthurium, cacti, ZZ,
- * dracaena, with price picks), the plane tree in its iron grate, the empty
+ * plants on their concrete plinth and wire rack with trays in front
+ * (plants.js), the plane tree in its iron grate, the empty
  * buckets stacked by the left, the chalkboard A-frame, the tap on the kiosk's
  * wall with the watering can by it, the dog's water bowl, petals and leaves
  * on the ground (petals), and the pigeons and the sparrow pecking about out
@@ -17,7 +16,8 @@ import { pixelTexture } from "../room/house/kit.js";
 import { makeWater } from "../room/water.js";
 import { VIEW_YAW } from "../room/view.js";
 import { rnd, pick } from "../stage.js";
-import { part, box, meshOf, voxels, paletteOf } from "./kit.js";
+import { part, box, meshOf, voxels, paletteOf, seenFaces, seenMaterial } from "./kit.js";
+import { PLANTS, PLANT_COLORS, RACK, TRAY_W, TRAY_COUNT, POT_STACKS, planted, trayX, potStack } from "./plants.js";
 import { GROUND, MURAL, KIOSK, FLOOR, PLINTH, TRAYS, TREE, TAP, BUCKET_STACKS, SIGN, BOWL, MIDDLE, RIGHT, LEFT, DOOR } from "./layout.js";
 
 const HALF = 0.5; // the fine parts are built in half voxels
@@ -26,40 +26,7 @@ const BACK_Z = MURAL.z + 2; // the mural's painted face (z = -110)
 
 // The colours of the grounds' own things.
 const PALETTE = paletteOf({
-  potRim: "#3a3a3d",
-  pinkRim: "#f6d6d2",
-  pebble: "#ece8df",
-  lilyLeaf: "#2f5f2a",
-  lilyRib: "#244a20",
-  spathe: "#f6f6ef",
-  spadix: "#efe3b0",
-  stalk: "#5a8a3a",
-  rubber: "#3b1f2a",
-  rubberLight: "#5d3343",
-  rubberRib: "#7a3c46",
-  rubberStem: "#5a4a32",
-  monstera: "#7fb24a",
-  monsteraRib: "#5d8f35",
-  calDark: "#3d6a35",
-  calLight: "#a8c878",
-  silver: "#c3cbc6",
-  silverVein: "#55635b",
-  rosso: "#34452f",
-  rossoEdge: "#8a2a35",
-  anthLeaf: "#2c5a2c",
-  anthRed: "#c8202f",
-  anthSpadix: "#e8d26a",
-  cactus: "#4f7f45",
-  cactusDark: "#3e6a37",
-  spine: "#efeee6",
-  cactusBloom: "#e85a9a",
-  zz: "#2e5d2c",
-  zzLight: "#4c8a45",
-  dracEdge: "#4f8a3a",
-  dracStripe: "#c9d86a",
-  stick: "#f1efe8",
-  stickGreen: "#2d9a5c",
-  stickYellow: "#e3cf3e",
+  ...PLANT_COLORS,
   rack: "#b4bcbf",
   rackDark: "#959ea2",
   tray: "#1f2022",
@@ -79,180 +46,8 @@ const PALETTE = paletteOf({
   boardFrameDark: "#71502f",
 });
 
-// The trays on the pavement and the plants on the plinth and its rack: each plant's kind, place (world x,
-// z) and the height its pot stands on.
-const RACK = { x0: PLINTH.x0 + 6, x1: PLINTH.x1 - 6, low: { z0: -97, z1: -90, y: 22 }, high: { z0: -104, z1: -97, y: 30 } };
-
 /* ---------------------------------------------------------------------------------------------------------- */
-/* The plants, in half voxels (h): a pot at (cx, cy, cz), the plant on it. */
-
-// A round pot of radius r and height h, its rim lighter, soil (or pebbles) on top, sunk a little.
-function pot(p, cx, cy, cz, r, h, color, rim, top = "soil") {
-  for (let y = 0; y < h; y++) {
-    const rr = r;
-    for (let dx = -r; dx <= r; dx++)
-      for (let dz = -r; dz <= r; dz++) {
-        const d = dx * dx + dz * dz;
-        if (d > rr * rr + 0.6) continue;
-        const inner = d <= (rr - 1) * (rr - 1) + 0.6;
-        if (y === h - 1 && inner) p.add(cx + dx, cy + y - 1, cz + dz, top); // (the top, sunk a little)
-        else if (y === h - 1 || !inner || y < h - 2) p.add(cx + dx, cy + y, cz + dz, y === h - 1 ? rim : color);
-      }
-  }
-}
-
-// A flat leaf: from `from` along `dir` (unit steps) for `len`, `width` at its widest (a lens shape), across
-// the horizontal at right angles; `color(s, k)` for a voxel `s` along and `k` across (0 the midrib).
-function leaf(p, [fx, fy, fz], dir, len, width, color, holes = null) {
-  const n = Math.hypot(...dir);
-  const [dx, dy, dz] = dir.map((v) => v / n);
-  let [px, pz] = [-dz, dx];
-  const pn = Math.hypot(px, pz) || 1;
-  [px, pz] = [px / pn, pz / pn];
-  for (let s = 0; s <= len; s++) {
-    const w = Math.max(0.5, width * Math.sin((Math.PI * (s + 0.6)) / (len + 1.2)));
-    for (let k = -Math.round(w); k <= Math.round(w); k++) {
-      if (holes && holes(s, k)) continue;
-      p.add(Math.round(fx + dx * s + px * k), Math.round(fy + dy * s), Math.round(fz + dz * s + pz * k), color(s, k));
-    }
-  }
-}
-
-// A thin stalk from `from` up to `to`.
-function stalk(p, [ax, ay, az], [bx, by, bz], color) {
-  const n = Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay), Math.abs(bz - az)));
-  for (let k = 0; k <= n; k++)
-    p.add(Math.round(ax + ((bx - ax) * k) / n), Math.round(ay + ((by - ay) * k) / n), Math.round(az + ((bz - az) * k) / n), color);
-}
-
-// Leaves spread round from (cx, cy, cz): `n` of them, leaning out by `out` (0 straight up, 1 level).
-const around = (n, seed, out, upFirst = 0) =>
-  Array.from({ length: n }, (_, i) => {
-    const a = (i / n) * Math.PI * 2 + hash(seed, i, 3) * 0.7;
-    const lean = out + upFirst * (i % 2) + (hash(seed, i, 5) - 0.5) * 0.25;
-    return [Math.cos(a) * lean, 1 - lean * 0.6, Math.sin(a) * lean];
-  });
-
-// A cactus's ribs: dark and light bands round its axis.
-const rib = (dx, dz) => (Math.floor((Math.atan2(dz, dx) + Math.PI) / 0.79) % 2 ? "cactusDark" : "cactus");
-
-export const PLANTS = {
-  // Peace lily: dark lance leaves arching out, white spathes on tall stalks.
-  lily(p, x, y, z, s) {
-    pot(p, x, y, z, 5, 8, "potBlack", "potRim");
-    const top = y + 7;
-    around(5, s, 0.45).forEach((d, i) =>
-      leaf(p, [x, top, z], d, 12 + Math.round(hash(s, i, 1) * 3), 1.6, (_, k) => (k === 0 ? "lilyRib" : "lilyLeaf"))
-    );
-    for (let i = 0; i < 2 + (s % 2); i++) {
-      const a = hash(s, i, 7) * 6.28;
-      const [ex, ez] = [x + Math.round(Math.cos(a) * 3), z + Math.round(Math.sin(a) * 3)];
-      const h = top + 18 + Math.round(hash(s, i, 8) * 5);
-      stalk(p, [x, top, z], [ex, h, ez], "stalk");
-      ellipsoid(p, [ex, h + 3, ez], [1.6, 3.2, 1.1], "spathe");
-      p.add(ex, h + 2, ez + 1, "spadix");
-    }
-  },
-  // Rubber plant: an upright stem with big glossy burgundy leaves, alternating.
-  rubber(p, x, y, z, s) {
-    pot(p, x, y, z, 5, 8, "potBlack", "potRim");
-    const top = y + 7;
-    const h = 30 + (s % 3) * 3;
-    stalk(p, [x, top, z], [x, top + h, z], "rubberStem");
-    for (let k = 0; k < 5; k++) {
-      const a = k * 2.4 + s;
-      const at = top + 7 + k * 4.2;
-      leaf(p, [x, at, z], [Math.cos(a), 0.55, Math.sin(a)], 7, 2.0, (q, w) => (w === 0 ? "rubberRib" : q > 3 && w < 0 ? "rubberLight" : "rubber"));
-    }
-    ellipsoid(p, [x, top + h + 1, z], [0.8, 2, 0.8], "rossoEdge"); // (the new leaf's red sheath)
-  },
-  // Monstera adansonii: bright heart leaves with holes along the midrib.
-  monstera(p, x, y, z, s) {
-    pot(p, x, y, z, 4, 6, "potBlack", "potRim");
-    around(6, s, 0.75).forEach((d, i) =>
-      leaf(
-        p,
-        [x, y + 5, z],
-        d,
-        6,
-        2.2,
-        (_, k) => (k === 0 ? "monsteraRib" : "monstera"),
-        (q, k) => q >= 2 && q <= 5 && Math.abs(k) === 1 && (q + i) % 2 === 0
-      )
-    );
-  },
-  // Calathea: upright ovals, feathered pale and dark.
-  calathea(p, x, y, z, s) {
-    pot(p, x, y, z, 4, 6, "potBlack", "potRim");
-    around(5, s, 0.4).forEach((d) => leaf(p, [x, y + 5, z], d, 8, 1.8, (q, k) => (q % 3 === 1 && k !== 0 ? "calLight" : "calDark")));
-  },
-  // Peperomia: a low rosette of round leaves, silver with dark veins (or the dark red-edged kind).
-  peperomia(p, x, y, z, s, rosso = false) {
-    pot(p, x, y, z, 4, 6, "potBlack", "potRim");
-    around(8, s, 0.8).forEach((d) =>
-      leaf(p, [x, y + 6, z], d, 4, 1.3, (q, k) => (rosso ? (Math.abs(k) >= 1 && q > 1 ? "rossoEdge" : "rosso") : k === 0 ? "silverVein" : "silver"))
-    );
-    ellipsoid(p, [x, y + 7, z], [1, 1, 1], rosso ? "rosso" : "silver");
-  },
-  // Anthurium: dark glossy hearts and red spathes, a yellow spadix standing out of each.
-  anthurium(p, x, y, z, s) {
-    pot(p, x, y, z, 4, 6, "potBlack", "potRim");
-    around(4, s, 0.5).forEach((d) => leaf(p, [x, y + 5, z], d, 6, 1.9, () => "anthLeaf"));
-    for (let i = 0; i < 3; i++) {
-      const a = i * 2.1 + s;
-      const [ex, ez] = [x + Math.round(Math.cos(a) * 3), z + Math.round(Math.sin(a) * 3)];
-      const h = y + 13 + i * 2;
-      stalk(p, [x, y + 5, z], [ex, h, ez], "stalk");
-      ellipsoid(p, [ex, h + 1, ez], [2.2, 2.2, 0.6], "anthRed");
-      p.add(ex, h + 2, ez + 1, "anthSpadix");
-      p.add(ex, h + 3, ez + 1, "anthSpadix");
-    }
-  },
-  // A ball cactus in a pink pot on white pebbles, spined, some in flower.
-  ball(p, x, y, z, s) {
-    pot(p, x, y, z, 5, 7, "potPink", "pinkRim", "pebble");
-    ellipsoid(p, [x, y + 10, z], [4, 4.2, 4], (vx, vy, vz) => (hash(vx, vy, vz) < 0.1 ? "spine" : rib(vx - x, vz - z)));
-    if (s % 3 !== 0)
-      for (const [dx, dz] of [
-        [0, 0],
-        [2, 1],
-        [-1, -2],
-      ])
-        p.add(x + dx, y + 15, z + dz, "cactusBloom");
-  },
-  // A column cactus, ribbed, or an old man cactus in white hair.
-  column(p, x, y, z, s, hairy = false) {
-    pot(p, x, y, z, 5, 7, "potPink", "pinkRim", "pebble");
-    const h = 16 + (s % 3) * 3;
-    ellipsoid(p, [x, y + 6 + h / 2, z], [3, h / 2, 3], (vx, vy, vz) =>
-      hairy ? (hash(vx >> 1, vy >> 1, vz) < 0.75 ? "spine" : "cactus") : hash(vx, vy, vz) < 0.08 ? "spine" : rib(vx - x, vz - z)
-    );
-    if (!hairy) ellipsoid(p, [x + 3, y + 8 + h / 3, z], [1.6, 3, 1.6], "cactus"); // (an arm)
-  },
-  // ZZ plant: stiff stalks of paired glossy leaflets.
-  zz(p, x, y, z, s) {
-    pot(p, x, y, z, 4, 6, "potBlack", "potRim");
-    around(5, s, 0.3).forEach(([dx, dy, dz], i) => {
-      const n = 9 + (i % 3) * 2;
-      for (let k = 0; k <= n; k++) {
-        const [px, py, pz] = [x + Math.round(dx * k), y + 5 + Math.round(dy * k), z + Math.round(dz * k)];
-        p.add(px, py, pz, "zz");
-        if (k > 2 && k % 2 === 0) {
-          p.add(px + 1, py, pz, "zzLight");
-          p.add(px - 1, py, pz, "zz");
-        }
-      }
-    });
-  },
-  // Dracaena: long arching leaves, green edged with a yellow-green stripe.
-  dracaena(p, x, y, z, s) {
-    pot(p, x, y, z, 4, 6, "potBlack", "potRim");
-    around(6, s, 0.55).forEach((d) => leaf(p, [x, y + 5, z], d, 9, 1.2, (_, k) => (k === 0 ? "dracStripe" : "dracEdge")));
-  },
-};
-
-/* ---------------------------------------------------------------------------------------------------------- */
-/* Canvas pictures: the pavement, the mural, the A-frame's chalkboards, the price picks. */
+/* Canvas pictures: the pavement, the mural, the A-frame's chalkboards, the plants' price cards. */
 
 // The pavement: big bluestone pavers in running bond, each its own shade, speckled; a slot drain.
 function pavingTexture() {
@@ -490,26 +285,58 @@ function chalkTexture(back = false) {
   return tex;
 }
 
-// A price pick's card: chalkboard, green or yellow, the price written on it.
-function priceTexture(price, kind) {
-  const [bg, ink] = { chalk: ["#2a2d2b", "#f2f0e8"], green: ["#1f9a6a", "#ffffff"], yellow: ["#e8d84a", "#222"] }[kind];
-  const { tex } = pixelTexture(64, 40, (g, w, h) => {
-    g.fillStyle = kind === "chalk" ? "#d8d4ca" : bg;
-    g.beginPath();
-    g.roundRect(0, 0, w, h, 9);
-    g.fill();
-    g.fillStyle = bg;
-    g.beginPath();
-    g.roundRect(3, 3, w - 6, h - 6, 7);
-    g.fill();
-    g.fillStyle = ink;
-    g.textAlign = "center";
-    g.textBaseline = "middle";
-    g.font = kind === "chalk" ? 'bold 24px "Segoe Print", "Comic Sans MS", cursive' : "bold 24px sans-serif";
-    g.fillText(price, w / 2, h / 2 + 1);
+// The plants' price cards (`cards`: [name, price, x, y, z] each, its middle on a front facing the street) as
+// one mesh: each a little chalkboard in an oak frame, as the buckets' tags (display.js), the name over the
+// price; all drawn on one picture.
+const CARD = { w: 8, h: 4.2, cw: 128, ch: 68 }; // its size, and its texels in the picture
+function cardsMesh(cards) {
+  const HAND = "'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive";
+  const { tex } = pixelTexture(CARD.cw, CARD.ch * cards.length, (g, w) => {
+    cards.forEach(([name, price], i) => {
+      const y = i * CARD.ch;
+      g.fillStyle = "#7a5233";
+      g.fillRect(0, y, w, CARD.ch);
+      g.fillStyle = "#2a2d2b";
+      g.fillRect(5, y + 5, w - 10, CARD.ch - 10);
+      g.fillStyle = "rgba(240,238,230,0.06)";
+      for (let k = 0; k < 6; k++) g.fillRect(10 + hash(i, k, 1) * (w - 40), y + 10 + hash(i, k, 2) * (CARD.ch - 24), 22, 4);
+      g.fillStyle = "#f2f0e8";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.font = `bold 17px ${HAND}`;
+      g.fillText(name, w / 2, y + 21);
+      g.font = `bold 25px ${HAND}`;
+      g.fillText(price, w / 2, y + 46);
+    });
   });
-  tex.magFilter = tex.minFilter = THREE.LinearFilter;
-  return tex;
+  tex.magFilter = tex.minFilter = THREE.LinearFilter; // (the writing smooth, not blocky)
+  const [position, uv, index] = [[], [], []];
+  cards.forEach(([, , x, y, z], i) => {
+    const [v0, v1] = [1 - (i + 1) / cards.length, 1 - i / cards.length];
+    const z1 = z + 0.06; // (just proud of the front)
+    position.push(
+      x - CARD.w / 2,
+      y - CARD.h / 2,
+      z1,
+      x + CARD.w / 2,
+      y - CARD.h / 2,
+      z1,
+      x + CARD.w / 2,
+      y + CARD.h / 2,
+      z1,
+      x - CARD.w / 2,
+      y + CARD.h / 2,
+      z1
+    );
+    uv.push(0, v0, 1, v0, 1, v1, 0, v1);
+    index.push(4 * i, 4 * i + 1, 4 * i + 2, 4 * i, 4 * i + 2, 4 * i + 3);
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(index);
+  geometry.computeVertexNormals();
+  return new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({ map: tex }));
 }
 
 /* ---------------------------------------------------------------------------------------------------------- */
@@ -590,11 +417,12 @@ export function* buildingGrounds(shared) {
       box(whole, [x, x], [P.h, (z === RACK.high.z0 ? RACK.high.y : RACK.low.y) + 1], [z, z], "rackDark");
   for (const { z0, z1, y } of [RACK.low, RACK.high])
     box(whole, [RACK.x0, RACK.x1], [y, y], [z0, z1 - 1], (x, _, z) => (z === z0 || z === z1 - 1 || x % 3 === 0 ? "rack" : "rackDark"));
-  // The trays on the pavement.
+  // The trays on the pavement, side by side: black plastic, a rim round each.
   const T = TRAYS;
-  box(whole, [T.x0, T.x1 - 1], [0, 1], [T.z0, T.z1 - 1], (x, y, z) =>
-    y === 1 && x > T.x0 && x < T.x1 - 1 && z > T.z0 && z < T.z1 - 1 ? "potBlack" : "tray"
-  );
+  for (let t = 0; t < TRAY_COUNT; t++) {
+    const [x0, x1] = [Math.round(trayX(t)), Math.round(trayX(t)) + TRAY_W - 1];
+    box(whole, [x0, x1], [0, 1], [T.z0, T.z1 - 1], (x, y, z) => (y === 1 && x > x0 && x < x1 && z > T.z0 && z < T.z1 - 1 ? "potBlack" : "tray"));
+  }
 
   // The tree's iron grate: a square of radiating bars round the trunk.
   const G = { x0: TREE.x - 10, x1: TREE.x + 10, z0: TREE.z - 10, z1: TREE.z + 10 };
@@ -656,60 +484,32 @@ export function* buildingGrounds(shared) {
 
   yield;
   /* ----- in half voxels: the plants, the stacked buckets, the tap, the bowl ----- */
-  const fine = part();
   const H = (v) => Math.round(v / HALF);
-  const picks = []; // [x, y, z, price, kind] of each price card
-  const plant = (kind, x, y, z, seed, ...more) => PLANTS[kind](fine, H(x), H(y), H(z), seed, ...more);
   yield;
-  // Trays on the pavement: six kinds, two columns of each, two rows (as in the market: a tray of each).
-  const TRAY_KINDS = [["dracaena"], ["calathea"], ["peperomia", true], ["peperomia"], ["monstera"], ["zz"]];
-  const TRAY_COLUMNS = [0, 1, 2, 3, 4, 5];
-  for (let c = 0; c < TRAY_COLUMNS.length; c++)
-    for (const [r, z] of [
-      [0, -67.5],
-      [1, -60.5],
-    ]) {
-      const [kind, more] = TRAY_KINDS[TRAY_COLUMNS[c]];
-      const x = T.x0 + 6 + c * ((T.x1 - T.x0 - 12) / (TRAY_COLUMNS.length - 1));
-      plant(kind, x, 2, z + (c % 2 ? 0.5 : 0), c * 7 + r * 31, more);
+  // The house plants, a mesh for each group of them (the work spread out); the stacks of empty pots for sale
+  // with those in the trays. Only the faces that can face the camera.
+  const { groups, cards } = planted();
+  const plantMeshes = [];
+  for (const [g, plants] of groups.entries()) {
+    const fine = part();
+    for (const [kind, x, y, z, seed, o] of plants) PLANTS[kind](fine, H(x), H(y), H(z), seed, o);
+    if (g === groups.length - 1) {
+      const PS = POT_STACKS;
+      for (const [x, z, r, n] of [
+        [PS.x0 + 4, PS.z0 + 4, 5, 7],
+        [PS.x0 + 5, PS.z1 - 4, 4, 5],
+        [PS.x1 - 4, (PS.z0 + PS.z1) / 2, 6, 4],
+      ])
+        potStack(fine, H(x), 0, H(z), r, n);
     }
-  // On the plinth's front: anthuriums, two column cacti (one hairy), ball cacti in pink pots, calatheas,
-  // peperomias.
-  const FRONT_KINDS = ["column", "anthurium", "ball", "calathea", "column", "peperomia"];
-  FRONT_KINDS.forEach((kind, c) => {
-    const x = P.x0 + 8 + c * ((P.x1 - P.x0 - 16) / (FRONT_KINDS.length - 1));
-    for (const [r, z] of [
-      [0, -86],
-      [1, -79],
-    ]) {
-      if (kind === "column" && r === 1) plant("ball", x, P.h, z, c * 13 + r);
-      else plant(kind, x, P.h, z, c * 13 + r, kind === "column" ? c === 0 : kind === "peperomia" && r === 1);
-    }
-  });
-  // On the rack: rubber plants and peace lilies high up, calatheas, anthuriums and a ZZ below.
-  ["lily", "rubber", "lily", "rubber"].forEach((kind, i) =>
-    plant(kind, RACK.x0 + 12 + i * ((RACK.x1 - RACK.x0 - 24) / 3), RACK.high.y + 1, (RACK.high.z0 + RACK.high.z1) / 2, 50 + i)
-  );
-  ["calathea", "zz", "anthurium", "zz"].forEach((kind, i) =>
-    plant(kind, RACK.x0 + 26 + i * ((RACK.x1 - RACK.x0 - 52) / 3), RACK.low.y + 1, (RACK.low.z0 + RACK.low.z1) / 2, 70 + i)
-  );
-  // The price picks, on sticks among them.
-  for (const [x, z, y, price, kind] of [
-    [P.x0 + 20, -82, P.h, "$40", "green"],
-    [P.x0 + 60, -82, P.h, "$45", "chalk"],
-    [P.x0 + 96, -82, P.h, "$10", "green"],
-    [T.x0 + 22, -64, 2, "$25", "chalk"],
-    [T.x0 + 58, -64, 2, "$20", "yellow"],
-    [T.x0 + 96, -64, 2, "$25", "chalk"],
-    [RACK.x0 + 30, -100, RACK.high.y, "$55", "chalk"],
-  ]) {
-    const top = y + 14;
-    stalk(fine, [H(x), H(y), H(z)], [H(x), H(top), H(z)], kind === "green" ? "stickGreen" : kind === "yellow" ? "stickYellow" : "stick");
-    picks.push([x, top + 1.6, z, price, kind]);
+    yield;
+    const mesh = shadowy(meshOf(fine, HALF, PALETTE));
+    seenFaces(mesh.geometry);
+    mesh.material = seenMaterial;
+    plantMeshes.push(mesh);
+    group.add(mesh);
+    yield;
   }
-
-  const plantsMesh = shadowy(meshOf(fine, HALF, PALETTE));
-  group.add(plantsMesh);
 
   yield;
   // The empty buckets, nested in three stacks: only each one's rim band shows, the top one whole.
@@ -767,13 +567,8 @@ export function* buildingGrounds(shared) {
   group.add(...stackMeshes, tapMesh, bowlMesh);
 
   yield;
-  // The price cards, turned to the viewer.
-  for (const [x, y, z, price, kind] of picks) {
-    const card = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 3.5), new THREE.MeshLambertMaterial({ map: priceTexture(price, kind) }));
-    card.position.set(x, y, z);
-    card.rotation.y = VIEW_YAW;
-    group.add(card);
-  }
+  // The plants' price cards.
+  group.add(cardsMesh(cards));
 
   yield;
   /* ----- the tree's crown: leaf blocks (as a voxel game's), a few hanging lower at its edges ----- */
@@ -887,7 +682,8 @@ export function* buildingGrounds(shared) {
   // the pavement at the front up to the top of the rack at the back. Taken off in the morning it is rolled
   // up from the back, the roll coming over the plants towards the two of them pulling at the front, fatter
   // as it comes; at closing it is unrolled back over (`tarp.set(k)`: 0 off, 1 on, the sheet as far back as
-  // k of the way). Rolled, it is folded and kept in the lock-up (`bundle`).
+  // k of the way). Rolled, it is folded and kept in the lock-up (`bundle`). At each end it hangs down to the
+  // pavement, so nothing shows under it from the side.
   let moved = false; // (anything moved: the sun's shadows drawn again)
   const TARP_X = [PLINTH.x0 - 1, PLINTH.x1 + 1];
   const DRAPE = [
@@ -900,10 +696,18 @@ export function* buildingGrounds(shared) {
   along.forEach((d, i) => i && (along[i] += along[i - 1])); // (how far along the sheet each point is)
   const LENGTH = along.at(-1);
   const ROLLED = 4.2; // the roll's radius with all of it rolled up
-  const sheetAt = new Float32Array(DRAPE.length * 2 * 3); // (each point's two ends, at TARP_X)
+  // (Each point's two ends, at TARP_X; then for each end, each point and the pavement under it.)
+  const N = DRAPE.length;
+  const sheetAt = new Float32Array(N * 6 * 3);
   const sheetGeometry = new THREE.BufferGeometry();
   sheetGeometry.setAttribute("position", new THREE.BufferAttribute(sheetAt, 3));
-  sheetGeometry.setIndex(DRAPE.slice(1).flatMap((_, i) => [2 * i, 2 * i + 1, 2 * i + 2, 2 * i + 1, 2 * i + 3, 2 * i + 2]));
+  const quads = (a, b, c, d) => [a, b, c, b, d, c];
+  sheetGeometry.setIndex(
+    DRAPE.slice(1).flatMap((_, i) => [
+      ...quads(2 * i, 2 * i + 1, 2 * i + 2, 2 * i + 3),
+      ...[0, 1].flatMap((e) => quads(...[0, 1, 2, 3].map((k) => 2 * N + e * 2 * N + 2 * i + k))),
+    ])
+  );
   const tarpMaterial = new THREE.MeshLambertMaterial({ color: "#3e5e48", flatShading: true, side: THREE.DoubleSide });
   const tarpMesh = new THREE.Mesh(sheetGeometry, tarpMaterial);
   tarpMesh.frustumCulled = false; // (its points move)
@@ -937,6 +741,7 @@ export function* buildingGrounds(shared) {
       DRAPE.forEach(([z, y], j) => {
         if (along[j] > reach) [z, y] = [ez, ey];
         sheetAt.set([TARP_X[0], y, z, TARP_X[1], y, z], j * 6);
+        TARP_X.forEach((x, e) => sheetAt.set([x, y, z, x, 0, z], (2 * N + e * 2 * N + 2 * j) * 3));
       });
       sheetGeometry.attributes.position.needsUpdate = true;
       tarpMesh.visible = reach > 0.5;
@@ -1069,13 +874,14 @@ export function* buildingGrounds(shared) {
     obstacles: [
       [P.x0, P.x1, MURAL.z, P.z1], // the plinth, back to the mural
       [T.x0, T.x1, T.z0, T.z1],
+      [POT_STACKS.x0, POT_STACKS.x1, POT_STACKS.z0, POT_STACKS.z1],
       [G.x0 + 3, G.x1 - 3, MURAL.z, G.z1 - 3], // the tree's trunk in its grate
       [S.x0, S.x1, S.z0, S.z1],
       [SIGN.x - 7, SIGN.x + 7, SIGN.z - 6, SIGN.z + 6],
       [TAP.x - 2, TAP.x + 3, TAP.z - 3, TAP.z + 3],
       [CAN_AT[0] - 4, CAN_AT[0] + 4, CAN_AT[2] - 4, CAN_AT[2] + 4],
     ],
-    hides: [crownMesh, trunkMesh, wholeMesh, plantsMesh, ...stackMeshes],
+    hides: [crownMesh, trunkMesh, wholeMesh, ...plantMeshes, ...stackMeshes],
     clickables,
     spots,
     can: canThing,

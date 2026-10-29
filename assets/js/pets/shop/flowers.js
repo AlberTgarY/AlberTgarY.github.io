@@ -10,7 +10,7 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { part, meshOf, solidMaterial } from "./kit.js";
+import { part, meshOf, seenFaces, seenMaterial } from "./kit.js";
 
 const FINE = 0.5; // a bloom's voxels, in voxels
 
@@ -569,22 +569,6 @@ function joined(geometries) {
   return { geometry: g, ends };
 }
 
-// Of a geometry of voxel faces, only those that can face the shop's camera: it never turns (from the front
-// right and above: view.js), so a face turned to -x, -y or -z is never seen. (Set unturned in the shop.)
-function seenFaces(g) {
-  const [n, index] = [g.attributes.normal, g.index.array];
-  const kept = [];
-  for (let i = 0; i < index.length; i += 3) {
-    const v = index[i];
-    if (n.getX(v) > -0.5 && n.getY(v) > -0.5 && n.getZ(v) > -0.5) kept.push(index[i], index[i + 1], index[i + 2]);
-  }
-  g.setIndex(kept);
-  return g;
-}
-// Drawn into the sun's shadow map by their front faces (the back ones are gone: seenFaces()).
-const bloomMaterial = solidMaterial.clone();
-bloomMaterial.shadowSide = THREE.FrontSide;
-
 // A bucketful of `kind` (display.js): a mesh with its base at the rim, `R` voxels across the top (the
 // bunches flaring out over the rim) and `H` voxels high, in `colors`, the bunches' leaves in it and their
 // cellophane a mesh of its own on it. `level(n)` shows it full (3) or thinned out by picking (2, then 1).
@@ -592,7 +576,7 @@ export function bucketBlooms(kind, colors, R, H, seed) {
   const { parts, bunches, head } = bucketParts(kind, colors, Math.round(R / FINE), Math.round(H / FINE), seed);
   const rand = rng(seed + 1);
   const { geometry, ends } = joined([leavesGeometry(bunches, head, rand), ...parts.map((p) => seenFaces(meshOf(p).geometry))]);
-  const mesh = new THREE.Mesh(geometry, bloomMaterial);
+  const mesh = new THREE.Mesh(geometry, seenMaterial);
   mesh.scale.setScalar(FINE);
   mesh.castShadow = mesh.receiveShadow = true;
   mesh.add(new THREE.Mesh(sleevesGeometry(bunches, head, rand), sleeveMaterials));

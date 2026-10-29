@@ -97,7 +97,7 @@ export function* buildingShop(stage) {
   }
   const kiosk = yield* built(buildingKiosk(shared), 0.05, 0.35, 14, "Flower shop · kiosk");
   const display = yield* built(buildingDisplay(shared), 0.35, 0.65, 54, "Flower shop · flowers");
-  const grounds = yield* built(buildingGrounds(shared), 0.65, 0.8, 13, "Flower shop · pavement and plants");
+  const grounds = yield* built(buildingGrounds(shared), 0.65, 0.8, 19, "Flower shop · pavement and plants");
   const builders = [kiosk, display, grounds];
   const obstacles = builders.flatMap((b) => b.obstacles);
   const bounds = [GROUND.x0 + 4, GROUND.x1 - 4, GROUND.z0 + 4, GROUND.z1 - 4];

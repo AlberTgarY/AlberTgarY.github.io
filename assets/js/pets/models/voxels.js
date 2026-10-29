@@ -67,8 +67,10 @@ export function part() {
     },
     // One mesh of just the faces that show (a face against another voxel of the part never does: a rigid
     // part never opens up), each coloured as its voxel (the vertex colours; a material put on it instead
-    // needs `vertexColors`).
-    mesh(palette) {
+    // needs `vertexColors`). `named`: each vertex's colour name kept too (geometry.userData.names), to colour
+    // it afresh from another palette (recolor()).
+    mesh(palette, named = false) {
+      const names = named ? [] : null;
       const position = [];
       const normal = [];
       const color = [];
@@ -83,6 +85,7 @@ export function part() {
             position.push(x + n[0] / 2 + su * u[0] + sv * v[0], y + n[1] / 2 + su * u[1] + sv * v[1], z + n[2] / 2 + su * u[2] + sv * v[2]);
             normal.push(...n);
             color.push(c.r, c.g, c.b);
+            names?.push(name);
           }
           index.push(base, base + 1, base + 2, base, base + 2, base + 3);
         }
@@ -92,9 +95,22 @@ export function part() {
       g.setAttribute("normal", new THREE.Float32BufferAttribute(normal, 3));
       g.setAttribute("color", new THREE.Float32BufferAttribute(color, 3));
       g.setIndex(index);
+      if (names) g.userData.names = names;
       return new THREE.Mesh(g, material);
     },
   };
+}
+
+// A mesh made with its colour names kept (part().mesh(palette, true)) coloured afresh from `palette`.
+export function recolor(mesh, palette) {
+  const { names } = mesh.geometry.userData;
+  const color = mesh.geometry.attributes.color;
+  const c = new THREE.Color();
+  names.forEach((name, i) => {
+    c.set(palette[name]);
+    color.setXYZ(i, c.r, c.g, c.b);
+  });
+  color.needsUpdate = true;
 }
 
 // Fill an ellipsoid; `color` may be a function of (x, y, z); `skip` parts are left untouched. A

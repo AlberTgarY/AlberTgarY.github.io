@@ -71,6 +71,22 @@ export function meshOf(p, scale = 1, palette = PALETTE, lit = true) {
   return m;
 }
 
+// Of a geometry of voxel faces, only those that can face the shop's camera: it never turns (from the front
+// right and above: view.js), so a face turned to -x, -y or -z is never seen. (Set unturned in the shop.)
+export function seenFaces(g) {
+  const [n, index] = [g.attributes.normal, g.index.array];
+  const kept = [];
+  for (let i = 0; i < index.length; i += 3) {
+    const v = index[i];
+    if (n.getX(v) > -0.5 && n.getY(v) > -0.5 && n.getZ(v) > -0.5) kept.push(index[i], index[i + 1], index[i + 2]);
+  }
+  g.setIndex(kept);
+  return g;
+}
+// For those: drawn into the sun's shadow map by their front faces (the back ones are gone).
+export const seenMaterial = solidMaterial.clone();
+seenMaterial.shadowSide = THREE.FrontSide;
+
 // A part filled by `fill(p)`, as a mesh (meshOf).
 export function voxels(fill, scale = 1, palette = PALETTE, lit = true) {
   const p = part();
