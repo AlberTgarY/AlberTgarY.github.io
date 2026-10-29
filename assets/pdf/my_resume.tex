@@ -2,7 +2,9 @@
 \usepackage[utf8]{inputenc}
 \usepackage{mathptmx}
 \usepackage[margin=0.3in]{geometry}
+\usepackage{xcolor}
 \usepackage{hyperref}
+\usepackage{fontawesome5}
 \usepackage{enumitem}
 \usepackage{titlesec}
 \usepackage{parskip}
@@ -13,6 +15,8 @@
     urlcolor=blue,
     citecolor=blue
 }
+
+\definecolor{venue}{RGB}{140,20,20}
 
 \titleformat{\section}{\normalfont\large\bfseries}{\thesection}{1em}{}[\titlerule]
 \titlespacing*{\section}{0pt}{12pt}{6pt}
@@ -27,7 +31,7 @@
 
 \begin{center}
 {\LARGE \textbf{Yicheng (Albert) Zhan}}\\[0.3em]
-E-mail: yicheng\_zhan2001@outlook.com | \href{https://scholar.google.com/citations?user=x2ptSYUAAAAJ}{Google Scholar} | \href{https://github.com/AlberTgarY}{GitHub}
+\faEnvelope~yicheng\_zhan2001@outlook.com \enspace\textcolor{gray}{\textbar}\enspace \faGraduationCap~\href{https://scholar.google.com/citations?user=x2ptSYUAAAAJ}{Google Scholar} \enspace\textcolor{gray}{\textbar}\enspace \faGithub~\href{https://github.com/AlberTgarY}{GitHub} \enspace\textcolor{gray}{\textbar}\enspace \faGlobe~\href{https://albertgary.github.io/}{Personal Website}
 \end{center}
 
 \section*{EDUCATION}
@@ -67,22 +71,24 @@ University of Leeds \hfill \textbf{Leeds, United Kingdom}
 \vspace{0.01em}
 
 \section*{PUBLICATIONS}
-\begin{itemize}
-\item Haolong Wang, \textbf{Yicheng Zhan}, Kaan Akşit, and Simeng Qiu, \textit{``Hologram Representation via Quadratic Phase Gaussian Splatting''} \textit{ACM SIGGRAPH Asia 2026 Tech Comm}. (\href{https://gsmark36.github.io/complex-valued-quadratic-phase-gaussian/}{Web})
-\item Runze Cheng, \textbf{Yicheng Zhan}, Josef Spjut, and Kaan Akşit, \textit{``Clustered Codebook Quantization for 2D Gaussian-based Image Compression''} ACM SIGGRAPH 2026 Posters. (Invited to Technical Paper Talk Panel) (\href{https://complightlab.com/publications/clustercodebook2DGS/}{Web})
-\item Xiaoyue Fan, \textbf{Yicheng Zhan}, Amrita Mazumdar, and Kaan Akşit, \textit{``Compressing Double-Phase Holograms using 2D Gaussians''} \textit{Eurographics 2026 Posters}. (\href{https://complightlab.com/publications/compressing_double_phase_gs/}{Web})
-\item \textbf{Yicheng Zhan}, Fahim Ahmed, Amy Burrell, Matthew J. Tonkin, Sarah Galambos, Jessica Woodhams, and Dalal Alrajeh, \textit{``Enhancing Binary Encoded Crime Linkage Analysis Using Siamese Network''} \textit{AAAI 2026}. (\href{https://ojs.aaai.org/index.php/AAAI/article/view/41309}{Web})
-\item \textbf{Yicheng Zhan*}, Xiangjun Gao*, Long Quan, and Kaan Akşit (*Equal Contribution), \textit{``Complex-Valued 2D Gaussian Representation for Computer-Generated Holography''} \textit{ECCV 2026}. (\href{https://complightlab.com/publications/complex_valued_2d_gaussians/}{Web})
-\item Zicong Peng, \textbf{Yicheng Zhan}, Josef Spjut, and Kaan Akşit, \textit{``Assessing Learned Models for Phase-only Hologram Compression''} \textit{ACM SIGGRAPH 2025 Posters}. (\href{https://complightlab.com/publications/assess_hologram_compression/}{Web})
-\item \textbf{Yicheng Zhan}, Dong-Ha Shin, Seung-Hwan Baek, and Kaan Akşit, \textit{``Complex-Valued Holographic Radiance Fields''} ACM Transactions on Graphics (presented in SIGGRAPH 2026). (Highlight at Graphics4Science Workshop at SIGGRAPH 2026) (\href{https://complightlab.com/publications/complex_valued_holographic_radiance_fields/}{Web})
-\item \textbf{Yicheng Zhan}, Liang Shi, Wojciech Matusik, Qi Sun, and Kaan Akşit, \textit{``Configurable Holography: Towards Display and Scene Adaptation''} ArXiv Preprint 2024. (In preparation) (\href{https://arxiv.org/abs/2405.01558}{Web})
-\item \textbf{Yicheng Zhan}, Koray Kavaklı, Hakan Urey, Qi Sun, and Kaan Akşit, \textit{``AutoColor: Learned Light Power Control for Multi-Color Holograms''} \textit{SPIE VR/AR/MR 2024}. (\href{https://complightlab.com/autocolor_/}{Web})
-\item Chuanjun Zheng, \textbf{Yicheng Zhan}, Liang Shi, Ozan Cakmakci and Kaan Akşit, \textit{``Focal Surface Holographic Light Transport using Learned Spatially Adaptive Convolutions''} \textit{ACM SIGGRAPH ASIA 2024 Tech Comm}. (\href{https://complightlab.com/publications/focal_surface_light_transport/}{Web})
-\end{itemize}
+\begin{enumerate}[label={[\arabic*]}, leftmargin=*, before=\raggedright]
+\item Haolong Wang, \textbf{Yicheng Zhan}, Kaan Akşit, and Simeng Qiu. \textit{Hologram Representation via Quadratic Phase Gaussian Splatting}. \mbox{\textcolor{venue}{\textbf{ACM SIGGRAPH Asia 2026 Tech Comm.}}} (\href{https://gsmark36.github.io/complex-valued-quadratic-phase-gaussian/}{Web})
+\item Runze Cheng, \textbf{Yicheng Zhan}, Josef Spjut, and Kaan Akşit. \textit{Clustered Codebook Quantization for 2D Gaussian-based Image Compression}. \mbox{\textcolor{venue}{\textbf{ACM SIGGRAPH 2026 Posters}}} \textit{(Invited to Technical Paper Talk Panel)} (\href{https://complightlab.com/publications/clustercodebook2DGS/}{Web})
+\item Xiaoyue Fan, \textbf{Yicheng Zhan}, Amrita Mazumdar, and Kaan Akşit. \textit{Compressing Double-Phase Holograms using 2D Gaussians}. \mbox{\textcolor{venue}{\textbf{Eurographics 2026 Posters}}} (\href{https://complightlab.com/publications/compressing_double_phase_gs/}{Web})
+\item \textbf{Yicheng Zhan}, Fahim Ahmed, Amy Burrell, Matthew J. Tonkin, Sarah Galambos, Jessica Woodhams, and Dalal Alrajeh. \textit{Enhancing Binary Encoded Crime Linkage Analysis Using Siamese Network}. \mbox{\textcolor{venue}{\textbf{AAAI 2026}}} (\href{https://ojs.aaai.org/index.php/AAAI/article/view/41309}{Web})
+\item \textbf{Yicheng Zhan*}, Xiangjun Gao*, Long Quan, and Kaan Akşit (*Equal Contribution). \textit{Complex-Valued 2D Gaussian Representation for Computer-Generated Holography}. \mbox{\textcolor{venue}{\textbf{ECCV 2026}}} (\href{https://complightlab.com/publications/complex_valued_2d_gaussians/}{Web})
+\item Zicong Peng, \textbf{Yicheng Zhan}, Josef Spjut, and Kaan Akşit. \textit{Assessing Learned Models for Phase-only Hologram Compression}. \mbox{\textcolor{venue}{\textbf{ACM SIGGRAPH 2025 Posters}}} (\href{https://complightlab.com/publications/assess_hologram_compression/}{Web})
+\item \textbf{Yicheng Zhan}, Dong-Ha Shin, Seung-Hwan Baek, and Kaan Akşit. \textit{Complex-Valued Holographic Radiance Fields}. \mbox{\textcolor{venue}{\textbf{ACM Transactions on Graphics}}} \textit{(Presented at SIGGRAPH 2026 and highlighted at Graphics4Science Workshop)} (\href{https://complightlab.com/publications/complex_valued_holographic_radiance_fields/}{Web})
+\item \textbf{Yicheng Zhan}, Liang Shi, Wojciech Matusik, Qi Sun, and Kaan Akşit. \textit{Configurable Holography: Towards Display and Scene Adaptation}. \mbox{\textcolor{venue}{\textbf{ArXiv Preprint 2024}}} \textit{(In preparation)} (\href{https://arxiv.org/abs/2405.01558}{Web})
+\item \textbf{Yicheng Zhan}, Koray Kavaklı, Hakan Urey, Qi Sun, and Kaan Akşit. \textit{AutoColor: Learned Light Power Control for Multi-Color Holograms}. \mbox{\textcolor{venue}{\textbf{SPIE VR/AR/MR 2024}}} (\href{https://complightlab.com/autocolor_/}{Web})
+\item Chuanjun Zheng, \textbf{Yicheng Zhan}, Liang Shi, Ozan Cakmakci and Kaan Akşit. \textit{Focal Surface Holographic Light Transport using Learned Spatially Adaptive Convolutions}. \mbox{\textcolor{venue}{\textbf{ACM SIGGRAPH ASIA 2024 Tech Comm.}}} (\href{https://complightlab.com/publications/focal_surface_light_transport/}{Web})
+\end{enumerate}
 
 \section*{SKILLS}
-Language skills: English (fluent), Chinese (native), Spanish (Intermediate)
-
-Interests: Compose Hiphop Music, Sleep, Long-distance Running.
+\begin{tabular*}{\linewidth}{@{}l@{\extracolsep{\fill}\hspace{1em}}l@{}}
+\textbf{Programming}: Python, C++, CUDA, JavaScript. & \textbf{Frameworks}: PyTorch, Odak, Mitsuba 3, OpenCV, NumPy. \\[2pt]
+\textbf{Tools and Agents}: Claude Code, Codex, Linux, Git, LaTeX, Manim. & \textbf{Language skills}: English (fluent), Chinese (native). \\[2pt]
+\multicolumn{2}{@{}l@{}}{\textbf{Interests}: Compose Hiphop Music, Sleep, Long-distance Running.}
+\end{tabular*}
 
 \end{document}

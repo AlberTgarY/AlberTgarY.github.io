@@ -36,6 +36,22 @@ def format_date(date_str):
     except:
         return date_str
 
+def two_column_list(rows):
+    """Lay out (label, keywords) rows two per line; a leftover row spans the full width.
+    Columns take their natural width, the left one flush left and the right one flush right."""
+    cells = [
+        f"\\textbf{{{escape_latex(label)}}}: {', '.join(escape_latex(k) for k in keywords)}."
+        for label, keywords in rows if keywords
+    ]
+    lines = [f"{cells[i]} & {cells[i + 1]}" for i in range(0, len(cells) - 1, 2)]
+    if len(cells) % 2:
+        lines.append(f"\\multicolumn{{2}}{{@{{}}l@{{}}}}{{{cells[-1]}}}")
+    return (
+        "\\begin{tabular*}{\\linewidth}{@{}l@{\\extracolsep{\\fill}\\hspace{1em}}l@{}}\n"
+        + " \\\\[2pt]\n".join(lines)
+        + "\n\\end{tabular*}\n"
+    )
+
 def generate_latex(json_data):
     """Generate LaTeX document from JSON data"""
 
@@ -43,6 +59,7 @@ def generate_latex(json_data):
     education = json_data.get('education', [])
     work = json_data.get('work', [])
     publications = json_data.get('publications', [])
+    skills = json_data.get('skills', [])
     languages = json_data.get('languages', [])
     awards = json_data.get('awards', [])
     interests = json_data.get('interests', [])
@@ -55,12 +72,25 @@ def generate_latex(json_data):
 
     google_scholar = next((p['url'] for p in profiles if p['network'] == 'Google Scholar'), '')
     github = next((p['url'] for p in profiles if p['network'] == 'GitHub'), '')
+    website = next((p['url'] for p in profiles if p['network'] == 'Website'), '')
+
+    links = [
+        (r'\faGraduationCap', google_scholar, 'Google Scholar'),
+        (r'\faGithub', github, 'GitHub'),
+        (r'\faGlobe', website, 'Personal Website'),
+    ]
+    contacts = [f'\\faEnvelope~{escape_latex(email)}'] + [
+        f'{icon}~\\href{{{url}}}{{{text}}}' for icon, url, text in links if url
+    ]
+    contact_line = r' \enspace\textcolor{gray}{\textbar}\enspace '.join(contacts)
 
     latex_content = r"""\documentclass[10pt,a4paper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{mathptmx}
 \usepackage[margin=0.3in]{geometry}
+\usepackage{xcolor}
 \usepackage{hyperref}
+\usepackage{fontawesome5}
 \usepackage{enumitem}
 \usepackage{titlesec}
 \usepackage{parskip}
@@ -71,6 +101,8 @@ def generate_latex(json_data):
     urlcolor=blue,
     citecolor=blue
 }
+
+\definecolor{venue}{RGB}{140,20,20}
 
 \titleformat{\section}{\normalfont\large\bfseries}{\thesection}{1em}{}[\titlerule]
 \titlespacing*{\section}{0pt}{12pt}{6pt}
@@ -85,7 +117,7 @@ def generate_latex(json_data):
 
 \begin{center}
 {\LARGE \textbf{""" + escape_latex(name) + r"""}}\\[0.3em]
-E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Google Scholar} | \href{""" + github + r"""}{GitHub}
+""" + contact_line + r"""
 \end{center}
 
 \section*{EDUCATION}
@@ -164,7 +196,7 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
             latex_content += "\n\\vspace{0.01em}\n\n"
 
     latex_content += r"""\section*{PUBLICATIONS}
-\begin{itemize}
+\begin{enumerate}[label={[\arabic*]}, leftmargin=*, before=\raggedright]
 """
 
     user_name_clean = re.sub(r'\s*\([^)]*\)\s*', ' ', name).strip()
@@ -174,66 +206,41 @@ E-mail: """ + escape_latex(email) + r""" | \href{""" + google_scholar + r"""}{Go
         first_author = escape_latex(pub.get('firstAuthor', ''))
         other_authors = escape_latex(pub.get('otherAuthors', ''))
         title = escape_latex(pub.get('name', ''))
-        # the templates below append their own period, so drop a trailing one
-        # (e.g. "Tech Comm." would otherwise render as "Tech Comm..")
-        venue = escape_latex(pub.get('publisher', '').rstrip('. '))
+        venue = escape_latex(pub.get('publisher', '').strip())
         status = pub.get('status', '')
         url = pub.get('url', '')
 
-        if first_author == escaped_user_name:
-            latex_content += f"""\\item \\textbf{{{first_author}}}, """
-        else:
-            first_author_clean = re.sub(r'[\*\u2217\u2020\u2021\u00a7\u00b6]+', '', first_author).strip()
-            if first_author_clean == escaped_user_name:
-                latex_content += f"""\\item \\textbf{{{first_author}}}, """
-            else:
-                latex_content += f"""\\item {first_author}, """
-
-        other_authors = re.sub(
+        # bold the CV owner's name, keeping any equal-contribution mark
+        authors = re.sub(
             re.escape(escaped_user_name) + r'(?:[\*\u2217\u2020\u2021\u00a7\u00b6])*',
             lambda m: f"\\textbf{{{m.group(0)}}}",
-            other_authors,
+            f"{first_author}, {other_authors}",
         )
 
-        latex_content += f"""{other_authors}, \\textit{{``{title}''}} """
-
+        # \mbox keeps the venue on one line so it reads as one unit
+        latex_content += f"""\\item {authors}. \\textit{{{title}}}. \\mbox{{\\textcolor{{venue}}{{\\textbf{{{venue}}}}}}}"""
         if status:
-            latex_content += f"""{venue}. ({status}) """
-        else:
-            latex_content += f"""\\textit{{{venue}}}. """
-
+            latex_content += f""" \\textit{{({escape_latex(status)})}}"""
         if url:
-            latex_content += f"""(\\href{{{url}}}{{Web}})"""
-
+            latex_content += f""" (\\href{{{url}}}{{Web}})"""
         latex_content += "\n"
 
-    latex_content += r"""\end{itemize}
+    latex_content += r"""\end{enumerate}
 
 \section*{SKILLS}
 """
 
-    lang_list = []
-    for lang in languages:
-        language = escape_latex(lang.get('language', ''))
-        fluency = escape_latex(lang.get('fluency', ''))
-        lang_list.append(f"{language} ({fluency.lower()})")
+    skill_rows = [(s.get('name', ''), s.get('keywords', [])) for s in skills]
 
-    latex_content += f"""Language skills: {', '.join(lang_list)}"""
+    lang_list = [f"{lang.get('language', '')} ({lang.get('fluency', '').lower()})" for lang in languages]
+    lang_list += [f"{lang.get('language', '')} ({lang.get('fluency', '')})" for lang in additional_languages]
+    skill_rows.append(('Language skills', lang_list))
+    skill_rows.append(('Interests', interests_keywords))
 
-    if additional_languages:
-        for lang in additional_languages:
-            language = escape_latex(lang.get('language', ''))
-            fluency = escape_latex(lang.get('fluency', ''))
-            latex_content += f""", {language} ({fluency})"""
+    latex_content += two_column_list(skill_rows)
 
-    latex_content += "\n\n"
-
-    if interests_keywords:
-        latex_content += f"""Interests: {', '.join(interests_keywords)}.
-
-"""
-
-    latex_content += r"""\end{document}
+    latex_content += r"""
+\end{document}
 """
 
     return latex_content
