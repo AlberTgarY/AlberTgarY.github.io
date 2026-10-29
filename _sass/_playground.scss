@@ -130,6 +130,87 @@
   }
 }
 
+// In the flower shop, the house's own buttons (turning round, the floors) fade away.
+.playground-turn:not(.playground-clock),
+.playground-floors {
+  transition:
+    opacity 0.35s,
+    visibility 0s;
+
+  .in-shop & {
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity 0.35s,
+      visibility 0s 0.35s;
+  }
+}
+
+// Between the home and the flower shop, under the clock: two buttons in a pill, the one in view filled in.
+.playground-worlds {
+  position: absolute;
+  z-index: 3;
+  top: 2.6rem;
+  left: 0;
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--global-divider-color);
+  border-radius: 999px;
+  background: var(--global-card-bg-color);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+
+  .playground-off &,
+  .playground:not(.loaded) & {
+    display: none;
+  }
+}
+
+.playground-world {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--global-text-color);
+  font-size: 0.78rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 0.3s,
+    color 0.3s;
+
+  svg {
+    flex: none;
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: var(--global-theme-color);
+  }
+
+  &[aria-pressed="true"] {
+    background: var(--global-theme-color);
+    color: #fff;
+  }
+}
+
+// The flower shop's canvas and what shows over it, in a layer over the home's; each fades and scales about
+// its middle as the view goes from the one to the other (playground.js).
+.playground-shop {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+}
+
+.playground-stage > canvas,
+.playground-stage > .playground-overlay,
+.playground-shop {
+  transform-origin: 50% 50%;
+}
+
 // The dots, along the bottom of the button.
 .playground-floor-who {
   position: absolute;

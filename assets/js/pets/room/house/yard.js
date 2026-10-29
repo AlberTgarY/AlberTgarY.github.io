@@ -573,7 +573,9 @@ export function buildYard(shared) {
   // The blossom, like a cherry tree's in Minecraft: leaf blocks (BLOCK voxels a side, on a grid of their own)
   // in broad flat tiers, each narrower than the one under it, a block missing here and there round their
   // edges and hanging down a block or two under the lowest, and a smaller heap out over the swing's bough;
-  // each block mottled in pinks a voxel at a time, like the pixels of its texture.
+  // each block mottled in pinks a voxel at a time, like the pixels of its texture. A part of its own, hung
+  // about the top of the trunk: clicked, it wobbles and sheds petals (below).
+  const crown = part();
   const BLOCK = 6;
   const TIERS = [
     [tx - 2, tz - 2, 54, 2, 33], // [x, z] of its middle, the height of its underside, how many blocks thick, how far it reaches
@@ -608,7 +610,7 @@ export function buildYard(shared) {
   }
   for (const b of blocks) {
     const [i, j, k] = b.split(",").map((n) => +n * BLOCK);
-    for (let x = i; x < i + BLOCK; x++) for (let y = j; y < j + BLOCK; y++) for (let z = k; z < k + BLOCK; z++) tree.add(x, y, z, leafAt(x, y, z));
+    for (let x = i; x < i + BLOCK; x++) for (let y = j; y < j + BLOCK; y++) for (let z = k; z < k + BLOCK; z++) crown.add(x, y, z, leafAt(x, y, z));
   }
   // The bird box, on the trunk facing out to the lane.
   box(tree, [tx - 2, tx + 2], [28, 33], [tz - 8, tz - 5], "birdhouse");
@@ -1311,6 +1313,90 @@ export function buildYard(shared) {
   group.add(...nightGlows);
 
   group.add(mesh(edging), mesh(kerb), mesh(green), mesh(fence), mesh(flowers), mesh(tree), mesh(pond), mesh(things));
+
+  /* ---------- the cherry tree's crown, shaken by a click ---------- */
+
+  // The crown about the top of the trunk; `shake` the time since it was last clicked.
+  const crownPivot = pivotGroup(group, [TREE[0], 40, TREE[1]]);
+  const crownMesh = mesh(crown);
+  crownPivot.inner.add(crownMesh);
+  const shake = { s: Infinity };
+  const SHAKE_SECS = 2.5;
+  // Petals shaken down: each flutters down from the crown, turning, lies on the grass a while and shrinks away.
+  const PETALS = 48;
+  const PETAL_PINKS = ["blossom", "blossomMid", "blossomLight", "blossomDeep", "blossomWhite"].map((c) => new THREE.Color(C[c]));
+  const petalMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.3, 0.2, 1), new THREE.MeshLambertMaterial(), PETALS);
+  petalMesh.count = 0;
+  petalMesh.frustumCulled = false;
+  petalMesh.setColorAt(0, PETAL_PINKS[0]); // (coloured from the start: its shader made with the rest, not at the first click)
+  group.add(petalMesh);
+  const petals = []; // { x, y, z, turn, spin, phase, landed }
+  function shed(n) {
+    for (let k = 0; k < n; k++) {
+      if (petals.length >= PETALS) petals.shift();
+      const [a, r] = [Math.random() * Math.PI * 2, Math.sqrt(Math.random()) * 28];
+      petals.push({
+        x: TREE[0] - 2 + Math.cos(a) * r,
+        y: 52 + Math.random() * 22,
+        z: TREE[1] - 2 + Math.sin(a) * r,
+        turn: Math.random() * 6.28,
+        spin: 2 + Math.random() * 4,
+        phase: Math.random() * 6.28,
+        landed: null,
+      });
+      petalMesh.setColorAt(petals.length - 1, PETAL_PINKS[Math.floor(Math.random() * PETAL_PINKS.length)]);
+    }
+    petalMesh.instanceColor.needsUpdate = true;
+  }
+  clickables.push({
+    parts: [crownMesh],
+    toggle: () => {
+      if (shake.s > 0.4) shed(8 + Math.floor(Math.random() * 7)); // (not again for a click on top of a click)
+      shake.s = 0;
+    },
+  });
+  const petalAt = new THREE.Matrix4();
+  const petalTurn = new THREE.Quaternion();
+  const petalEuler = new THREE.Euler();
+  const petalPos = new THREE.Vector3();
+  const petalSize = new THREE.Vector3();
+  updates.push((t, dt) => {
+    // The wobble: a sway this way and that and a little squash and stretch, dying away; its shadow drawn
+    // again meanwhile, and once more as it comes to rest.
+    const was = shake.s;
+    shake.s += dt;
+    if (shake.s < SHAKE_SECS) {
+      const [s, e] = [shake.s, Math.exp(-2.2 * shake.s)];
+      crownPivot.outer.rotation.set(0.02 * e * Math.sin(13 * s + 1), 0, 0.03 * e * Math.sin(17 * s));
+      const squash = 0.035 * e * Math.sin(21 * s);
+      crownPivot.outer.scale.set(1 - squash / 2, 1 + squash, 1 - squash / 2);
+      sun.dirty = true;
+    } else if (was < SHAKE_SECS) {
+      crownPivot.outer.rotation.set(0, 0, 0);
+      crownPivot.outer.scale.set(1, 1, 1);
+      sun.dirty = true;
+    }
+    if (!petals.length) return;
+    for (let k = petals.length - 1; k >= 0; k--) {
+      const p = petals[k];
+      if (p.landed === null) {
+        p.y -= 6.5 * dt;
+        p.x += Math.sin(t * 2.2 + p.phase) * 4 * dt;
+        p.turn += p.spin * dt;
+        if (p.y <= 0.1) [p.y, p.landed] = [0.1, t];
+      } else if (t - p.landed > 27) petals.splice(k, 1);
+    }
+    petals.forEach((p, i) => {
+      const tip = p.landed === null ? Math.sin(t * 5 + p.phase) * 0.9 : 0;
+      const size = p.landed === null ? 1 : Math.min(1, Math.max(0, (27 - (t - p.landed)) / 2));
+      petalMesh.setMatrixAt(
+        i,
+        petalAt.compose(petalPos.set(p.x, p.y, p.z), petalTurn.setFromEuler(petalEuler.set(tip, p.turn, 0)), petalSize.setScalar(size))
+      );
+    });
+    petalMesh.count = petals.length;
+    petalMesh.instanceMatrix.needsUpdate = true;
+  });
 
   /* ---------- what moves ---------- */
 

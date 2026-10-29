@@ -50,8 +50,8 @@ const CAST = [
 // `stage` is the element to draw into; it gets the canvas and, over it, the layer for hearts and bubbles.
 export const makeRoom = (stage) => built(buildingRoom(stage));
 
-// The same, a part at a time: it yields how far it has got (0 to 1) as it goes (the page shows it), and
-// returns the room.
+// The same, a part at a time: it yields [how far it has got (0 to 1), what it is building just now, how far
+// along that is (0 to 1)] as it goes (the page shows it), and returns the room.
 export function* buildingRoom(stage) {
   const view = makeView(); // throws without WebGL
   const overlay = document.createElement("div");
@@ -149,7 +149,7 @@ export function* buildingRoom(stage) {
     if (z < BACK) return inPond(x, z) ? 0.5 : -0.5;
     return floorY(x, z) - 0.5;
   });
-  house = yield* within(buildingHouse(scene, water), 0, 0.8);
+  house = yield* within(buildingHouse(scene, water), 0, 0.8, "Home · rooms");
   // The basement's lamps out (in effect) while the house is drawn, and the house's and the garden's while the
   // basement is: else the lamps up there shone down through the gaps in the floor in yellow stripes while the
   // view went between floors (the house there whole again), and the lounge lamp lit the house from below.
@@ -215,7 +215,7 @@ export function* buildingRoom(stage) {
     home.actors.push(a);
     (a.human ? home.humans : home.pets).push(a);
     home.byName[name] = a;
-    yield 0.8 + 0.03 * home.actors.length;
+    yield [0.8 + 0.03 * home.actors.length, "Home · people and pets", home.actors.length / CAST.length];
   }
 
   // Her clothes: the look she has on, and the one a visitor picked for her to change into (life.js sends
@@ -737,12 +737,12 @@ export function* buildingRoom(stage) {
   };
 }
 
-// Runs a building generator `steps`, yielding how far it has got scaled to between `from` and `to`; what it
-// returns.
-function* within(steps, from, to) {
+// Runs a building generator `steps` (yielding how far it has got), yielding [how far it has got scaled to
+// between `from` and `to`, `what` it is, how far along that is]; what it returns.
+function* within(steps, from, to, what) {
   for (;;) {
     const { done, value } = steps.next();
     if (done) return value;
-    yield from + (to - from) * value;
+    yield [from + (to - from) * value, what, value];
   }
 }

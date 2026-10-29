@@ -14,11 +14,19 @@
  * out of the front door, where they go for their walks, and back; without
  * turning, the pointer on the front door (or a tap on it) fades the back wall
  * to see out.
+ * The two buttons under the clock go between the home and her flower shop
+ * (assets/js/pets/shop/shop.js, built with the home behind the loading bar),
+ * the one fading into the other; the one out of view waits, neither moved on
+ * nor drawn, and takes up the time of the other when it comes back. In the shop, clicking a
+ * bucket of flowers asks her for a bouquet of them, and the radio, the till,
+ * the lights, the sign, the chime, the cool room, the tap and the tree do what
+ * they do.
  * Styles are in _sass/_playground.scss.
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { buildingRoom } from "./pets/room/room.js";
+import { buildingShop } from "./pets/shop/shop.js";
 import { isDark } from "./pets/stage.js";
 import { buildGirl } from "./pets/models/girl.js";
 import { LOOKS, dressGirl } from "./pets/models/girl-outfits.js";
@@ -35,6 +43,13 @@ const SUN_ICON =
   '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
 const MOON_ICON =
   '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M10.8 2.2a6 6 0 1 0 3 8.6A5 5 0 0 1 10.8 2.2Z" fill="currentColor"/></svg>';
+// A house, and a tulip (the buttons between the home and the flower shop).
+const HOME_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2.5 7.5 8 3l5.5 4.5M4 6.5v6.5h3v-3.5h2V13h3V6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SHOP_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 9.5c-2.3 0-3.6-1.6-3.6-4V2.8L6 4.2 8 2.3l2 1.9 1.6-1.4v2.7c0 2.4-1.3 4-3.6 4Z" fill="currentColor"/><path d="M8 9.5V14M8 12.5c-1.8 0-3-1-3.4-2.4M8 12c1.6 0 2.7-.8 3.1-2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+const SWITCH_SECS = 0.9; // from the one world to the other
+const SLICE_MS = 30; // of building between the loading bar's updates, about
 
 const host = document.querySelector(".playground");
 if (host) start();
@@ -46,8 +61,9 @@ function painted() {
 
 async function start() {
   const stage = host.querySelector(".playground-stage");
-  // The home is built a part at a time, the loading bar (playground.md) moving on after each, and only shown
-  // once it is all there, its shaders ready and its first frame drawn.
+  // The home and then the flower shop are built a part at a time, the loading bar (playground.md) moving on
+  // and naming what is being built, and only shown once both are all there, their shaders ready and their
+  // first frames drawn (going over to the shop never waits).
   const loading = host.querySelector(".playground-loading");
   let room;
   try {
@@ -58,7 +74,7 @@ async function start() {
         room = value;
         break;
       }
-      loading.show(0.45 + 0.4 * value);
+      loading.show(0.25 + 0.3 * value[0], value[1], value[2]);
       await painted();
     }
   } catch (err) {
@@ -66,8 +82,31 @@ async function start() {
     console.error(err);
     return;
   }
-  const { view, pointer } = room;
+  const { view } = room;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // The world in view: the home, or her flower shop (built the first time it is asked for, into a layer
+  // over the home's). Going from one to the other, `fade` runs from 0 (the home) to 1 (the shop): the one
+  // fades out, a little smaller, as the other fades in, settling from a little larger; both move on
+  // meanwhile, and only the one in view after.
+  let world = room;
+  let shop = null;
+  const shopLayer = Object.assign(document.createElement("div"), { className: "playground-shop" });
+  stage.append(shopLayer);
+  const homeLayer = [view.canvas, stage.querySelector(".playground-overlay")];
+  const fade = { k: 0, goal: 0 };
+  const inShop = () => world === shop;
+  function showFade() {
+    const e = fade.k * fade.k * (3 - 2 * fade.k);
+    const set = (el, shown, scale) => {
+      el.style.opacity = shown < 1 ? shown.toFixed(3) : "";
+      el.style.transform = scale !== 1 ? `scale(${scale.toFixed(4)})` : "";
+      el.style.visibility = shown > 0 ? (el === shopLayer ? "visible" : "") : "hidden"; // (the home's as the stage is)
+    };
+    homeLayer.forEach((el) => set(el, 1 - e, 1 - 0.03 * e));
+    set(shopLayer, e, 1 + 0.04 * (1 - e));
+  }
+  showFade();
 
   // Turning round to the front garden, and back.
   const turner = Object.assign(document.createElement("button"), { type: "button", className: "playground-turn" });
@@ -134,48 +173,114 @@ async function start() {
   const clock = Object.assign(document.createElement("button"), { type: "button", className: "playground-clock" });
   let clockWas = "";
   function showTime() {
-    const night = room.home.night;
-    const now = `${night}${hhmm(room.hour())}`;
+    const night = world.home.night;
+    const now = `${night}${hhmm(world.hour())}`;
     if (now === clockWas) return;
     clockWas = now;
-    clock.innerHTML = `${night ? MOON_ICON : SUN_ICON}<span>${hhmm(room.hour())}</span>`;
-    clock.setAttribute("aria-label", `${hhmm(room.hour())}: skip to ${night ? "the morning" : "the evening"}`);
+    clock.innerHTML = `${night ? MOON_ICON : SUN_ICON}<span>${hhmm(world.hour())}</span>`;
+    clock.setAttribute("aria-label", `${hhmm(world.hour())}: skip to ${night ? "the morning" : "the evening"}`);
   }
   clock.addEventListener("click", () => {
-    room.dress(!room.home.night);
+    world.dress(!world.home.night);
     showTime();
-    if (reducedMotion) room.step(0);
+    if (reducedMotion) world.step(0);
   });
   host.append(clock);
+
+  // Between the home and the flower shop, under the clock: the one in view pressed.
+  const worlds = Object.assign(document.createElement("div"), { className: "playground-worlds", role: "group" });
+  worlds.setAttribute("aria-label", "Where to look");
+  const worldButtons = [
+    [HOME_ICON, "Home", false],
+    [SHOP_ICON, "Flower shop", true],
+  ].map(([icon, text, toShop]) => {
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "playground-world" });
+    b.innerHTML = `${icon}<span>${text}</span>`;
+    b.addEventListener("click", () => go(toShop));
+    worlds.append(b);
+    return b;
+  });
+  function markWorld() {
+    worldButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(i === (fade.goal ? 1 : 0))));
+    host.classList.toggle("in-shop", !!fade.goal);
+  }
+  markWorld();
+  host.append(worlds);
+  // To the shop (`toShop`) or back home: the one fades into the other, the other taking up the time of day.
+  function go(toShop) {
+    if (!shop || (toShop ? 1 : 0) === fade.goal) return;
+    const [from, to] = toShop ? [room, shop] : [shop, room];
+    to.timeTo(from.hour());
+    from.pointer.mouse = false; // (nobody hovered there while it is out of view)
+    fade.goal = toShop ? 1 : 0;
+    world = to;
+    clockWas = "";
+    showTime();
+    markWorld();
+    choices.close();
+    if (reducedMotion) {
+      fade.k = fade.goal;
+      showFade();
+      world.step(0);
+    }
+  }
+  // The shop built (behind the loading bar, a slice of parts between its updates), its shaders and shadows
+  // made ready and a first frame drawn, out of sight.
+  async function buildShop() {
+    const steps = buildingShop(shopLayer);
+    for (let step; ; await painted()) {
+      const t0 = performance.now();
+      do step = steps.next();
+      while (!step.done && performance.now() - t0 < SLICE_MS);
+      if (step.done) {
+        shop = step.value;
+        break;
+      }
+      const [k, what, part] = step.value;
+      loading.show(0.62 + 0.28 * k, what, part);
+    }
+    shop.layout(view.W, view.H);
+    wire(shop);
+    await shop.warm((part) => loading.show(0.9 + 0.1 * part, "Flower shop · shaders", part));
+    shop.timeTo(room.hour());
+    shop.step(0);
+  }
 
   // The canvas spans the whole width of the window, out past the page's margins, and the house is fitted
   // into it and into the height of the window.
   function layout() {
     const width = document.documentElement.clientWidth;
     room.layout(width, window.innerHeight * 0.92);
+    shop?.layout(view.W, view.H); // (the shop in a canvas the size of the home's)
     stage.style.left = `${-host.getBoundingClientRect().left}px`;
     stage.style.width = `${width}px`;
     host.style.height = `${view.H}px`;
-    if (reducedMotion) room.step(0);
+    if (reducedMotion) world.step(0);
   }
 
   const toCanvas = (e) => {
-    const r = view.canvas.getBoundingClientRect();
+    const r = world.view.canvas.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top];
   };
   let overThing = false; // the mouse over the dressing corner, his computer or something to switch
   let onCanvas = false;
   let moved = false; // since what is under the mouse was last looked at (once a frame: frame() below)
   window.addEventListener("pointermove", (e) => {
+    const { pointer } = world;
     [pointer.x, pointer.y] = toCanvas(e);
     pointer.seen = true;
     pointer.mouse = e.pointerType === "mouse";
-    pointer.movedAt = room.home.clock.t;
-    onCanvas = pointer.mouse && e.target === view.canvas;
+    pointer.movedAt = world.home.clock.t;
+    onCanvas = pointer.mouse && e.target === world.view.canvas;
     moved = true;
   });
   function underMouse() {
     moved = false;
+    const { pointer } = world;
+    if (inShop()) {
+      overThing = onCanvas && !!shop.thingAt(pointer.x, pointer.y);
+      return;
+    }
     overThing = onCanvas && (room.onCloset(pointer.x, pointer.y) || room.onPc(pointer.x, pointer.y) || !!room.thingAt(pointer.x, pointer.y));
     pointer.onDoor = onCanvas && room.onDoor(pointer.x, pointer.y); // (fading the back wall while it is there)
   }
@@ -184,7 +289,6 @@ async function start() {
     moved = true;
   });
   let touched = false; // the last press a finger or a pen's
-  view.canvas.addEventListener("pointerdown", (e) => (touched = e.pointerType !== "mouse"));
   // Clicking the dressing corner or his computer opens the picker for it, or closes it again if it is open;
   // clicking someone in front of them says hi instead.
   const pickerAt = (x, y) => !room.hit(x, y) && (room.onCloset(x, y) || room.onPc(x, y));
@@ -193,8 +297,7 @@ async function start() {
   // wear, his computer what she should watch; the curtains, the fridge, the lamps, the TV and its remote
   // open, shut or switch.
   // A tap on the front door (with no pointer to rest on it) fades the back wall for a few seconds.
-  view.canvas.addEventListener("click", (e) => {
-    const [x, y] = toCanvas(e);
+  function clickHome(x, y) {
     const who = room.hit(x, y);
     const thing = !who && room.thingAt(x, y);
     if (who && who.name === "boy") room.changeBoy();
@@ -203,7 +306,14 @@ async function start() {
     else if (room.onPc(x, y)) choices.toggle(x, y, watchPage(room));
     else if (thing) thing.toggle();
     else if (touched && !reducedMotion && room.onDoor(x, y)) room.peekFor(5); // (it fades, frame by frame)
-  });
+  }
+  // In the shop: someone says hi; a thing does what it does (a bucket: she makes up a bouquet of it).
+  function clickShop(x, y) {
+    const who = shop.hit(x, y);
+    const thing = !who && shop.thingAt(x, y);
+    if (who) shop.greet(who);
+    else if (thing) shop.click(thing);
+  }
 
   // Zooming in to see it close up, drawn afresh at the screen's own resolution (view.js): two fingers pinch
   // it bigger or smaller and move it about; once zoomed in, one finger (or the mouse) drags it about, where
@@ -212,73 +322,85 @@ async function start() {
   const presses = new Map(); // pointer id -> where it is, canvas px
   let travel = 0; // how far the press has moved
   let dragged = false;
-  const zoomedNow = () => {
-    view.canvas.style.touchAction = view.zoomed() ? "none" : "pan-y";
+  const zoomedNow = (w) => {
+    w.view.canvas.style.touchAction = w.view.zoomed() ? "none" : "pan-y";
     moved = true; // (what is under the mouse may have changed)
-    if (reducedMotion) room.step(0);
+    if (reducedMotion) w.step(0);
   };
-  view.canvas.style.touchAction = "pan-y";
-  view.canvas.addEventListener("pointerdown", (e) => {
-    view.canvas.setPointerCapture(e.pointerId); // (let go off the canvas, it still ends here)
-    presses.set(e.pointerId, toCanvas(e));
-    if (presses.size === 1) [travel, dragged] = [0, false];
-  });
-  view.canvas.addEventListener("pointermove", (e) => {
-    if (!presses.has(e.pointerId)) return;
-    const before = [...presses.values()];
-    presses.set(e.pointerId, toCanvas(e));
-    const now = [...presses.values()];
-    const mid = ([p, q]) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
-    const apart = ([p, q]) => Math.hypot(p[0] - q[0], p[1] - q[1]);
-    if (now.length >= 2) {
-      const [m0, m1] = [mid(before), mid(now)];
-      view.panBy(m1[0] - m0[0], m1[1] - m0[1]);
-      if (apart(before) > 0) view.zoomAt(apart(now) / apart(before), ...m1);
-      dragged = true;
-    } else if (view.zoomed()) {
-      const [[x0, y0], [x1, y1]] = [before[0], now[0]];
-      view.panBy(x1 - x0, y1 - y0);
-      travel += Math.hypot(x1 - x0, y1 - y0);
-      dragged ||= travel > 8;
-    } else return;
-    zoomedNow();
-  });
-  for (const type of ["pointerup", "pointercancel"]) view.canvas.addEventListener(type, (e) => presses.delete(e.pointerId));
+  // The clicks and the pinching on world `w`'s canvas (the home's, and the shop's once it is built).
+  function wire(w) {
+    const { canvas } = w.view;
+    const live = () => w === world && fade.k === fade.goal; // (not while fading from one to the other)
+    canvas.addEventListener("pointerdown", (e) => (touched = e.pointerType !== "mouse"));
+    canvas.addEventListener("click", (e) => {
+      if (live()) (w === room ? clickHome : clickShop)(...toCanvas(e));
+    });
+    canvas.style.touchAction = "pan-y";
+    canvas.addEventListener("pointerdown", (e) => {
+      canvas.setPointerCapture(e.pointerId); // (let go off the canvas, it still ends here)
+      presses.set(e.pointerId, toCanvas(e));
+      if (presses.size === 1) [travel, dragged] = [0, false];
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!presses.has(e.pointerId) || !live()) return;
+      const before = [...presses.values()];
+      presses.set(e.pointerId, toCanvas(e));
+      const now = [...presses.values()];
+      const mid = ([p, q]) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+      const apart = ([p, q]) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+      if (now.length >= 2) {
+        const [m0, m1] = [mid(before), mid(now)];
+        w.view.panBy(m1[0] - m0[0], m1[1] - m0[1]);
+        if (apart(before) > 0) w.view.zoomAt(apart(now) / apart(before), ...m1);
+        dragged = true;
+      } else if (w.view.zoomed()) {
+        const [[x0, y0], [x1, y1]] = [before[0], now[0]];
+        w.view.panBy(x1 - x0, y1 - y0);
+        travel += Math.hypot(x1 - x0, y1 - y0);
+        dragged ||= travel > 8;
+      } else return;
+      zoomedNow(w);
+    });
+    for (const type of ["pointerup", "pointercancel"]) canvas.addEventListener(type, (e) => presses.delete(e.pointerId));
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        if (!e.ctrlKey || !live()) return; // (a wheel scrolls the page)
+        e.preventDefault();
+        w.view.zoomAt(Math.exp(-e.deltaY * 0.01), ...toCanvas(e));
+        zoomedNow(w);
+      },
+      { passive: false }
+    );
+  }
+  wire(room);
   window.addEventListener(
     "click",
     (e) => {
-      if (dragged && e.target === view.canvas) e.stopPropagation();
+      if (dragged && e.target === world.view.canvas) e.stopPropagation();
       dragged = false;
     },
     true
-  );
-  view.canvas.addEventListener(
-    "wheel",
-    (e) => {
-      if (!e.ctrlKey) return; // (a wheel scrolls the page)
-      e.preventDefault();
-      view.zoomAt(Math.exp(-e.deltaY * 0.01), ...toCanvas(e));
-      zoomedNow();
-    },
-    { passive: false }
   );
 
   let onScreen = true;
   new IntersectionObserver(([entry]) => (onScreen = entry.isIntersecting)).observe(host);
   new MutationObserver(() => {
-    room.dress(isDark());
-    if (reducedMotion) room.step(0);
+    [room, shop].forEach((w) => w?.dress(isDark()));
+    if (reducedMotion) world.step(0);
   }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   window.addEventListener("resize", layout);
 
   room.dress(isDark());
   showTime();
   layout();
-  loading.show(0.9); // built; the shaders next
+  loading.show(0.55, "Home · shaders", 0); // built; the shaders next
   await painted();
   await room.warm();
   room.step(0);
-  loading.show(1);
+  loading.show(0.62, "Home · shaders", 1);
+  await painted();
+  await buildShop();
   await painted();
   stage.classList.add("ready");
   host.classList.add("loaded");
@@ -297,7 +419,13 @@ async function start() {
     last = now;
     if (document.hidden || !onScreen) return;
     if (moved) underMouse();
-    const hovered = room.step(dt);
+    // From the one world to the other: the one going stays as it was last drawn, fading, while the one
+    // coming moves on; only ever the one drawn a frame.
+    if (fade.k !== fade.goal) {
+      fade.k = fade.goal ? Math.min(1, fade.k + dt / SWITCH_SECS) : Math.max(0, fade.k - dt / SWITCH_SECS);
+      showFade();
+    }
+    const hovered = world.step(dt);
     document.documentElement.classList.toggle("pet-hover", !!hovered || overThing);
     if (Math.floor(now / 500) !== Math.floor((now - between) / 500)) {
       showWho(); // (twice a second)
@@ -308,7 +436,7 @@ async function start() {
     pace.between += between;
     pace.busy += performance.now() - now;
     if (pace.frames < 180) return;
-    if (pace.between / pace.frames > 22 && pace.busy < 0.6 * pace.between) view.lower();
+    if (pace.between / pace.frames > 22 && pace.busy < 0.6 * pace.between) world.view.lower();
     Object.assign(pace, { frames: 0, between: 0, busy: 0 });
   }
   requestAnimationFrame(frame);
@@ -427,6 +555,8 @@ function picker(stage, view, toggles) {
   const outside = (e) => !panel.contains(e.target) && !toggles(e) && close();
   const onKey = (e) => e.key === "Escape" && close();
   return {
+    // Closed, if open (going over to the flower shop).
+    close: () => panel.classList.contains("open") && close(),
     // Open on page `p` by canvas px (x, y), kept inside the stage, growing out of that point; or close if it is
     // open on that already (open on the other thing, it moves over to this one).
     toggle(x, y, p) {
