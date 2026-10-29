@@ -2,6 +2,9 @@
  * The tortoiseshell cat (assets/js/pets/models/voxels.js has the building blocks).
  * She stays at home when the girl goes out alone or with the dog, and makes
  * a mess: a toilet roll unrolled across the floor, or a ball of yarn in tangles.
+ * `tabby`: the same cat in a grey-brown tabby's coat instead (dark stripes, an
+ * M on the brow, a white bib and chin, green eyes): the stray who comes by
+ * the flower shop at night (shop/street.js).
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -22,7 +25,7 @@ import {
   harness,
 } from "./voxels.js";
 
-export function buildCat() {
+export function buildCat({ tabby = false } = {}) {
   const palette = {
     dark: "#2b2522",
     brown: "#4d372b",
@@ -48,6 +51,7 @@ export function buildCat() {
     cap: "#2f4a8a",
     capRow: "#283f78",
     ...CAP_COLORS,
+    ...(tabby && { dark: "#4d443c", brown: "#8a7966", ginger: "#a8977f", gingerLight: "#c3b29a", cream: "#f2ece2", iris: "#a9c45c" }),
   };
 
   // Tortoiseshell: soft-edged ginger patches over dark fur, brindled with brown. A sum of slow
@@ -60,6 +64,10 @@ export function buildCat() {
     if (n > 0.8) return h < 0.4 ? "ginger" : "brown";
     return h < 0.2 ? "brown" : "dark";
   };
+  // Tabby: dark stripes down the sides (rings round the legs and the tail), over grey-brown flecked lighter.
+  const stripes = (x, y, z) =>
+    Math.sin(0.8 * z + 0.3 * y + 0.7 * Math.sin(0.45 * y + x * 0.2)) > 0.62 ? "dark" : hash(x, y, z) < 0.25 ? "ginger" : "brown";
+  const fur = tabby ? stripes : tortie;
 
   const group = new THREE.Group();
   const pose = new THREE.Group();
@@ -68,7 +76,7 @@ export function buildCat() {
   // Body: slim, with a ginger patch on the chest.
   const bodyPart = part();
   const chestPatch = (x, y, z) => z >= 7 && y >= 12 && y <= 17 && Math.abs(x + 1) <= 3 - (17 - y) * 0.4;
-  ellipsoid(bodyPart, [0, 13, 0], [7, 6.5, 11], (x, y, z) => (chestPatch(x, y, z) ? "ginger" : tortie(x, y, z)));
+  ellipsoid(bodyPart, [0, 13, 0], [7, 6.5, 11], (x, y, z) => (chestPatch(x, y, z) ? (tabby ? "cream" : "ginger") : fur(x, y, z)));
   pose.add(bodyPart.mesh(palette));
 
   // Slender legs from hips at y = 8.
@@ -81,7 +89,7 @@ export function buildCat() {
     const p = part();
     const x0 = Math.round(cx - 1);
     const z0 = Math.round(cz - 1);
-    box(p, [x0, x0 + 2], [0, 7], [z0, z0 + 2], (x, y, z) => tortie(x, y, z));
+    box(p, [x0, x0 + 2], [0, 7], [z0, z0 + 2], (x, y, z) => fur(x, y, z));
     box(p, [x0, x0 + 2], [0, 0], [z0 + 3, z0 + 3], "dark"); // toes
     const g = pivotGroup(pose, [cx, 8, cz]);
     g.inner.add(p.mesh(palette));
@@ -97,7 +105,7 @@ export function buildCat() {
     const py = tailBase[1] + i * SEG;
     const g = pivotGroup(parent, [0, py, tailBase[2]]);
     const p = part();
-    ellipsoid(p, [0, py + SEG / 2, tailBase[2]], [1.7 - i * 0.12, SEG / 2 + 0.9, 1.7 - i * 0.12], (x, y, z) => (i === 3 ? "dark" : tortie(x, y, z)));
+    ellipsoid(p, [0, py + SEG / 2, tailBase[2]], [1.7 - i * 0.12, SEG / 2 + 0.9, 1.7 - i * 0.12], (x, y, z) => (i === 3 ? "dark" : fur(x, y, z)));
     g.inner.add(p.mesh(palette));
     tailSegs.push(g);
     parent = g.inner;
@@ -112,6 +120,12 @@ export function buildCat() {
   // eye and cheek, and the right side of the face dark.
   const headPart = part();
   const face = (x, y, z) => {
+    if (tabby)
+      return z >= 6 && y >= 28 && y <= 31 && Math.abs(x) <= 4 && Math.abs(x) % 2 === 1 - (y % 2)
+        ? "dark"
+        : y < 24 && z >= 13
+          ? "ginger"
+          : stripes(x, y, z); // (the M)
     if (z < 6) return tortie(x, y, z);
     if (y >= 27 && x >= -1 && x <= 0) return "ginger"; // the blaze
     if (x <= -2 && y >= 20 && y <= 26) return hash(x, y, z) < 0.3 ? "brown" : "ginger"; // left cheek
@@ -120,7 +134,13 @@ export function buildCat() {
   };
   ellipsoid(headPart, [0, 25, 9], [9, 8, 7.5], face, [bodyPart]);
   // Muzzle: ginger on the left, dark on the right, with a little cream at the chin.
-  ellipsoid(headPart, [0, 21.5, 14], [4, 3, 3], (x, y) => (y <= 19 && Math.abs(x) <= 2 ? "cream" : x <= 0 ? "gingerLight" : "dark"), [bodyPart]);
+  ellipsoid(
+    headPart,
+    [0, 21.5, 14],
+    [4, 3, 3],
+    (x, y) => (y <= 19 && Math.abs(x) <= 2 ? "cream" : tabby ? (y <= 20 ? "cream" : "gingerLight") : x <= 0 ? "gingerLight" : "dark"),
+    [bodyPart]
+  );
   const headPivotY = 17;
   const head = pivotGroup(pose, [0, headPivotY, 7]);
   const surface = surfaceOf(headPart);

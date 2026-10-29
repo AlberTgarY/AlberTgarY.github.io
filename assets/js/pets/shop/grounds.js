@@ -994,12 +994,13 @@ function makePetals(group) {
       return before - list.length;
     },
     count: () => list.length,
-    // Where they lie thickest just now (for her broom): the one with the most others within r, if any.
-    thickest(r = 14) {
+    // Where they lie thickest just now (for her broom): the one with the most others within r, if any (of
+    // those where `ok(x, z)`).
+    thickest(r = 14, ok = () => true) {
       let best = null;
       let most = 2;
       for (const p of list) {
-        if (p.fall) continue;
+        if (p.fall || !ok(p.x, p.z)) continue;
         const n = list.reduce((s, o) => s + (Math.hypot(o.x - p.x, o.z - p.z) < r ? 1 : 0), 0);
         if (n > most) [best, most] = [[p.x, p.z], n];
       }

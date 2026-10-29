@@ -9,7 +9,8 @@
  * jumper, a cardigan, a hoodie, a check shirt, a trench coat, a puffer or a
  * dress; trousers, jeans, shorts, a skirt or a long one; trainers, boots or
  * flats; maybe a beanie, a cap, a sun hat or a flat cap, a scarf, and a tote,
- * a backpack or a little bag across them. They blink, smile and wave when
+ * a backpack or a little bag across them (or, the street sweeper,
+ * shop/street.js: a hi-vis vest with reflective bands). They blink, smile and wave when
  * hovered, talk, hold a phone up in the left hand when they want it
  * (customers.js), and what they buy in the right. redress() gives them new colours (the same
  * meshes, coloured afresh), so that no one looks quite the same twice.
@@ -215,6 +216,7 @@ export function buildTownsfolk(look) {
         return a && b ? "topShade" : a || b ? "top2" : "top";
       },
       puffer: (x, y) => (y % 3 === 0 ? "topShade" : "top"),
+      hivis: (x, y) => (Math.abs(x) >= 6 ? (y === 12 ? "string" : "top2") : y === 12 || y === 16 ? "string" : "top"), // (a vest over long sleeves)
     }[look.top] ?? knit;
   const long = look.top === "coat";
   const short = ["tee", "stripe", "dress"].includes(look.top); // sleeves

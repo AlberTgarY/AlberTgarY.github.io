@@ -7,7 +7,11 @@
  * (life.js, acts.js, hours.js), the same three as at home (room/actor.js,
  * room/steps.js), in their day clothes here, on a floor plan of their own
  * (room/nav.js). It keeps its hours (hours.js): open ten till ten, all
- * brought in and the shutter down for the night. The page (playground.js) swaps it for the house and
+ * brought in and the shutter down for the night. Its customers come by while
+ * it is open (customers.js); shut, the street has a life of its own: the lamp
+ * and its moths and the possum in the tree (night.js), a stray cat and the
+ * street sweeper at first light (street.js), people passing (customers.js).
+ * The page (playground.js) swaps it for the house and
  * back: it has the house's ways (`step`, `hit`, `thingAt`, `greet`, `dress`,
  * `hour`, `layout`), its own view (view.js) sized as the house's.
  ******************************************************************************/
@@ -29,9 +33,11 @@ import { setFade } from "./fade.js";
 import { buildingKiosk } from "./kiosk.js";
 import { buildingDisplay } from "./display.js";
 import { buildingGrounds } from "./grounds.js";
+import { buildingNight } from "./night.js";
 import { shopProps } from "./props.js";
 import { makeShopLife } from "./life.js";
 import { buildingCustomers } from "./customers.js";
+import { buildingStreet } from "./street.js";
 
 // The three of them, where each starts the day, and how big (the collie as in the house).
 const CAST = [
@@ -97,8 +103,9 @@ export function* buildingShop(stage) {
   }
   const kiosk = yield* built(buildingKiosk(shared), 0.05, 0.35, 14, "Flower shop · kiosk");
   const display = yield* built(buildingDisplay(shared), 0.35, 0.65, 54, "Flower shop · flowers");
-  const grounds = yield* built(buildingGrounds(shared), 0.65, 0.8, 19, "Flower shop · pavement and plants");
-  const builders = [kiosk, display, grounds];
+  const grounds = yield* built(buildingGrounds(shared), 0.65, 0.78, 19, "Flower shop · pavement and plants");
+  const night = yield* built(buildingNight(shared), 0.78, 0.8, 3, "Flower shop · the night");
+  const builders = [kiosk, display, grounds, night];
   const obstacles = builders.flatMap((b) => b.obstacles);
   const bounds = [GROUND.x0 + 4, GROUND.x1 - 4, GROUND.z0 + 4, GROUND.z1 - 4];
 
@@ -127,6 +134,7 @@ export function* buildingShop(stage) {
     kiosk,
     display,
     grounds,
+    nighttime: night, // (the lamp and the possum: night.js)
   };
   const CASTING = "Flower shop · people and the dog";
   yield [0.8, CASTING, 0];
@@ -153,7 +161,15 @@ export function* buildingShop(stage) {
     for (;;) {
       const { done, value } = steps.next();
       if (done) return value;
-      yield [0.95 + 0.05 * value, PEOPLE, value];
+      yield [0.95 + 0.04 * value, PEOPLE, value];
+    }
+  })());
+  const street = (home.street = yield* (function* () {
+    const steps = buildingStreet(home);
+    for (;;) {
+      const { done, value } = steps.next();
+      if (done) return value;
+      yield [0.99 + 0.01 * value, "Flower shop · the street", value];
     }
   })());
 
@@ -195,6 +211,8 @@ export function* buildingShop(stage) {
     if (!settled && !moment) {
       life.hours.settle(day.hour);
       customers.clear();
+      street.clear();
+      night.settle();
     }
     shadowsDirty = true;
   }
@@ -235,6 +253,13 @@ export function* buildingShop(stage) {
   // The thing to click under canvas px (x, y), if it is the first thing seen there: one of the builders'
   // `clickables` ({ parts, toggle, can }), not behind any of their `hides` (the kiosk's walls, say).
   const clickables = builders.flatMap((b) => b.clickables);
+  // (The tree shaken, the possum on it is off up into the crown.)
+  const tree = clickables.find((c) => c.key === "tree");
+  const shake = tree.toggle;
+  tree.toggle = () => {
+    shake();
+    night.possum.startle();
+  };
   const hiders = builders.flatMap((b) => b.hides ?? []);
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
@@ -310,16 +335,18 @@ export function* buildingShop(stage) {
       view.render(scene);
       progress(1);
     },
-    // Move on by dt seconds and draw (`draw` false: without drawing, for tests). Returns who is hovered.
-    step(dt, draw = true) {
+    // Move on by dt seconds and draw (`draw` false: without drawing, out of view or for tests); `hour`, the
+    // time of day to be at (the house's, while it is in view), else the clock goes on. Returns who is hovered.
+    step(dt, draw = true, hour = null) {
       clock.dt = dt;
       clock.t += dt;
       // (The clock goes slower while they close up or set out: it is an hour's work, done at a walk.)
-      day.hour = (day.hour + ((dt * 24) / DAY_SECS) * (life.hours.busy() ? WORK_CLOCK : 1)) % 24;
+      day.hour = hour ?? (day.hour + ((dt * 24) / DAY_SECS) * (life.hours.busy() ? WORK_CLOCK : 1)) % 24;
       if (isNightAt(day.hour) !== home.night) nightfall(!home.night);
       daylight();
       life.step();
       customers.step();
+      street.step();
       giveWay(dt);
       builders.forEach((b) => b.update?.(clock.t, dt, home));
       const hovered = pointer.mouse ? hit(pointer.x, pointer.y) : null;

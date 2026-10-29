@@ -176,7 +176,7 @@ export function makeShopLife(home) {
     hours.step();
     acts.tick?.(clock.dt);
     for (const a of home.actors) {
-      if (a.customer) continue;
+      if (a.customer || a.street) continue; // (not theirs: customers.js, street.js)
       if (!a.job) {
         const duty = hours.duty(a);
         if (duty) start(a, duty);

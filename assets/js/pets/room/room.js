@@ -675,11 +675,12 @@ export function* buildingRoom(stage) {
       if (isNightAt(day.hour) !== home.night) nightfall(!home.night);
       daylight(true);
     },
-    // Move on by dt seconds; `draw` false runs it without drawing (for tests). Returns who is hovered.
-    step(dt, draw = true) {
+    // Move on by dt seconds; `draw` false runs it without drawing (out of view, or for tests); `hour`, the
+    // time of day to be at (the shop's, while it is in view), else the clock goes on. Returns who is hovered.
+    step(dt, draw = true, hour = null) {
       clock.dt = dt;
       clock.t += dt;
-      day.hour = (day.hour + (dt * 24) / DAY_SECS) % 24;
+      day.hour = hour ?? (day.hour + (dt * 24) / DAY_SECS) % 24;
       if (isNightAt(day.hour) !== home.night) nightfall(!home.night);
       daylight();
       // The view turning; the back wall fading while the pointer is on it.

@@ -18,8 +18,9 @@
  * (six in the morning, ten, two, six, ten at night).
  * The two buttons under the clock go between the home and her flower shop
  * (assets/js/pets/shop/shop.js, built with the home behind the loading bar),
- * the one fading into the other; the one out of view waits, neither moved on
- * nor drawn, and takes up the time of the other when it comes back. In the shop, clicking a
+ * the one fading into the other; the one out of view goes on meanwhile, at
+ * the same time of day, its people at whatever they are doing, only not drawn
+ * (a fraction of a millisecond a frame). In the shop, clicking a
  * bucket of flowers asks her for a bouquet of them, and the radio, the till,
  * the lights, the sign, the chime, the cool room, the tap and the tree do what
  * they do.
@@ -196,7 +197,8 @@ async function start() {
     b.innerHTML = `${icon}<span>${text}</span>`;
     b.setAttribute("aria-label", `Skip to ${said}`);
     b.addEventListener("click", () => {
-      world.timeTo(hour);
+      room.timeTo(hour); // (both: the one out of view goes on at the same time)
+      shop?.timeTo(hour);
       showTime();
       if (reducedMotion) world.step(0);
     });
@@ -234,7 +236,8 @@ async function start() {
   }
   markWorld();
   host.append(worlds);
-  // To the shop (`toShop`) or back home: the one fades into the other, the other taking up the time of day.
+  // To the shop (`toShop`) or back home: the one fades into the other (at the same time of day already: its
+  // light and shadows brought up to date for it).
   function go(toShop) {
     if (!shop || (toShop ? 1 : 0) === fade.goal) return;
     const [from, to] = toShop ? [room, shop] : [shop, room];
@@ -449,12 +452,13 @@ async function start() {
     if (document.hidden || !onScreen) return;
     if (moved) underMouse();
     // From the one world to the other: the one going stays as it was last drawn, fading, while the one
-    // coming moves on; only ever the one drawn a frame.
+    // coming moves on; only ever the one drawn a frame. The other goes on unseen, at the time in view.
     if (fade.k !== fade.goal) {
       fade.k = fade.goal ? Math.min(1, fade.k + dt / SWITCH_SECS) : Math.max(0, fade.k - dt / SWITCH_SECS);
       showFade();
     }
     const hovered = world.step(dt);
+    if (shop) (inShop() ? room : shop).step(dt, false, world.hour());
     document.documentElement.classList.toggle("pet-hover", !!hovered || overThing);
     if (Math.floor(now / 500) !== Math.floor((now - between) / 500)) {
       showWho(); // (twice a second)

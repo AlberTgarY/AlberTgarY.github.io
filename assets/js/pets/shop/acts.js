@@ -29,7 +29,7 @@ import { GROUND, KIOSK, DOOR } from "./layout.js";
 // Her arms at work (as room/props.js's HOLDS: [right, left]): sweeping with the broom, the dustpan held low;
 // misting, the trigger squeezed now and then; snipping the stems on the bench, the other hand holding them;
 // folding the paper round with both hands; chalking; tying the ribbon.
-const WORK = {
+export const WORK = {
   sweep: (t) => [
     [-0.75 + 0.3 * Math.sin(t * 4.2), -0.45, 0.2 + 0.12 * Math.sin(t * 4.2), 0, 0],
     [-0.55, -0.35, -0.2, 0, 0],

@@ -20,8 +20,13 @@
  * point at it and back, or to pat the dog. Paid, they hold the flowers up to
  * look at them; on the way out the dog may come up to be patted. Then off up
  * the street. Meanwhile people pass along the pavement, some glancing at the
- * flowers, now and then one stopping at a bucket on the way. Each time
- * someone goes off they are dressed anew (townsfolk.js redress()).
+ * flowers, now and then one stopping at a bucket on the way. While it is
+ * shut fewer pass: late at night someone walking home (on their phone,
+ * maybe), a couple side by side talking, someone stopping to read the hours
+ * on the shutter; of a morning joggers, someone with a coffee. Any of them may
+ * stop to stroke the stray cat (street.js), or to point out the possum
+ * (night.js). Each time someone goes off they are dressed anew (townsfolk.js
+ * redress()).
  * A customer is an actor like the others (room/actor.js) but goes by this
  * file, not life.js; the staff's side of it (serving at the till, the bouquet
  * made to order, the dog's hello) is in acts.js.
@@ -34,9 +39,11 @@ import { makeActor } from "../room/actor.js";
 import { HOLDS, MOVES } from "../room/props.js";
 import { buildTownsfolk, rollLook } from "../models/townsfolk.js";
 import { makeBouquet } from "./props.js";
+import { voxels } from "./kit.js";
 import { bouquet } from "./flowers.js";
 import { setFade, comeIn, goOff } from "./fade.js";
-import { HOURS, STREET, GROUND, KIOSK } from "./layout.js";
+import { box } from "../models/voxels.js";
+import { HOURS, STREET, GROUND, KIOSK, SHUTTER } from "./layout.js";
 
 const CROWD = 12; // the people of the town who come by (two of them children; each looks anew at every page)
 const KIDS = 2;
@@ -442,26 +449,58 @@ function makeCustomers(home, people) {
     b.pop("pet-heart");
   }
 
-  // Someone passing along the pavement, from one end to the other: glancing at the flowers on the way, now
-  // and then stopping at a bucket in the front row to sniff it.
-  function* passBy(a) {
+  // Someone passing along the pavement, from one end to the other, as `kind`: "stroll" (glancing at the
+  // flowers on the way, now and then stopping at a bucket in the front row to sniff it), "phone" (on it as they
+  // go), "jog", "coffee" (a takeaway cup in hand), "hours" (stopping at the shutter to read when it opens) or
+  // "couple" (with `other` beside them: beside()). While it is shut, a stop to stroke the cat or to point out
+  // the possum, maybe.
+  function* passBy(a, kind = "stroll", other = null) {
     const right = Math.random() < 0.5;
     const [x0, x1] = right ? [STREET.x0, STREET.x1] : [STREET.x1, STREET.x0];
+    a.comeAt = x0;
+    if (other) other.visit = beside(other, a, right ? 1 : -1);
     yield* comeIn(a, [x0, STREET.z, EDGE], clock);
     a.away = false;
+    const pace = { jog: 2.6, couple: 0.8 }[kind] ?? 1;
+    // (how they hold themselves as they go)
+    const as = () => {
+      a.rig.phone.visible = kind === "phone";
+      a.hold = kind === "phone" ? SCROLL : a.holding ? HOLDS.carry : null;
+      a.talk = false;
+    };
+    if (kind === "coffee") hold(a, { group: coffee() });
+    as();
     const front = D.buckets.filter((b) => !b.away && b.z > 30 && (b.x - x0) * (x1 - x0) > 0);
-    const stop = Math.random() < 0.3 ? pick(front) : null;
+    const stop = kind === "stroll" && Math.random() < 0.3 ? pick(front) : null;
     if (stop && !life.holder(life.standOf(stop)) && life.claim(a, life.standOf(stop))) {
       yield* walk(a, stop.stand);
       yield* atBucket(a, stop, [a]);
       life.release(a);
     }
-    const along = walk(a, [x1, EDGE]);
+    if (kind === "hours") {
+      // Up to the shutter, a look up at the hours over it, a nod, and on.
+      yield* walk(a, [rnd(-75, -45), SHUTTER.z + 18]);
+      yield* turn(a, Math.PI);
+      a.look = [a.x, SHUTTER.top + 6, SHUTTER.z];
+      yield* wait(a, rnd(2, 3));
+      a.nod = 0.25;
+      yield* wait(a, 0.5);
+      a.nod = 0;
+      a.look = null;
+    }
+    let stopped = hours.state !== "closed" || kind === "jog" || kind === "couple";
+    a.leaving = [x1, EDGE];
+    let along = walk(a, a.leaving, pace);
     for (let n = 0; !along.next().done; n++) {
-      // (a glance at the nearest bucket as they go by)
-      if (n % 30 === 0) {
+      if (kind === "phone") a.look = [a.x + Math.sin(a.yaw) * 4, a.y + 14, a.z + Math.cos(a.yaw) * 4]; // (down at it)
+      if (n % 30 === 0 && kind === "stroll") {
+        // (a glance at the nearest bucket as they go by)
         const b = D.buckets.filter((o) => !o.away).sort((p, q) => Math.hypot(p.x - a.x, p.z - a.z) - Math.hypot(q.x - a.x, q.z - a.z))[0];
         a.look = b && Math.hypot(b.x - a.x, b.z - a.z) < 30 && Math.random() < 0.5 ? b.top : null;
+      }
+      if (!stopped && n % 15 === 0 && (stopped = yield* aside(a))) {
+        as();
+        along = walk(a, a.leaving, pace);
       }
       yield;
     }
@@ -469,6 +508,81 @@ function makeCustomers(home, people) {
     yield* goOff(a, STREET.z, clock);
     away(a);
   }
+  // On the way, while it is shut: stopped to point out the possum, if she is out near by; or to stroke the cat,
+  // if she is near and will come. Whether they stopped.
+  function* aside(a) {
+    const P = home.nighttime.possum.where();
+    if (P.out && P.on !== "tree" && Math.hypot(P.x - a.x, P.z - a.z) < 110 && Math.random() < 0.6) {
+      a.faceTowards(P.x, P.z);
+      a.look = [P.x, P.y + 5, P.z];
+      a.happy = true;
+      a.rig.phone.visible = false;
+      yield* posed(a, POINT, 1.8);
+      a.happy = false;
+      a.look = null;
+      return true;
+    }
+    if (Math.random() > 0.45) return false;
+    const pat = home.street.stroke(a);
+    if (!pat) return false;
+    const { cat } = pat;
+    a.rig.phone.visible = false;
+    a.hold = null;
+    yield* walk(a, [cat.x, Math.min(EDGE, cat.z + 12)]);
+    yield* until(() => Math.hypot(cat.x - a.x, cat.z - a.z) < 16 && !cat.walking, 5);
+    a.faceTowards(cat.x, cat.z);
+    a.lie = true; // (kneeling)
+    a.look = cat;
+    a.hold = MOVES.pat;
+    a.since = t();
+    a.happy = true;
+    yield* wait(a, rnd(2.5, 4));
+    pat.stop();
+    cat.pop("pet-heart");
+    a.lie = a.happy = false;
+    a.look = null;
+    yield* wait(a, 0.4);
+    yield* walk(a, [a.x, EDGE]);
+    return true;
+  }
+  // The other of a couple passing (`lead`): in with them, on the inside of the pavement, alongside; talking
+  // now and then, each in turn, a look at each other; off with them.
+  function* beside(b, lead, way) {
+    b.lead = lead;
+    const spot = () => [lead.x - way * 3, lead.z - 10];
+    yield* comeIn(b, [lead.comeAt - way * 3, STREET.z - 10, EDGE - 10], clock);
+    b.away = false;
+    let turnAt = t() + rnd(1, 3);
+    while (lead.visit && lead.z < EDGE + 1) {
+      const [x, z] = spot();
+      const d = Math.hypot(x - b.x, z - b.z);
+      b.walking = lead.walking || d > 1.5;
+      b.pace = lead.pace;
+      if (d > 0.3) {
+        const step = Math.min(d, b.speed * 1.4 * clock.dt);
+        b.x += ((x - b.x) / d) * step;
+        b.z += ((z - b.z) / d) * step;
+      }
+      if (lead.walking) b.face(lead.yaw);
+      else if (d > 1.5) b.faceTowards(x, z);
+      if (t() > turnAt) {
+        turnAt = t() + rnd(1.5, 3.5);
+        const k = Math.random();
+        [lead.talk, b.talk] = [k < 0.4, k > 0.6];
+        lead.look = k < 0.2 ? b : null;
+        b.look = k > 0.7 ? lead : null;
+      }
+      yield;
+    }
+    Object.assign(b, { talk: false, look: null, walking: false, pace: 1 });
+    yield* goOff(b, STREET.z, clock);
+  }
+  // A takeaway coffee: a white cup, a kraft sleeve, a brown lid.
+  const coffee = () =>
+    voxels((p) => {
+      box(p, [-2, 2], [0, 7], [-2, 2], (x, y) => (y >= 2 && y <= 4 ? "#b98a5e" : "#f4f1ea"));
+      box(p, [-2, 2], [8, 8], [-2, 2], "#4a3424");
+    }, 0.5);
 
   function away(a) {
     a.away = true;
@@ -489,6 +603,7 @@ function makeCustomers(home, people) {
       greeted: false,
       leaving: null,
       comeAt: undefined,
+      passing: false,
     });
     a.cleanups.splice(0).forEach((fn) => fn());
     a.show("say", null);
@@ -526,12 +641,37 @@ function makeCustomers(home, people) {
           }
         }
       }
+      // Someone passing: fewer while it is shut, fewest late at night; what they are about with the time of day.
       if (t() >= passAt) {
-        passAt = t() + rnd(18, 40);
+        const shut = hours.state === "closed";
+        const late = shut && (h >= 22 || h < 5);
+        passAt = t() + (late ? rnd(35, 75) : shut ? rnd(14, 30) : rnd(18, 40));
         const a = pick(free((o) => !o.kid));
         if (a) {
+          const r = Math.random();
+          let kind = !shut
+            ? "stroll"
+            : late
+              ? r < 0.35
+                ? "phone"
+                : r < 0.6
+                  ? "couple"
+                  : r < 0.75
+                    ? "hours"
+                    : "stroll"
+              : r < 0.3
+                ? "jog"
+                : r < 0.6
+                  ? "coffee"
+                  : r < 0.75
+                    ? "phone"
+                    : "stroll";
+          const other = kind === "couple" ? pick(free((o) => !o.kid && o !== a)) : null;
+          if (kind === "couple" && !other) kind = "stroll";
           a.lead = null;
-          a.visit = passBy(a);
+          a.passing = true;
+          a.visit = passBy(a, kind, other);
+          if (other) other.passing = true;
         }
       }
       for (const a of people.filter((o) => o.visit)) {
@@ -553,7 +693,7 @@ function makeCustomers(home, people) {
     // Closing time: anyone still about walks off (without anything half done).
     leaveAll() {
       for (const a of people)
-        if (a.visit && !a.goingHome) {
+        if (a.visit && !a.goingHome && !a.passing) {
           a.goingHome = true;
           a.cleanups.splice(0).forEach((fn) => fn());
           life.release(a);
