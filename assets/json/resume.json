@@ -31,6 +31,11 @@
         "network": "ORCID",
         "username": "0009-0006-5936-1929",
         "url": "https://orcid.org/0009-0006-5936-1929"
+      },
+      {
+        "network": "Website",
+        "username": "",
+        "url": "https://albertgary.github.io/"
       }
     ]
   },
@@ -200,11 +205,11 @@
       "firstAuthor": "Yicheng Zhan",
       "otherAuthors": "Dong-Ha Shin, Seung-Hwan Baek, and Kaan Akşit",
       "name": "Complex-Valued Holographic Radiance Fields",
-      "publisher": "ACM Transactions on Graphics (presented in SIGGRAPH 2026)",
+      "publisher": "ACM Transactions on Graphics",
       "releaseDate": "2025",
       "url": "https://complightlab.com/publications/complex_valued_holographic_radiance_fields/",
       "summary": "Yicheng Zhan, Dong-Ha Shin, Seung-Hwan Baek, and Kaan Akşit",
-      "status": "Highlight at Graphics4Science Workshop at SIGGRAPH 2026"
+      "status": "Presented at SIGGRAPH 2026 and highlighted at Graphics4Science Workshop"
     },
     {
       "firstAuthor": "Yicheng Zhan",
@@ -237,6 +242,20 @@
       "status": ""
     }
   ],
+  "skills": [
+    {
+      "name": "Programming",
+      "keywords": ["Python", "C++", "CUDA", "JavaScript"]
+    },
+    {
+      "name": "Frameworks",
+      "keywords": ["PyTorch", "Odak", "Mitsuba 3", "OpenCV", "NumPy"]
+    },
+    {
+      "name": "Tools and Agents",
+      "keywords": ["Claude Code", "Codex", "Linux", "Git", "LaTeX", "Manim"]
+    }
+  ],
   "languages": [
     {
       "language": "English",
@@ -255,12 +274,7 @@
       "keywords": ["Compose Hiphop Music", "Sleep", "Long-distance Running"]
     }
   ],
-  "additionalLanguages": [
-    {
-      "language": "Spanish",
-      "fluency": "Intermediate"
-    }
-  ],
+  "additionalLanguages": [],
   "references": [],
   "projects": []
 }

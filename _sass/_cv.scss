@@ -47,6 +47,20 @@ p.location {
   white-space: nowrap;
 }
 
+// organisation name with its location; on wrap the location starts flush left
+h6.org-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.6rem;
+}
+
+span.location-inline {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
 i.iconlocation {
   color: var(--global-theme-color);
   font-size: 0.8rem;
