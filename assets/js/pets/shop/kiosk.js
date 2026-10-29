@@ -24,7 +24,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { pixelTexture } from "../room/house/kit.js";
 import { part, meshOf, paletteOf } from "./kit.js";
-import { KIOSK, FLOOR, DOOR, SILL, LINTEL, AWNING, BENCH, SHELF, COOL, BOARD, DOG_BED, STOOL } from "./layout.js";
+import { KIOSK, FLOOR, DOOR, SILL, LINTEL, AWNING, BENCH, SHELF, COOL, BOARD, DOG_BED, STOOL, SHUTTER, LOCKUP } from "./layout.js";
 
 const PALETTE = paletteOf({
   roof: "#262d2a",
@@ -323,6 +323,58 @@ function glyphTexture(text, color) {
   return tex;
 }
 
+// One slat of the roller shutter, top to bottom (repeated up the curtain): galvanised steel, a bright edge
+// where it rolls over, a groove where it hooks into the next.
+function slatTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 4;
+  canvas.height = 16;
+  const g = canvas.getContext("2d");
+  [
+    [0, 2, "#7c8588"],
+    [2, 4, "#d2d8da"],
+    [4, 11, "#b3bbbe"],
+    [11, 14, "#9ea7aa"],
+    [14, 16, "#6f777a"],
+  ].forEach(([y0, y1, c]) => {
+    g.fillStyle = c;
+    g.fillRect(0, y0, 4, y1 - y0);
+  });
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  return tex;
+}
+
+// The shutter's housing, painted the kiosk's green, the shop's name and hours on it in cream.
+function housingTexture(w, h) {
+  const S = 8; // texels a voxel
+  const canvas = document.createElement("canvas");
+  canvas.width = w * S;
+  canvas.height = h * S;
+  const g = canvas.getContext("2d");
+  g.fillStyle = "#2e4a3d";
+  g.fillRect(0, 0, w * S, h * S);
+  g.fillStyle = "#3d5d4d";
+  g.fillRect(0, 0, w * S, S * 0.6);
+  g.fillStyle = "#22392f";
+  g.fillRect(0, h * S - S * 0.6, w * S, S * 0.6);
+  g.fillStyle = "#efe6cf";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.font = `bold ${3.4 * S}px "Trebuchet MS", "Segoe UI", sans-serif`;
+  g.fillText("FLOWER MARKET", (w * S) / 2 - 36 * S, (h * S) / 2 + S * 0.2);
+  g.font = `${3 * S}px "Trebuchet MS", "Segoe UI", sans-serif`;
+  g.fillText("open every day  10am – 10pm", (w * S) / 2 + 34 * S, (h * S) / 2 + S * 0.2);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
 // How high the awning's glass is over z: level off the roof's front edge, curving up to its front edge.
 export const awningY = (z) => {
   const u = Math.min(1, Math.max(0, (z - AWNING.z0) / (AWNING.z1 - AWNING.z0)));
@@ -448,17 +500,14 @@ export function* buildingKiosk(shared) {
   ];
   panes.forEach((m) => add(m, false, false));
 
-  // The flowers painted on the glass: on the side windows outside (seen from the pavement), and on the left
-  // wall's frosted panes inside.
+  // The flowers painted on the glass: on the side windows outside (seen from the pavement; the back of the
+  // right wall is behind the lock-up), and on the left wall's frosted panes inside.
   const decals = { sunflower: flowerDecal("sunflower"), daisy: flowerDecal("daisy"), gerbera: flowerDecal("gerbera") };
   const decalMat = Object.fromEntries(
     Object.entries(decals).map(([k, tex]) => [k, new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.5, side: THREE.DoubleSide })])
   );
   const decal = (kind, [a, y], size, at, alongZ) =>
     add(sheet([a - size / 2, a + size / 2], [y - size / 2, y + size / 2], at, decalMat[kind], alongZ), false, false);
-  decal("sunflower", [-90.5, 53], 17, X1 + 0.05, true);
-  decal("gerbera", [-77.5, 36], 14, X1 + 0.05, true);
-  decal("daisy", [-63.5, 53], 13, X1 + 0.05, true);
   decal("sunflower", [-50.5, 36], 14, X1 + 0.05, true);
   decal("gerbera", [-25.5, 53], 13, Z1 + 0.05, false);
   decal("daisy", [-9.5, 36], 12, Z1 + 0.05, false);
@@ -983,6 +1032,161 @@ export function* buildingKiosk(shared) {
   }
 
   yield;
+  /* ----- the roller shutter over the front ----- */
+  // Its housing under the awning (the shop's name and hours painted on it), a guide rail down each corner
+  // post, and the curtain of slats from the housing down to its bottom bar: rolled up inside by day, down to
+  // the pavement at night, just in front of the posts (behind the step), a padlock through the hasp at the
+  // middle of the bottom bar.
+  const SH = SHUTTER;
+  const HOUSING = [SH.top, ROOF_Y]; // its bottom and top
+  const housingSide = new THREE.MeshLambertMaterial({ color: PALETTE.steel });
+  const housingFace = new THREE.MeshLambertMaterial({ map: housingTexture(SH.x1 - SH.x0, HOUSING[1] - HOUSING[0]) });
+  const housing = new THREE.Mesh(new THREE.BoxGeometry(SH.x1 - SH.x0, HOUSING[1] - HOUSING[0], 3), [
+    housingSide,
+    housingSide,
+    housingSide,
+    housingSide,
+    housingFace,
+    housingSide,
+  ]);
+  housing.position.set((SH.x0 + SH.x1) / 2, (HOUSING[0] + HOUSING[1]) / 2, SH.z + 0.4);
+  add(housing, true, false);
+  const rails = grid(0.5);
+  for (const x of [SH.x0, SH.x1 - 1.5]) rails.box([x, x + 1.5], [0, HOUSING[0]], [Z1 + 1, SH.z + 0.5], "steelDark");
+  add(rails.mesh(), false);
+  const slats = slatTexture();
+  const SLAT = 2; // a slat's height (voxels)
+  const rolled = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshLambertMaterial({ map: slats }));
+  rolled.scale.x = SH.x1 - SH.x0 - 2;
+  rolled.position.set((SH.x0 + SH.x1) / 2, 0, SH.z);
+  rolled.receiveShadow = true;
+  group.add(rolled);
+  const barG = grid(0.25);
+  const MID = (DOOR.x0 + DOOR.x1) / 2;
+  barG.box([SH.x0 + 1, SH.x1 - 1], [0, 1.5], [SH.z - 0.5, SH.z + 0.75], (x, y) => (y >= 1.25 ? "steelLight" : "steel"));
+  barG.box([MID - 4, MID + 4], [1.5, 2.5], [SH.z + 0.75, SH.z + 1.25], "chromeDark"); // the handle
+  barG.box([MID - 0.75, MID + 0.75], [0, 1.5], [SH.z + 0.75, SH.z + 1.5], "chrome"); // the hasp
+  const bar = barG.mesh();
+  group.add(bar);
+  const lockG = grid(0.25);
+  lockG.box([MID - 0.75, MID + 0.75], [-1.75, 0.25], [SH.z + 1.5, SH.z + 2], "brass");
+  lockG.box([MID - 0.5, MID - 0.25], [0.25, 1.25], [SH.z + 1.5, SH.z + 2], "chrome");
+  lockG.box([MID + 0.25, MID + 0.5], [0.25, 1.25], [SH.z + 1.5, SH.z + 2], "chrome");
+  lockG.box([MID - 0.5, MID + 0.5], [1, 1.25], [SH.z + 1.5, SH.z + 2], "chrome");
+  const padlock = lockG.mesh();
+  padlock.position.sub(bar.position); // (in the bar's frame)
+  bar.add(padlock);
+  const barAt = bar.position.y;
+  // `k` how far down: 0 rolled up in the housing, 1 down on the pavement.
+  const shutter = {
+    k: 0,
+    locked: false,
+    bottom: () => (1 - shutter.k) * (HOUSING[0] + 1),
+    set(k) {
+      shutter.k = Math.min(1, Math.max(0, k));
+      const b = shutter.bottom();
+      const h = Math.max(0.01, HOUSING[0] + 1 - b);
+      rolled.scale.y = h;
+      rolled.position.y = b + h / 2;
+      rolled.visible = b < HOUSING[0] - 0.5;
+      slats.repeat.set(1, h / SLAT);
+      bar.position.y = barAt + b;
+      padlock.visible = shutter.locked && shutter.k > 0.99;
+    },
+    lock(on) {
+      shutter.locked = on;
+      shutter.set(shutter.k);
+    },
+    handle: [MID, SH.z + 7], // where to stand to pull it down or push it up (on the pavement, before the hasp)
+  };
+  shutter.set(0);
+
+  yield;
+  /* ----- the lock-up cool room against the right wall ----- */
+  // White insulated panels in steel trim, a compressor on the roof with its fan, a sliding door on the front
+  // (to the right: it slides to the left over the wall), a cold light inside, shelves of buckets at the back.
+  const LU = LOCKUP;
+  const [DX0, DX1] = LU.door;
+  const panelC = (u) => (u % 9 === 0 ? "#c9d1d4" : "#e9eef0");
+  const lu = grid(1);
+  lu.box([LU.x0, LU.x1], [0, 1], [LU.z0, LU.z1], (x, y, z) => ((x + z) % 4 === 0 ? "#8b9499" : "#a2abb0"));
+  lu.box([LU.x0, LU.x0 + 1], [0, LU.h], [LU.z0, LU.z1], (x, y, z) => panelC(z)); // the side against the kiosk
+  lu.box([LU.x1 - 1, LU.x1], [0, LU.h], [LU.z0, LU.z1], (x, y, z) => (y < 3 ? "steelDark" : panelC(z - LU.z0)));
+  lu.box([LU.x0, LU.x1], [0, LU.h], [LU.z0, LU.z0 + 1], (x) => panelC(x));
+  lu.box([LU.x0, DX0], [0, LU.h], [LU.z1 - 1, LU.z1], (x, y) => (y < 3 ? "steelDark" : panelC(x - LU.x0)));
+  lu.box([DX1, LU.x1], [0, LU.h], [LU.z1 - 1, LU.z1], (x, y) => (y < 3 ? "steelDark" : "#e9eef0"));
+  lu.box([DX0, DX1], [LU.h - 6, LU.h], [LU.z1 - 1, LU.z1], "#e9eef0");
+  lu.box([LU.x0, LU.x1], [LU.h, LU.h + 1], [LU.z0, LU.z1], (x, y, z) => ((x + z) % 7 === 0 ? "#b7c0c4" : "#cfd7da")); // the roof
+  for (const x of [LU.x0, LU.x1 - 1]) lu.box([x, x + 1], [0, LU.h + 1], [LU.z1 - 1, LU.z1], "steelLight"); // the corner trim
+  lu.box([LU.x0, LU.x1], [LU.h, LU.h + 1], [LU.z1 - 1, LU.z1], "steelLight");
+  lu.box([LU.x1 - 1, LU.x1], [LU.h, LU.h + 1], [LU.z0, LU.z1], "steelLight");
+  // The compressor: a grey cabinet on the roof, pipes from it down into the roof.
+  const CX = (LU.x0 + LU.x1) / 2;
+  lu.box([CX - 8, CX + 8], [LU.h + 1, LU.h + 9], [LU.z0 + 6, LU.z0 + 18], (x, y) => (y === LU.h + 8 ? "#9aa2a6" : "#b7bec1"));
+  lu.box([CX - 3, CX - 1], [LU.h + 1, LU.h + 3], [LU.z0 + 18, LU.z0 + 21], "chromeDark");
+  // Inside: two shelves along the back, seen through the door.
+  for (const y of [14, 28]) lu.box([LU.x0 + 1, LU.x1 - 1], [y, y + 1], [LU.z0 + 1, LU.z0 + 9], "chrome");
+  const lockupMesh = add(lu.mesh());
+  const lfine = grid(0.5);
+  // The compressor's round fan grille, on its front.
+  const FAN = [CX, LU.h + 5, LU.z0 + 18];
+  for (let x = -3.5; x <= 3.5; x += 0.5)
+    for (let y = -3.5; y <= 3.5; y += 0.5) {
+      const d = Math.hypot(x + 0.25, y + 0.25);
+      if (d <= 3.5)
+        lfine.box(
+          [FAN[0] + x, FAN[0] + x + 0.5],
+          [FAN[1] + y, FAN[1] + y + 0.5],
+          [FAN[2], FAN[2] + 0.5],
+          Math.round(d * 2) % 2 ? "grille" : "boomGrey"
+        );
+    }
+  // Buckets of flowers on the shelves.
+  let shelved = 0;
+  for (const y of [15, 29])
+    for (let x = LU.x0 + 5; x < LU.x1 - 3; x += 7) {
+      const c = ["#f08fae", "#f7d33a", "#f6f2ec", "#c8283c", "#9b6bc4", "#f39a4a"][shelved++ % 6];
+      lfine.cyl(x, LU.z0 + 5, 3, [y, y + 6], (xx, yy) => (yy >= y + 5.5 ? "bucketBlackRim" : "bucketBlack"));
+      for (let k = 0; k < 5; k++) lfine.ball([x - 1.5 + ((k * 7) % 4), y + 9 + (k % 3), LU.z0 + 3.5 + ((k * 3) % 4)], 1.3, c);
+    }
+  // The door's track over it.
+  lfine.box([LU.x0, LU.x1], [LU.h - 6, LU.h - 4.5], [LU.z1, LU.z1 + 2], "steelDark");
+  add(lfine.mesh(), false);
+  // The door: a white insulated slab, a dark seal round it, a long chrome handle bar, a padlock through it.
+  const doorL = grid(0.5);
+  doorL.box([DX0, DX1], [1, LU.h - 6], [LU.z1, LU.z1 + 1.5], (x, y) =>
+    x < DX0 + 0.5 || x >= DX1 - 0.5 || y >= LU.h - 6.5 ? "#2a2b2e" : y < 4 ? "chrome" : "#f3f6f7"
+  );
+  doorL.box([DX0 + 1.5, DX0 + 2.5], [14, 30], [LU.z1 + 1.5, LU.z1 + 2.5], "chrome");
+  const lockupDoor = doorL.mesh();
+  add(lockupDoor);
+  const padL = grid(0.25);
+  padL.box([DX0 + 0.25, DX0 + 1.75], [17, 19], [LU.z1 + 2.5, LU.z1 + 3], "brass");
+  padL.box([DX0 + 0.5, DX0 + 1.5], [19, 20], [LU.z1 + 2.5, LU.z1 + 3], "chrome");
+  const lockupPad = padL.mesh();
+  lockupPad.position.sub(lockupDoor.position);
+  lockupDoor.add(lockupPad);
+  const sticker = sheet([LU.x0 + 2, DX0 - 1], [31, 36], LU.z1 + 0.05, new THREE.MeshLambertMaterial({ map: boardTexture("COOL ROOM", "#2e6b9a") }));
+  add(sticker, false);
+  const lockupLight = new THREE.PointLight(0xd6ecff, 0, 50, 1);
+  lockupLight.position.set(CX, LU.h - 8, (LU.z0 + LU.z1) / 2);
+  shared.scene.add(lockupLight); // (in the scene itself: coldLight)
+  const doorAt = lockupDoor.position.x;
+  const lockup = {
+    k: 0,
+    open: false,
+    locked: false,
+    set: (open) => (lockup.open = open),
+    lock(on) {
+      lockup.locked = on;
+      lockupPad.visible = on;
+    },
+    // Where to stand outside its door, and just inside it.
+    at: [(DX0 + DX1) / 2, LU.z1 + 10],
+    inside: [(DX0 + DX1) / 2, LU.z1 - 10],
+  };
+  lockup.lock(false);
+
   /* ----- what they do ----- */
 
   const radio = {
@@ -1050,6 +1254,11 @@ export function* buildingKiosk(shared) {
     coolDoor.rotation.y = -1.75 * e;
     spill.material.opacity = 0.32 * e;
     coldLight.intensity = 24 * e;
+    // The lock-up's door sliding open or shut, its light with it.
+    lockup.k += Math.sign((lockup.open ? 1 : 0) - lockup.k) * Math.min(Math.abs((lockup.open ? 1 : 0) - lockup.k), dt / 0.8);
+    const slide = lockup.k * lockup.k * (3 - 2 * lockup.k);
+    lockupDoor.position.x = doorAt - (DX1 - DX0 - 1.5) * slide;
+    lockupLight.intensity = 16 * slide;
     // The till's drawer: out with a ring, back after a moment.
     const r = t - register.rangAt;
     const out = r < 0.25 ? r / 0.25 : r < 1.6 ? 1 : r < 1.9 ? 1 - (r - 1.6) / 0.3 : 0;
@@ -1135,8 +1344,11 @@ export function* buildingKiosk(shared) {
     [STOOL.x - 3, STOOL.x + 3, STOOL.z - 3, STOOL.z + 3], // the stool
     [-36, -10, Z0, Z0 + WALL + 10], // the buckets of stock
     [AWNING.x1 - 2.5, AWNING.x1 + 0.5, AWNING.z0 - 1.5, AWNING.z0 + 1.5], // the awning's post
+    [LOCKUP.x0 - 2, LOCKUP.x1 + 1, LOCKUP.z0 - 2, LOCKUP.z1 + 3], // the lock-up
   ];
 
+  // (None of them while the shutter is down: the shop is shut.)
+  const up = () => shutter.k < 0.5;
   const clickables = [
     { key: "radio", parts: [radioMesh], toggle: () => radio.set(!radio.on) },
     { key: "register", parts: [tillMesh, drawer], toggle: () => register.ring(clock.t) },
@@ -1144,12 +1356,12 @@ export function* buildingKiosk(shared) {
     { key: "openSign", parts: [signGroup], toggle: () => openSign.flip() },
     { key: "chime", parts: [chimeBox], toggle: () => chimeBell.ring(clock.t) },
     { key: "cool", parts: [coolDoor, curtain], toggle: () => cool.toggle() },
-  ];
+  ].map((c) => ({ ...c, can: up }));
 
   return {
     group,
     obstacles,
-    hides: [backMesh, sidesMesh, shellMesh, benchMesh, frameMesh],
+    hides: [backMesh, sidesMesh, shellMesh, benchMesh, frameMesh, housing, rolled, lockupMesh],
     clickables,
     spots,
     radio,
@@ -1158,10 +1370,11 @@ export function* buildingKiosk(shared) {
     openSign,
     chime: chimeBell,
     cool,
-    // Night: the lights on and the sign turned to CLOSED; morning, off and OPEN.
+    shutter,
+    lockup,
+    // Night: the lights on, unless it is shut up for the night (the sign is turned by hand: life.js).
     dress(night) {
-      lights.set(night);
-      openSign.set(!night);
+      lights.set(night && shutter.k < 0.99);
     },
     daylight() {},
     update,

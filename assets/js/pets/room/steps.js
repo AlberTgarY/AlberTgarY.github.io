@@ -180,18 +180,20 @@ export function makeSteps(home) {
     });
   }
 
-  // The way to step along (dx, dz), bending round anyone close ahead so they pass each other rather than
-  // through; straight on where that would mean stepping into the furniture or off the edge of a floor.
+  // The way to step along (dx, dz), bending round anyone close ahead (the further ahead, the faster they go)
+  // so they pass each other rather than through; straight on where that would mean stepping into the
+  // furniture or off the edge of a floor.
   function aside(a, dx, dz) {
     const { nav, obstacles } = planOf(a);
+    const near = 22 * Math.max(1, a.pace / 2);
     let [sx, sz] = [dx, dz];
     for (const o of home.actors) {
       if (o === a || o.out !== a.out || Math.abs(o.y - a.y) > 5) continue;
       const [ox, oz] = [o.x - a.x, o.z - a.z];
       const dist = Math.hypot(ox, oz);
       const ahead = dist > 0.01 ? (ox * dx + oz * dz) / dist : 0;
-      if (dist > 22 || ahead < 0.2) continue;
-      const away = -(Math.sign(dx * oz - dz * ox) || 1) * 0.9 * (1 - dist / 22) * ahead;
+      if (dist > near || ahead < 0.2) continue;
+      const away = -(Math.sign(dx * oz - dz * ox) || 1) * 0.9 * (1 - dist / near) * ahead;
       sx += -dz * away;
       sz += dx * away;
     }
@@ -204,11 +206,11 @@ export function makeSteps(home) {
     return nav.free(x, z) || (!nav.free(a.x, a.z) && !solid) ? [sx, sz] : [dx, dz];
   }
 
-  // Turn to face `yaw` (0 faces the front of the room).
-  function* turn(a, yaw) {
+  // Turn to face `yaw` (0 faces the front of the room); on once within `within` of it (radians).
+  function* turn(a, yaw, within = 0.12) {
     a.face(yaw);
     const end = clock.t + 1;
-    while (!a.turned() && clock.t < end) yield;
+    while (!a.turned(within) && clock.t < end) yield;
   }
 
   // Wait `secs`; a calm wait ends early when the actor is asked to wrap up (to wake, or to join someone).

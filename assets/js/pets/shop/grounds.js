@@ -14,6 +14,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { hash, ellipsoid } from "../models/voxels.js";
 import { pixelTexture } from "../room/house/kit.js";
+import { makeWater } from "../room/water.js";
 import { VIEW_YAW } from "../room/view.js";
 import { rnd, pick } from "../stage.js";
 import { part, box, meshOf, voxels, paletteOf } from "./kit.js";
@@ -333,38 +334,64 @@ function muralTexture() {
         g.restore();
       }
     };
-    const disc = (x, y, r, color) => {
-      g.fillStyle = color;
+    // A flower's middle as painted: a soft shadow where it sits on the petals, a domed disc lit from the top
+    // left, packed with florets in the flower's own spiral (each the golden angle round from the last, a
+    // little further out), the ring of them at the rim (`ring`: from that far out) open and lighter, a sheen.
+    const middle = (x, y, r, { rim, mid, top, floret, ring, open }) => {
+      const [cx, cy, R] = [u(x), v(y), r * S];
+      g.fillStyle = "rgba(20, 30, 10, 0.22)";
       g.beginPath();
-      g.arc(u(x), v(y), r * S, 0, 6.29);
+      g.arc(cx + 0.06 * R, cy + 0.1 * R, 1.12 * R, 0, 6.29);
       g.fill();
-    };
-    const dots = (x, y, r, color) => {
-      g.fillStyle = color;
-      for (let k = 0; k < r * 6; k++) {
-        const [a, d] = [hash(k, x, 1) * 6.28, Math.sqrt(hash(k, y, 2)) * r * S * 0.85];
-        g.fillRect(Math.round(u(x) + Math.cos(a) * d), Math.round(v(y) + Math.sin(a) * d), 2 * K, 2 * K);
+      const dome = g.createRadialGradient(cx - 0.3 * R, cy - 0.35 * R, 0.1 * R, cx, cy, R);
+      dome.addColorStop(0, top);
+      dome.addColorStop(0.55, mid);
+      dome.addColorStop(1, rim);
+      g.fillStyle = dome;
+      g.beginPath();
+      g.arc(cx, cy, R, 0, 6.29);
+      g.fill();
+      const size = Math.max(1.2, 0.055 * R); // a floret's radius
+      const n = Math.round((0.8 * R * R) / (size * size * 1.9));
+      for (let i = 0; i < n; i++) {
+        const k = Math.sqrt((i + 0.5) / n);
+        const a = i * 2.39996;
+        const [fx, fy] = [cx + Math.cos(a) * 0.9 * R * k, cy + Math.sin(a) * 0.9 * R * k];
+        const outer = k > ring;
+        g.fillStyle = outer ? open : floret;
+        g.beginPath();
+        g.arc(fx, fy, size * (outer ? 1.15 : 0.75 + 0.35 * k), 0, 6.29);
+        g.fill();
+        if (outer) {
+          g.fillStyle = "rgba(255, 244, 190, 0.55)"; // pollen on the open ones
+          g.beginPath();
+          g.arc(fx - 0.3 * size, fy - 0.3 * size, 0.45 * size, 0, 6.29);
+          g.fill();
+        }
       }
+      const sheen = g.createRadialGradient(cx - 0.35 * R, cy - 0.4 * R, 0, cx - 0.35 * R, cy - 0.4 * R, 0.6 * R);
+      sheen.addColorStop(0, "rgba(255, 255, 240, 0.35)");
+      sheen.addColorStop(1, "rgba(255, 255, 240, 0)");
+      g.fillStyle = sheen;
+      g.beginPath();
+      g.arc(cx, cy, R, 0, 6.29);
+      g.fill();
     };
     const FLOWERS = {
       daisy(x, y, r) {
         petals(x, y, r, 18, 0.5, 0.13, "#fbfbf6", "#d9ddd8");
-        disc(x, y, r * 0.3, "#f2c230");
-        dots(x, y, r * 0.3, "#d99a1e");
+        middle(x, y, r * 0.3, { rim: "#d18f17", mid: "#eeb526", top: "#fbe27a", floret: "#dc9a1c", ring: 0.72, open: "#f6cf45" });
       },
       sunflower(x, y, r) {
         petals(x, y, r, 22, 0.5, 0.12, "#f0a51c", null, 0.14);
         petals(x, y, r * 0.92, 22, 0.47, 0.12, "#f8cc2a", "#e8a018");
-        disc(x, y, r * 0.38, "#3b2414");
-        dots(x, y, r * 0.38, "#6a4424");
-        disc(x, y, r * 0.15, "#2a170c");
+        middle(x, y, r * 0.38, { rim: "#2a170c", mid: "#4a2c16", top: "#6b4a22", floret: "#2e1a0d", ring: 0.78, open: "#b8711f" });
       },
       dahlia(x, y, r) {
         petals(x, y, r, 16, 0.5, 0.17, "#ec3f8a", "#c92a6f");
         petals(x, y, r * 0.75, 14, 0.45, 0.17, "#f36aa6", "#d84a8a", 0.2);
         petals(x, y, r * 0.5, 12, 0.42, 0.18, "#f8a0c4", null, 0.1);
-        disc(x, y, r * 0.17, "#f4c53a");
-        dots(x, y, r * 0.17, "#e0902a");
+        middle(x, y, r * 0.17, { rim: "#d98a1c", mid: "#f1bb34", top: "#fde68c", floret: "#e39a22", ring: 0.6, open: "#f8d24e" });
       },
     };
     // (Those over the kiosk only show above its roof; the most to the right of it.)
@@ -384,7 +411,7 @@ function muralTexture() {
       ["dahlia", 60, 34, 12],
     ])
       FLOWERS[kind](x, y, r);
-    // The banner and the bubble, between the kiosk and the plants.
+    // The banner, and the bubble over the plants (clear of the lock-up by the kiosk).
     g.fillStyle = "#f4ead2";
     g.fillRect(u(2), v(84), 58 * S, 14 * S);
     g.fillStyle = "#1d5a33";
@@ -393,19 +420,19 @@ function muralTexture() {
     g.font = `bold ${7 * S}px "Trebuchet MS", "Segoe UI", sans-serif`;
     g.fillText("FLOWER MARKET", u(31), v(79.5));
     g.font = `${3.6 * S}px "Trebuchet MS", "Segoe UI", sans-serif`;
-    g.fillText("fresh every morning · since 1878", u(31), v(73.6));
+    g.fillText("fresh every morning · since 2002", u(31), v(73.6));
     g.fillStyle = "#f6d23a";
     g.beginPath();
-    g.ellipse(u(16), v(46), 15 * S, 11 * S, 0, 0, 6.29);
+    g.ellipse(u(48), v(58), 15 * S, 11 * S, 0, 0, 6.29);
     g.fill();
     g.beginPath();
-    g.moveTo(u(8), v(37));
-    g.lineTo(u(4), v(30));
-    g.lineTo(u(14), v(36));
+    g.moveTo(u(40), v(49));
+    g.lineTo(u(36), v(42));
+    g.lineTo(u(46), v(48));
     g.fill();
     g.fillStyle = "#1b1b1b";
     g.font = `bold ${4.4 * S}px "Segoe Print", "Comic Sans MS", cursive`;
-    ["Go on,", "have a", "sniff!"].forEach((line, i) => g.fillText(line, u(16), v(51.5 - i * 5.6)));
+    ["Go on,", "have a", "sniff!"].forEach((line, i) => g.fillText(line, u(48), v(63.5 - i * 5.6)));
   });
   // Smooth, not pixelated: painted, and seen small as often as close up.
   Object.assign(mural.tex, { magFilter: THREE.LinearFilter, minFilter: THREE.LinearMipmapLinearFilter, generateMipmaps: true, anisotropy: 4 });
@@ -686,7 +713,7 @@ export function* buildingGrounds(shared) {
 
   yield;
   // The empty buckets, nested in three stacks: only each one's rim band shows, the top one whole.
-  const stacks = part();
+  let stacks = null; // (each stack's part, in turn)
   const S = BUCKET_STACKS;
   const ring = (cx, cz, y, r, color, open = false) => {
     for (let dx = -5; dx <= 5; dx++)
@@ -695,11 +722,12 @@ export function* buildingGrounds(shared) {
         if (d <= r * r + 0.5) stacks.add(cx + dx, y, cz + dz, open && d < (r - 1) * (r - 1) ? "potBlack" : color);
       }
   };
-  [
+  const stackParts = [
     [S.x0 + 5, S.z0 + 5, 9],
     [S.x0 + 5, S.z1 - 5, 7],
     [S.x1 - 5, (S.z0 + S.z1) / 2, 10],
-  ].forEach(([x, z, n], i) => {
+  ].map(([x, z, n], i) => {
+    stacks = part();
     // The bottom one standing, tapering to its foot; then each nested one's rim band, a little askew.
     for (let y = 0; y < 6; y++) ring(x, z, y, y < 2 ? 3.4 : 4, "bucketBlack");
     for (let k = 0; k < n; k++) {
@@ -708,6 +736,7 @@ export function* buildingGrounds(shared) {
       ring(x + ox, z + oz, y, 4, "bucketBlack");
       ring(x + ox, z + oz, y + 1, 4.3, "bucketBlackRim", k === n - 1);
     }
+    return { mesh: shadowy(meshOf(stacks, 1, PALETTE)), at: [x, 0, z], height: 7 + 2 * n };
   });
 
   // The tap: a copper pipe up the kiosk's wall, a brass bib tap on it with a cross handle.
@@ -732,10 +761,10 @@ export function* buildingGrounds(shared) {
         if (d <= r * r + 0.5 && (y === 0 || d >= (r - 1.3) * (r - 1.3))) bowlPart.add(bx + dx, y, bz + dz, y === 2 ? "steelBowl" : "steelBowlDark");
       }
 
-  const fineMesh = shadowy(meshOf(stacks, 1, PALETTE));
+  const stackMeshes = stackParts.map((p) => p.mesh);
   const tapMesh = shadowy(meshOf(tapPart, HALF, PALETTE));
   const bowlMesh = shadowy(meshOf(bowlPart, HALF, PALETTE), false);
-  group.add(fineMesh, tapMesh, bowlMesh);
+  group.add(...stackMeshes, tapMesh, bowlMesh);
 
   yield;
   // The price cards, turned to the viewer.
@@ -816,16 +845,19 @@ export function* buildingGrounds(shared) {
   );
   water.position.set(BOWL.x, 0.4, BOWL.z);
   group.add(water);
-  const streak = pixelTexture(4, 16, (g) => {
-    for (let y = 0; y < 16; y++) {
-      g.fillStyle = y % 5 < 2 ? "rgba(255,255,255,0.95)" : "rgba(170,215,240,0.75)";
-      g.fillRect(0, y, 4, 1);
-    }
+  // The stream as the kitchen tap's at home: a clear column narrowing as it falls faster, lighter streaks of
+  // all lengths running down it; it splashes where it lands (drops: water.js), and drips a while after.
+  const streak = pixelTexture(8, 32, (g, w, h) => {
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        g.fillStyle = hash(x, Math.floor(y / 11), 71) < 0.3 ? "#ffffff" : hash(x, Math.floor(y / 5), 72) < 0.5 ? "#cdeefa" : "#a9dcf2";
+        g.fillRect(x, y, 1, 1);
+      }
   }).tex;
   streak.wrapS = streak.wrapT = THREE.RepeatWrapping;
   const stream = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.35, 0.3, 1, 6, 1, true),
-    new THREE.MeshBasicMaterial({ map: streak, transparent: true, depthWrite: false })
+    new THREE.CylinderGeometry(0.55, 0.32, 1, 8, 1, true),
+    new THREE.MeshBasicMaterial({ map: streak, transparent: true, opacity: 0.8, depthWrite: false })
   );
   stream.visible = false;
   group.add(stream);
@@ -836,6 +868,10 @@ export function* buildingGrounds(shared) {
   puddle.rotation.x = -Math.PI / 2;
   puddle.position.set(spout[0], 0.06, spout[2]);
   group.add(puddle);
+  const onPavement = (x, z) => x > GROUND.x0 && x < GROUND.x1 && z > GROUND.z0 && z < GROUND.z1;
+  const drops = makeWater(group, (x, z) => (onPavement(x, z) ? 0 : -Infinity));
+  let dripsUntil = -1;
+  let dripAt = 0;
 
   yield;
   /* ----- petals and leaves on the ground ----- */
@@ -844,6 +880,121 @@ export function* buildingGrounds(shared) {
   yield;
   /* ----- birds ----- */
   const birds = makeBirds(group);
+
+  yield;
+  /* ----- the tarp over the house plants at night ----- */
+  // Dark green canvas over the rack and the plinth and down over the trays in front: a sheet over them from
+  // the pavement at the front up to the top of the rack at the back. Taken off in the morning it is rolled
+  // up from the back, the roll coming over the plants towards the two of them pulling at the front, fatter
+  // as it comes; at closing it is unrolled back over (`tarp.set(k)`: 0 off, 1 on, the sheet as far back as
+  // k of the way). Rolled, it is folded and kept in the lock-up (`bundle`).
+  let moved = false; // (anything moved: the sun's shadows drawn again)
+  const TARP_X = [PLINTH.x0 - 1, PLINTH.x1 + 1];
+  const DRAPE = [
+    [TRAYS.z1 + 4, 0],
+    [TRAYS.z1 + 2, 16],
+    [PLINTH.z1 + 4, 36],
+    [BACK_Z + 1, 60],
+  ]; // [z, y] from the front to the back
+  const along = DRAPE.map((p, i) => (i ? Math.hypot(p[0] - DRAPE[i - 1][0], p[1] - DRAPE[i - 1][1]) : 0));
+  along.forEach((d, i) => i && (along[i] += along[i - 1])); // (how far along the sheet each point is)
+  const LENGTH = along.at(-1);
+  const ROLLED = 4.2; // the roll's radius with all of it rolled up
+  const sheetAt = new Float32Array(DRAPE.length * 2 * 3); // (each point's two ends, at TARP_X)
+  const sheetGeometry = new THREE.BufferGeometry();
+  sheetGeometry.setAttribute("position", new THREE.BufferAttribute(sheetAt, 3));
+  sheetGeometry.setIndex(DRAPE.slice(1).flatMap((_, i) => [2 * i, 2 * i + 1, 2 * i + 2, 2 * i + 1, 2 * i + 3, 2 * i + 2]));
+  const tarpMaterial = new THREE.MeshLambertMaterial({ color: "#3e5e48", flatShading: true, side: THREE.DoubleSide });
+  const tarpMesh = new THREE.Mesh(sheetGeometry, tarpMaterial);
+  tarpMesh.frustumCulled = false; // (its points move)
+  const roll = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, TARP_X[1] - TARP_X[0], 10), tarpMaterial);
+  roll.rotation.z = Math.PI / 2; // (along x)
+  roll.position.x = (TARP_X[0] + TARP_X[1]) / 2;
+  for (const m of [tarpMesh, roll]) {
+    m.castShadow = m.receiveShadow = true;
+    m.visible = false;
+    group.add(m);
+  }
+  const tarp = {
+    k: 0,
+    ends: [
+      [TARP_X[0] - 6, TRAYS.z1 + 8],
+      [TARP_X[1] + 6, TRAYS.z1 + 8],
+    ], // where the two of them stand to pull it over, or off
+    set(k) {
+      tarp.k = Math.min(1, Math.max(0, k));
+      const reach = LENGTH * tarp.k * tarp.k * (3 - 2 * tarp.k); // (how far back the sheet goes)
+      // The edge: on the stretch it has reached, with the way out from the sheet's top side (up and forward).
+      const i = Math.max(
+        1,
+        along.findIndex((s) => s >= reach)
+      );
+      const [[z0, y0], [z1, y1]] = [DRAPE[i - 1], DRAPE[i]];
+      const f = (reach - along[i - 1]) / (along[i] - along[i - 1]);
+      const d = Math.hypot(z1 - z0, y1 - y0);
+      const [ez, ey, oz, oy] = [z0 + (z1 - z0) * f, y0 + (y1 - y0) * f, (y1 - y0) / d, -(z1 - z0) / d];
+      // The sheet's points up to it; those past it folded onto it.
+      DRAPE.forEach(([z, y], j) => {
+        if (along[j] > reach) [z, y] = [ez, ey];
+        sheetAt.set([TARP_X[0], y, z, TARP_X[1], y, z], j * 6);
+      });
+      sheetGeometry.attributes.position.needsUpdate = true;
+      tarpMesh.visible = reach > 0.5;
+      // The roll at the sheet's edge, as fat as what is rolled up of it.
+      const r = 0.6 + (ROLLED - 0.6) * Math.sqrt(1 - reach / LENGTH);
+      roll.visible = tarp.k > 0.001 && tarp.k < 0.999;
+      roll.scale.set(r, 1, r); // (its own y is along x)
+      roll.position.y = ey + oy * r;
+      roll.position.z = ez + oz * r;
+      moved = true;
+    },
+  };
+  const bundleMesh = voxels(
+    (p) => {
+      box(p, [-7, 7], [0, 3], [-4, 4], (x, y) => (y === 3 || Math.abs(x) === 7 ? "#4a6e55" : "#3e5e48"));
+      box(p, [-8, 8], [1, 1], [0, 0], "#c9a253"); // the cord round it
+    },
+    1,
+    PALETTE
+  );
+  group.add(shadowy(bundleMesh));
+
+  // What is carried in at night and out in the morning (life.js), as the buckets are (display.js): the A-frame,
+  // the stacks of empty buckets, the watering can, the dog's bowl and the folded tarp. Each moved from
+  // where it is by day (`home`, its foot) to (x, y, z), or put out of sight (in a cool room).
+  function movable(name, objects, home, height, radius) {
+    const base = objects.map((o) => o.position.clone());
+    const shift = new THREE.Vector3();
+    const m = {
+      name,
+      home,
+      where: [...home],
+      shown: true,
+      away: false,
+      height,
+      radius,
+      place(x, y, z, shown = true) {
+        shift.set(x - home[0], y - home[1], z - home[2]);
+        m.where = [x, y, z];
+        m.shown = shown;
+        m.away = shift.lengthSq() > 0 || !shown;
+        objects.forEach((o, i) => {
+          o.position.copy(base[i]).add(shift);
+          o.visible = shown;
+        });
+        moved = true;
+      },
+    };
+    return m;
+  }
+  const things = {
+    sign: movable("sign", [signGroup], [SIGN.x, 0, SIGN.z], 24, 8),
+    stacks: stackParts.map((p, i) => movable(`stack${i}`, [p.mesh], p.at, p.height, 5)),
+    can: movable("can", [can], [...CAN_AT], 18, 6),
+    bowl: movable("bowl", [bowlMesh, water], [BOWL.x, 0, BOWL.z], 3, 4),
+    bundle: movable("bundle", [bundleMesh], [0, 0, 0], 4, 8),
+  };
+  things.bundle.place(0, 0, 0, false); // (by day, in the lock-up)
 
   yield;
   /* ----- the contract ----- */
@@ -924,19 +1075,22 @@ export function* buildingGrounds(shared) {
       [TAP.x - 2, TAP.x + 3, TAP.z - 3, TAP.z + 3],
       [CAN_AT[0] - 4, CAN_AT[0] + 4, CAN_AT[2] - 4, CAN_AT[2] + 4],
     ],
-    hides: [crownMesh, trunkMesh, wholeMesh, plantsMesh, fineMesh],
+    hides: [crownMesh, trunkMesh, wholeMesh, plantsMesh, ...stackMeshes],
     clickables,
     spots,
     can: canThing,
     tap,
     bowl,
+    tarp,
+    things,
     petals,
     birds,
-    // The tree shaken: its shadow drawn again while it moves.
+    // The tree shaken: its shadow drawn again while it moves; or something carried in or out.
     shadowsDirty: () => {
       const now = shared.clock.t - shook < 2.5;
-      const dirty = now || shaking;
+      const dirty = now || shaking || moved;
       shaking = now;
+      moved = false;
       return dirty;
     },
     dress(night) {
@@ -946,21 +1100,28 @@ export function* buildingGrounds(shared) {
     update(t, dt, home) {
       // The tap's water: falling from the spout to where it lands, streaming; a puddle spreading under it.
       if (tap.running && t > tap.until) tap.set(false);
+      if (stream.visible && !tap.running) dripsUntil = t + rnd(1.2, 2.2); // (turned off: a few drips yet)
       stream.visible = tap.running;
       if (tap.running) {
         const len = spout[1] - tap.bottom;
-        stream.scale.y = len;
+        const wobble = 0.92 + 0.08 * Math.sin(t * 37);
+        stream.scale.set(wobble, len, wobble);
         stream.position.set(spout[0], tap.bottom + len / 2, spout[2]);
-        streak.offset.y = (t * 3) % 1;
-        streak.repeat.y = len / 4;
+        streak.offset.y = (t * 3) % 1; // (running down)
+        streak.repeat.y = len / 10;
+        drops.splash(spout[0], tap.bottom, spout[2], tap.bottom < 0.5 ? 0.9 : 0.35); // (into the can, less)
+      } else if (t < dripsUntil && t > dripAt) {
+        dripAt = t + rnd(0.25, 0.6);
+        drops.emit("drip", spout[0], spout[1] - 0.3, spout[2], 0, 0, 0, 1);
       }
+      drops.update(dt);
       const wet = tap.running && tap.bottom < 0.5;
       puddle.material.opacity = Math.min(0.55, Math.max(0, puddle.material.opacity + (wet ? dt * 0.2 : -dt * 0.03)));
       puddle.scale.setScalar(1.5 + puddle.material.opacity * 6);
       puddle.visible = puddle.material.opacity > 0.01;
       // The bowl's water down as it is drunk.
       water.position.y = 0.3 + bowl.level * 0.95;
-      water.visible = bowl.level > 0.02;
+      water.visible = bowl.level > 0.02 && bowlMesh.visible;
       // The crown shaken: a sway dying away.
       const s = t - shook;
       crownGroup.rotation.z = s < 2.5 ? 0.025 * Math.exp(-2 * s) * Math.sin(16 * s) : 0;

@@ -107,18 +107,23 @@ export function* buildingRoom(stage) {
   }
   function lightFloor(below) {
     unmute();
-    if (sunFor !== below) {
+    const sunDrawn = sunFor !== below;
+    if (sunDrawn) {
+      // Nothing indoors, on either floor, casts the sun's shadows (only what is out in the garden does, on
+      // SUN_LAYER): indoors they would wheel round with the sun through the day. The lamps' are drawn in a
+      // pass after, with everything casting again.
       sun.shadow.needsUpdate = view.renderer.shadowMap.needsUpdate = true;
       sunFor = below;
-      (below ? house.group : house.basement.group).traverse((o) => {
-        if (!o.castShadow || o.isLight || o.layers.isEnabled(SUN_LAYER)) return;
-        o.castShadow = false;
-        muted.push(o);
-      });
+      for (const g of [house.group, house.basement.group])
+        g.traverse((o) => {
+          if (!o.castShadow || o.isLight || o.layers.isEnabled(SUN_LAYER)) return;
+          o.castShadow = false;
+          muted.push(o);
+        });
     }
     for (const l of floorLights) l.shown = l.floor === (below ? 1 : 0) ? 1 : 0;
     for (const l of undrawn)
-      if (l.shown) {
+      if (l.shown && !sunDrawn) {
         l.shadow.needsUpdate = view.renderer.shadowMap.needsUpdate = true;
         undrawn.delete(l);
       }

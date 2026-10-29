@@ -37,8 +37,8 @@ export const STOOL = { x: -112, z: -66 };
 export const STEP = { x0: -150, x1: -100, z0: -28, z1: -6, h: 12 };
 export const LEFT = { x0: -150, x1: -100, z0: -6, z1: 34 };
 export const MIDDLE = { x0: -92, x1: -28, z0: 6, z1: 50 };
-export const RIGHT = { x0: -12, x1: 138, z0: -6, z1: 50 };
-export const MADE = { x: -30, z: -16 }; // the bucket of bouquets made up, beside the doorway
+export const RIGHT = { x0: -12, x1: 148, z0: -6, z1: 50 };
+export const MADE = { x: -89, z: -18 }; // the bucket of bouquets made up, beside the doorway
 
 // The house plants: a concrete plinth with a two-tier rack on it, trays on the pavement in front.
 export const PLINTH = { x0: 30, x1: 150, z0: -104, z1: -74, h: 14 };
@@ -48,3 +48,16 @@ export const TAP = { x: 2, z: -40 }; // the tap on the kiosk's right wall, outsi
 export const BUCKET_STACKS = { x0: -150, x1: -134, z0: 40, z1: 60 }; // empty buckets stacked, front left
 export const SIGN = { x: -116, z: 63 }; // the chalkboard A-frame, "Pick your own bunch"
 export const BOWL = { x: -26, z: -2 }; // the dog's water bowl, outside by the door
+
+// Its hours: ten in the morning to ten at night. At ten they come in, the shutter goes up and they set
+// everything out, the sign turned to OPEN once it is all out; at ten at night they start bringing it all
+// in; once it is in, the shutter comes down over the kiosk's front and they go home.
+export const HOURS = { arrive: 10, open: 10, close: 22 };
+// The roller shutter over the whole front: its housing under the awning, its curtain coming down just in
+// front of the posts (behind the step) to the pavement.
+export const SHUTTER = { x0: KIOSK.x0, x1: KIOSK.x1, z: KIOSK.z1 + 1.3, top: 63 };
+// The lock-up cool room against the kiosk's right wall, outside: where the flowers out along to the right go
+// for the night; its sliding door on the front, to the right.
+export const LOCKUP = { x0: 2, x1: 28, z0: -108, z1: -64, h: 46, door: [13, 27] };
+// Where people come into the street scene from and go off to: off the front edge of the pavement.
+export const STREET = { z: GROUND.z1 + 10, x0: -100, x1: 170 };

@@ -59,6 +59,15 @@
     flex: none;
   }
 
+  // On a narrow screen, its arrow only (its label says what it does), to leave room for the times of day.
+  @media (max-width: 560px) {
+    padding: 0.35rem 0.5rem;
+
+    span {
+      display: none;
+    }
+  }
+
   &[aria-pressed="true"] svg {
     transform: scaleX(-1); // turning back the other way
   }
@@ -69,13 +78,52 @@
   }
 }
 
-// The clock, in the top left corner: the time of day in the home (clicking it skips to the evening or the
-// morning), the time in figures that keep their width.
-.playground-clock {
-  @extend .playground-turn;
-  right: auto;
+// The time of day, in the top left corner: a pill with the clock (figures that keep their width) and, past a
+// rule, the times of day to skip to, the part of the day it is in filled in, as the worlds' buttons are.
+.playground-times {
+  position: absolute;
+  z-index: 3;
+  top: 0.25rem;
   left: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--global-divider-color);
+  border-radius: 999px;
+  background: var(--global-card-bg-color);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+
+  .playground-off &,
+  .playground:not(.loaded) & {
+    display: none;
+  }
+}
+
+.playground-clock {
+  padding: 0 0.6rem 0 0.55rem;
+  margin-right: 2px;
+  border-right: 1px solid var(--global-divider-color);
+  color: var(--global-text-color);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.5rem;
   font-variant-numeric: tabular-nums;
+}
+
+.playground-time {
+  @extend .playground-world;
+  padding: 0.3rem 0.55rem;
+  white-space: nowrap;
+
+  // On a narrow screen, the times without their pictures.
+  @media (max-width: 560px) {
+    padding: 0.3rem 0.45rem;
+
+    svg {
+      display: none;
+    }
+  }
 }
 
 // Up and down between the floors, under the turning button: a column of floor buttons as on a map of a
@@ -131,7 +179,7 @@
 }
 
 // In the flower shop, the house's own buttons (turning round, the floors) fade away.
-.playground-turn:not(.playground-clock),
+.playground-turn,
 .playground-floors {
   transition:
     opacity 0.35s,
@@ -631,6 +679,10 @@
 
 .room-say-paw {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 11' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3330' d='M2 0h1v1H2zM3 0h1v1H3zM4 0h1v1H4zM5 0h1v1H5zM6 0h1v1H6zM7 0h1v1H7zM8 0h1v1H8zM9 0h1v1H9zM10 0h1v1H10zM1 1h1v1H1zM11 1h1v1H11zM0 2h1v1H0zM12 2h1v1H12zM0 3h1v1H0zM12 3h1v1H12zM0 4h1v1H0zM12 4h1v1H12zM0 5h1v1H0zM12 5h1v1H12zM0 6h1v1H0zM12 6h1v1H12zM1 7h1v1H1zM11 7h1v1H11zM2 8h1v1H2zM3 8h1v1H3zM4 8h1v1H4zM6 8h1v1H6zM7 8h1v1H7zM8 8h1v1H8zM9 8h1v1H9zM10 8h1v1H10zM4 9h1v1H4zM6 9h1v1H6zM5 10h1v1H5z'/%3E%3Cpath fill='%23ffffff' d='M2 1h1v1H2zM3 1h1v1H3zM4 1h1v1H4zM5 1h1v1H5zM6 1h1v1H6zM7 1h1v1H7zM8 1h1v1H8zM9 1h1v1H9zM10 1h1v1H10zM1 2h1v1H1zM2 2h1v1H2zM3 2h1v1H3zM4 2h1v1H4zM5 2h1v1H5zM6 2h1v1H6zM7 2h1v1H7zM8 2h1v1H8zM9 2h1v1H9zM10 2h1v1H10zM11 2h1v1H11zM1 3h1v1H1zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM9 3h1v1H9zM10 3h1v1H10zM11 3h1v1H11zM1 4h1v1H1zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM8 4h1v1H8zM9 4h1v1H9zM10 4h1v1H10zM11 4h1v1H11zM1 5h1v1H1zM2 5h1v1H2zM3 5h1v1H3zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM8 5h1v1H8zM9 5h1v1H9zM10 5h1v1H10zM11 5h1v1H11zM1 6h1v1H1zM2 6h1v1H2zM3 6h1v1H3zM4 6h1v1H4zM5 6h1v1H5zM6 6h1v1H6zM7 6h1v1H7zM8 6h1v1H8zM9 6h1v1H9zM10 6h1v1H10zM11 6h1v1H11zM2 7h1v1H2zM3 7h1v1H3zM4 7h1v1H4zM5 7h1v1H5zM6 7h1v1H6zM7 7h1v1H7zM8 7h1v1H8zM9 7h1v1H9zM10 7h1v1H10zM5 8h1v1H5zM5 9h1v1H5z'/%3E%3Cpath fill='%237a4a2a' d='M4 2h1v1H4zM6 2h1v1H6zM8 2h1v1H8zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM8 5h1v1H8zM5 6h1v1H5zM7 6h1v1H7z'/%3E%3C/svg%3E");
+}
+
+.room-say-flower {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 11' shape-rendering='crispEdges'%3E%3Cpath fill='%233a3330' d='M2 0h1v1H2zM3 0h1v1H3zM4 0h1v1H4zM5 0h1v1H5zM6 0h1v1H6zM7 0h1v1H7zM8 0h1v1H8zM9 0h1v1H9zM10 0h1v1H10zM1 1h1v1H1zM11 1h1v1H11zM0 2h1v1H0zM12 2h1v1H12zM0 3h1v1H0zM12 3h1v1H12zM0 4h1v1H0zM12 4h1v1H12zM0 5h1v1H0zM12 5h1v1H12zM0 6h1v1H0zM12 6h1v1H12zM1 7h1v1H1zM11 7h1v1H11zM2 8h1v1H2zM3 8h1v1H3zM4 8h1v1H4zM6 8h1v1H6zM7 8h1v1H7zM8 8h1v1H8zM9 8h1v1H9zM10 8h1v1H10zM4 9h1v1H4zM6 9h1v1H6zM5 10h1v1H5z'/%3E%3Cpath fill='%23ffffff' d='M2 1h1v1H2zM3 1h1v1H3zM4 1h1v1H4zM5 1h1v1H5zM6 1h1v1H6zM7 1h1v1H7zM8 1h1v1H8zM9 1h1v1H9zM10 1h1v1H10zM1 2h1v1H1zM2 2h1v1H2zM3 2h1v1H3zM4 2h1v1H4zM5 2h1v1H5zM6 2h1v1H6zM7 2h1v1H7zM8 2h1v1H8zM9 2h1v1H9zM10 2h1v1H10zM11 2h1v1H11zM1 3h1v1H1zM2 3h1v1H2zM3 3h1v1H3zM4 3h1v1H4zM5 3h1v1H5zM6 3h1v1H6zM7 3h1v1H7zM8 3h1v1H8zM9 3h1v1H9zM10 3h1v1H10zM11 3h1v1H11zM1 4h1v1H1zM2 4h1v1H2zM3 4h1v1H3zM4 4h1v1H4zM5 4h1v1H5zM6 4h1v1H6zM7 4h1v1H7zM8 4h1v1H8zM9 4h1v1H9zM10 4h1v1H10zM11 4h1v1H11zM1 5h1v1H1zM2 5h1v1H2zM3 5h1v1H3zM4 5h1v1H4zM5 5h1v1H5zM6 5h1v1H6zM7 5h1v1H7zM8 5h1v1H8zM9 5h1v1H9zM10 5h1v1H10zM11 5h1v1H11zM1 6h1v1H1zM2 6h1v1H2zM3 6h1v1H3zM4 6h1v1H4zM5 6h1v1H5zM6 6h1v1H6zM7 6h1v1H7zM8 6h1v1H8zM9 6h1v1H9zM10 6h1v1H10zM11 6h1v1H11zM2 7h1v1H2zM3 7h1v1H3zM4 7h1v1H4zM5 7h1v1H5zM6 7h1v1H6zM7 7h1v1H7zM8 7h1v1H8zM9 7h1v1H9zM10 7h1v1H10zM5 8h1v1H5zM5 9h1v1H5z'/%3E%3Cpath fill='%23ef7f93' d='M5 1h1v1H5zM7 1h1v1H7zM4 2h1v1H4zM5 2h1v1H5zM7 2h1v1H7zM8 2h1v1H8zM5 3h1v1H5zM7 3h1v1H7z'/%3E%3Cpath fill='%23f2b233' d='M6 2h1v1H6z'/%3E%3Cpath fill='%235f9a4a' d='M6 3h1v1H6zM6 4h1v1H6zM7 4h1v1H7zM5 5h1v1H5zM6 5h1v1H6zM6 6h1v1H6z'/%3E%3C/svg%3E");
 }
 
 .room-pop-star {

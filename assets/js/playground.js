@@ -14,6 +14,8 @@
  * out of the front door, where they go for their walks, and back; without
  * turning, the pointer on the front door (or a tap on it) fades the back wall
  * to see out.
+ * The clock in the top left corner has beside it the times of day to skip to
+ * (six in the morning, ten, two, six, ten at night).
  * The two buttons under the clock go between the home and her flower shop
  * (assets/js/pets/shop/shop.js, built with the home behind the loading bar),
  * the one fading into the other; the one out of view waits, neither moved on
@@ -43,6 +45,21 @@ const SUN_ICON =
   '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
 const MOON_ICON =
   '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M10.8 2.2a6 6 0 1 0 3 8.6A5 5 0 0 1 10.8 2.2Z" fill="currentColor"/></svg>';
+// The sun coming up over the horizon, and going down; the sun behind a cloud (the afternoon): with the sun
+// and the moon, the times of day to skip to.
+const SUNRISE_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M1.5 13h13M4.5 13a3.5 3.5 0 0 1 7 0M2.9 9.6l1.2.7M13.1 9.6l-1.2.7M8 6.6V2.4M6.3 4.1 8 2.4l1.7 1.7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SUNSET_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M1.5 13h13M4.5 13a3.5 3.5 0 0 1 7 0M2.9 9.6l1.2.7M13.1 9.6l-1.2.7M8 2.4v4.2M6.3 4.9 8 6.6l1.7-1.7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const AFTERNOON_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="6" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 1.2v1M1.2 6h1M2.6 2.6l.7.7M9.4 2.6l-.7.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M5.6 14h6.2a2.6 2.6 0 0 0 .2-5.2 3.4 3.4 0 0 0-6.4.5 2.4 2.4 0 0 0 0 4.7Z" fill="currentColor"/></svg>';
+const TIMES = [
+  [6, "6 am", SUNRISE_ICON, "early morning"],
+  [10, "10 am", SUN_ICON, "ten in the morning"],
+  [14, "2 pm", AFTERNOON_ICON, "the afternoon"],
+  [18, "6 pm", SUNSET_ICON, "the evening"],
+  [22, "10 pm", MOON_ICON, "ten at night"],
+];
 // A house, and a tulip (the buttons between the home and the flower shop).
 const HOME_ICON =
   '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2.5 7.5 8 3l5.5 4.5M4 6.5v6.5h3v-3.5h2V13h3V6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -168,24 +185,35 @@ async function start() {
   }
   showWho();
 
-  // The clock, top left: the time of day in the home, a sun by day and a moon by night; clicking it goes on to
-  // the start of the night (18:00), or of the day (06:00).
-  const clock = Object.assign(document.createElement("button"), { type: "button", className: "playground-clock" });
+  // The time of day, top left, in a pill: the clock (the time in the world in view), and the times to skip to,
+  // the part of the day it is in filled in: early morning, ten (the shop opening up), the afternoon, the
+  // evening, ten at night (the shop closing up).
+  const times = Object.assign(document.createElement("div"), { className: "playground-times", role: "group" });
+  times.setAttribute("aria-label", "Time of day");
+  const clock = Object.assign(document.createElement("span"), { className: "playground-clock" });
+  const timeButtons = TIMES.map(([hour, text, icon, said]) => {
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "playground-time" });
+    b.innerHTML = `${icon}<span>${text}</span>`;
+    b.setAttribute("aria-label", `Skip to ${said}`);
+    b.addEventListener("click", () => {
+      world.timeTo(hour);
+      showTime();
+      if (reducedMotion) world.step(0);
+    });
+    return b;
+  });
+  times.append(clock, ...timeButtons);
   let clockWas = "";
   function showTime() {
-    const night = world.home.night;
-    const now = `${night}${hhmm(world.hour())}`;
+    const h = world.hour();
+    const now = hhmm(h);
     if (now === clockWas) return;
     clockWas = now;
-    clock.innerHTML = `${night ? MOON_ICON : SUN_ICON}<span>${hhmm(world.hour())}</span>`;
-    clock.setAttribute("aria-label", `${hhmm(world.hour())}: skip to ${night ? "the morning" : "the evening"}`);
+    clock.textContent = now;
+    const part = TIMES.findLastIndex(([from]) => h >= from); // (before six: the night before still)
+    timeButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(i === (part < 0 ? TIMES.length - 1 : part))));
   }
-  clock.addEventListener("click", () => {
-    world.dress(!world.home.night);
-    showTime();
-    if (reducedMotion) world.step(0);
-  });
-  host.append(clock);
+  host.append(times);
 
   // Between the home and the flower shop, under the clock: the one in view pressed.
   const worlds = Object.assign(document.createElement("div"), { className: "playground-worlds", role: "group" });

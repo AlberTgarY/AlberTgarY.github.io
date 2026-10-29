@@ -2,8 +2,8 @@
  * What the girl handles in the flower shop, besides what she has at home
  * (room/props.js: the watering can): the bunch she gathers stem by stem and
  * wraps (flowers.js), a mister for the house plants, the broom and dustpan, the
- * secateurs, a stick of chalk, a cup of tea, and a bucket of fresh stock from
- * the cool room. Each hidden until shown with only(); the activities
+ * secateurs, a stick of chalk, a cup of tea, a bucket of fresh stock from
+ * the cool room, and the hooked pole for the roller shutter. Each hidden until shown with only(); the activities
  * (acts.js) pose her arms (room/props.js HOLDS).
  ******************************************************************************/
 
@@ -144,7 +144,19 @@ export function shopProps(rig) {
   stock.position.y = 4;
   bucket.add(stock);
 
-  const all = { bunch, mister, broom, dustpan, snips, chalk, cup, bucket };
+  // The shutter's pole: a long steel rod held on along the arm (up, with the arm up), a hook at its end.
+  const hook = at(
+    right,
+    fine((p) => {
+      box(p, [0, 0], [-60, 2], [0, 0], "chromeDark");
+      box(p, [0, 0], [-60, -60], [1, 3], "chromeDark");
+      box(p, [0, 0], [-62, -60], [3, 3], "chromeDark");
+      box(p, [0, 0], [0, 3], [0, 0], "#2a2b2e"); // the grip
+    }),
+    [0, -1, 0.5]
+  );
+
+  const all = { bunch, mister, broom, dustpan, snips, chalk, cup, bucket, hook };
   return {
     ...all,
     // Show just these (by name), or none.

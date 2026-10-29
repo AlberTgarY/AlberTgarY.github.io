@@ -19,6 +19,7 @@ import { BASE_Y } from "./house/layout.js";
 
 const FACE_AWAY = 0.8; // how far a person's face turns from the viewer at most, while turned towards the room
 const BOW = 0.3; // how far a pet tips forward in a play bow
+const JOG = 2.5; // past this pace (a brisk walk), a jog: longer strides and a bigger bounce, not faster steps
 
 // A play bow: the body tipped forward about the paws by `angle`, chest down and rump up; each leg turned
 // back to upright and stretched or shortened to keep its paw on the floor, and the head raised again.
@@ -48,6 +49,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
   );
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = -0.4;
+  shadow.userData.contact = true; // (kept out of a fade: shop/fade.js; its own opacity follows `fade`)
   group.add(shadow);
 
   const a = {
@@ -105,6 +107,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
     shakeUntil: -1,
     raincoat: false,
     umbrella: null, // a person's umbrella in hand: "rolled" or "open"
+    fade: 1, // how far faded in, coming into a scene or leaving it (shop/fade.js)
   };
 
   a.setState = (state, secs = 0, trick = null) => {
@@ -120,7 +123,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
   let yawTarget = 0;
   a.face = (target) => (yawTarget = turn.x + wrap(target - turn.x)); // the short way round
   a.faceTowards = (x, z) => a.face(Math.atan2(x - a.x, z - a.z));
-  a.turned = () => Math.abs(yawTarget - turn.x) < 0.12;
+  a.turned = (within = 0.12) => Math.abs(yawTarget - turn.x) < within;
   a.snap = (yaw) => {
     turn.x = yawTarget = yaw;
     turn.v = 0;
@@ -276,6 +279,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
   a.update = (dt, hovered) => {
     const t = clock.t;
     group.position.set(a.x, a.y, a.z);
+    turn.omega = a.hurry ? 11 : 6; // (hurrying, at work against the clock: turning round smartly too)
     const yaw = stepSpring(turn, yawTarget, dt);
     group.rotation.set(a.pitch, yaw, 0, "YXZ");
     const walking = a.walking;
@@ -322,8 +326,9 @@ export function makeActor(name, rig, kind, home, size = 1) {
     const lying = clamp(stepSpring(droop, lieDown ? 1 : 0, dt), 0, 1);
     sitting = approach(sitting, a.sit && !lieDown ? 1 : 0, 5, dt);
     bowing = approach(bowing, a.bow && !lieDown && !a.sit && !walking ? 1 : 0, 7, dt);
-    stride = approach(stride, walking ? 1 : 0, 6, dt);
-    if (stride > 0.01) gait += Math.PI * 2 * rig.gaitHz * stride * dt * Math.max(1, a.pace * 0.8);
+    const jog = Math.max(1, a.pace / JOG);
+    stride = approach(stride, walking ? jog : 0, 6, dt);
+    if (stride > 0.01) gait += Math.PI * 2 * rig.gaitHz * (stride / jog) * dt * Math.max(1, (a.pace * 0.8) / jog);
     const fall = Math.floor(gait / Math.PI);
     if (fall !== footfall && walking) home.stepped?.(a, fall & 1);
     footfall = fall;
@@ -345,7 +350,7 @@ export function makeActor(name, rig, kind, home, size = 1) {
     a.lainDown = a.abed && inBed > 0.9; // in bed and lying back, for the quilt to come up over them
     shadow.visible = inBed < 0.05;
     shadow.scale.set(rig.shadow[0] * (1 - hop / 24), rig.shadow[1] * (1 - hop / 24), 1);
-    shadow.material.opacity = 0.26 * (1 - hop / 16);
+    shadow.material.opacity = 0.26 * (1 - hop / 16) * a.fade;
 
     // The head turns towards where it looks (as far as a neck goes; sitting, not so far as to hide the
     // face), only a little while walking, and droops when it dozes off sitting up.

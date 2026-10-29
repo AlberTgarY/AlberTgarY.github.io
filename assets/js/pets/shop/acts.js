@@ -6,9 +6,12 @@
  * house plants, sweep up fallen petals, chalk a new price on a tag, fetch fresh
  * stock from the cool room for a bucket picked thin, count the till, put the
  * radio on (and dance a little), sit with a cup of tea (the dog comes to be
- * stroked), give the dog a treat and look out of the door. The dog's: keep near her, nap in his
- * bed, sniff the flowers (and sneeze), drink, lie in the doorway watching the
- * street, and chase the pigeons off.
+ * stroked), give the dog a treat and look out of the door; and for customers
+ * (customers.js), serve them at the till (wrap what they picked, ring it up,
+ * hand it back) and bring out a bouquet one asked for. The dog's: keep near
+ * her, nap in his bed, sniff the flowers (and sneeze), drink, lie in the
+ * doorway watching the street, chase the pigeons off, and say hello to a
+ * customer.
  *
  * Each activity is a generator using the house's steps (room/steps.js); what
  * it holds or changes is put back by a cleanup, so that cutting it short
@@ -119,6 +122,14 @@ export function makeShopActs(home, life) {
     yield* walk(a, at, pace);
     if (yaw !== undefined) yield* turn(a, yaw);
   }
+  // Up to bucket `b`, once a customer at its stand has moved on (or after a while anyway); the stand held
+  // while there (customers.js leaves it be), let go of on to the next one.
+  function* toBucket(a, b, pace = 1) {
+    if (a.stand) life.release(a, a.stand);
+    a.stand = life.standOf(b);
+    yield* until(() => life.claim(a, a.stand), 12);
+    yield* go(a, b.stand, b.yaw, pace);
+  }
   // Arms held `hold` (a pose or a move: MOVES-like functions get (t, elapsed)) for `secs`; calm if asked.
   function* work(a, hold, secs, calm = false) {
     a.hold = hold;
@@ -145,10 +156,11 @@ export function makeShopActs(home, life) {
 
   /* ----- hers ----- */
 
-  // A bouquet: `asked` (a kind a visitor picked) and two more from buckets near it, or any three.
-  function* bouquet(a, asked = null) {
+  // A bouquet: `asked` (a kind a visitor picked) and two more from buckets near it, or any three; for a
+  // customer who asked for it (`deal`: customers.js), taken out to them where they wait.
+  function* bouquet(a, asked = null, deal = null) {
     const bench = K.spots?.bench;
-    if (!bench || !buckets.length) return;
+    if (!bench || !buckets.length || !life.claim(a, "bench")) return;
     const ok = buckets.filter(stocked);
     const first = (asked && (ok.find((b) => b.kind === asked) || buckets.find((b) => b.kind === asked))) || pick(ok.length ? ok : buckets);
     const others = (ok.length ? ok : buckets)
@@ -172,7 +184,7 @@ export function makeShopActs(home, life) {
     // The stems, a few from each bucket.
     let stems = 0;
     for (const b of picks) {
-      yield* go(a, b.stand, b.yaw);
+      yield* toBucket(a, b);
       a.show("say", null);
       a.look = b.top;
       yield* work(a, b.top[1] > 26 ? HOLDS.reachUp : HOLDS.pick, 0.7);
@@ -214,7 +226,26 @@ export function makeShopActs(home, life) {
     a.look = null;
     yield* work(a, HOLDS.admire, 1.3);
     a.happy = false;
-    if (D.made) {
+    if (deal && deal.stage === "waiting") {
+      const c = deal.customer;
+      yield* go(a, deal.from);
+      a.faceTowards(c.x, c.z);
+      a.look = c;
+      a.talk = true;
+      yield* work(a, HOLDS.admire, 0.6);
+      a.talk = false;
+      // Held out to them: they take it from her hand (customers.js).
+      deal.bq = bq;
+      deal.stage = "handing";
+      placed = true;
+      a.hold = HOLDS.pick;
+      yield* until(() => deal.stage === "paid" || deal.stage === "gone", 6);
+      a.shop.only();
+      a.hold = null;
+      a.happy = true;
+      a.pop();
+      yield* wait(a, 0.8);
+    } else if (D.made) {
       yield* go(a, D.made.at, D.made.yaw);
       yield* work(a, HOLDS.pick, 0.5);
       a.shop.hold(null);
@@ -224,10 +255,61 @@ export function makeShopActs(home, life) {
     }
   }
 
+  // A customer served at the till (`deal`: customers.js): what they picked taken from them, wrapped (if it
+  // is not yet) and tied, rung up, handed back; paid, a smile.
+  function* serve(a, deal) {
+    const spot = K.spots?.register;
+    const c = deal.customer;
+    if (!spot || deal.stage === "gone") return;
+    life.claim(a, "register");
+    a.cleanups.push(() => {
+      if (deal.stage === "taken") deal.stage = "done"; // (cut short: given back as it is)
+    });
+    yield* go(a, spot.at, Math.PI / 2);
+    a.look = c;
+    a.talk = true;
+    yield* wait(a, 0.7);
+    a.talk = false;
+    if (deal.stage === "gone") return;
+    yield* work(a, HOLDS.pick, 0.45);
+    deal.stage = "taken";
+    a.shop.hold(deal.bq);
+    a.shop.only("bunch");
+    a.look = null;
+    if (deal.wrap && deal.bq.wrapped) {
+      a.hold = WORK.fold;
+      a.since = t();
+      const t0 = t();
+      while (t() - t0 < 2.2) {
+        deal.bq.wrapped(clamp((t() - t0) / 2, 0, 1), false);
+        yield;
+      }
+      yield* work(a, WORK.tie, 1);
+      deal.bq.wrapped(1, true);
+      a.pop("room-pop room-pop-sparkle");
+    }
+    yield* turn(a, spot.yaw);
+    K.register?.ring(t());
+    yield* work(a, MOVES.type, 1.2);
+    yield* turn(a, Math.PI / 2);
+    a.look = c;
+    a.hold = HOLDS.pick; // (held out: they take it from her hand)
+    a.since = t();
+    yield* wait(a, 0.35);
+    deal.stage = "handing";
+    yield* until(() => deal.stage === "paid" || deal.stage === "gone", 6);
+    a.shop.only();
+    a.hold = null;
+    a.happy = true;
+    a.talk = true;
+    yield* wait(a, 0.9);
+    a.talk = false;
+  }
+
   // The buckets topped up: the can from beside the tap, filled, poured into the driest few, put back.
   function* water(a) {
     const tap = G.spots?.tap;
-    if (!tap || !G.can) return;
+    if (!tap || !G.can || !life.claim(a, "can")) return;
     const dry = [...buckets].sort((p, q) => p.water - q.water).slice(0, Math.floor(rnd(3, 5)));
     yield* go(a, tap.at, tap.yaw);
     yield* work(a, HOLDS.pick, 0.5);
@@ -245,7 +327,7 @@ export function makeShopActs(home, life) {
     const can = a.props.can;
     const rose = new THREE.Vector3();
     for (const b of dry) {
-      yield* go(a, b.stand, b.yaw);
+      yield* toBucket(a, b);
       a.look = b.top;
       const t0 = t();
       while (t() - t0 < 1.6) {
@@ -325,7 +407,7 @@ export function makeShopActs(home, life) {
   function* chalk(a) {
     const b = pick(buckets.filter((b) => b.tag));
     if (!b) return;
-    yield* go(a, b.stand, b.yaw);
+    yield* toBucket(a, b);
     a.lie = true; // (a person kneels)
     a.shop.only("chalk");
     a.look = b.top;
@@ -354,7 +436,7 @@ export function makeShopActs(home, life) {
     a.hold = HOLDS.tray;
     yield* wait(a, 0.4);
     K.cool?.set(false);
-    yield* go(a, b.stand, b.yaw, 0.85);
+    yield* toBucket(a, b, 0.85);
     yield* work(a, HOLDS.pick, 0.6);
     a.shop.only();
     b.restock?.();
@@ -366,7 +448,7 @@ export function makeShopActs(home, life) {
   // The till counted at the register.
   function* till(a) {
     const spot = K.spots?.register;
-    if (!spot) return;
+    if (!spot || !life.claim(a, "register")) return;
     yield* go(a, spot.at, spot.yaw);
     K.register?.ring(t());
     yield* work(a, MOVES.type, rnd(4, 6), true);
@@ -375,7 +457,7 @@ export function makeShopActs(home, life) {
   // The radio on (a little dance to it), or off.
   function* radio(a) {
     const spot = K.spots?.radio;
-    if (!spot || !K.radio) return;
+    if (!spot || !K.radio || !life.claim(a, "radio")) return;
     yield* go(a, spot.at, spot.yaw);
     yield* work(a, MOVES.press, 0.5);
     K.radio.set(!K.radio.on);
@@ -436,7 +518,7 @@ export function makeShopActs(home, life) {
   // A look out of the door at the street, a while.
   function* lookout(a) {
     const door = K.spots?.door;
-    if (!door) return;
+    if (!door || !life.claim(a, "door")) return;
     yield* go(a, door.at, 0);
     a.look = [door.at[0] + rnd(-40, 40), 20, 140];
     yield* wait(a, rnd(6, 12), true);
@@ -485,7 +567,7 @@ export function makeShopActs(home, life) {
   function* sniff(a) {
     const b = pick(buckets);
     if (!b) return;
-    yield* walk(a, b.stand);
+    yield* toBucket(a, b);
     a.faceTowards(b.x, b.z);
     a.look = b.top;
     const t0 = t();
@@ -539,6 +621,19 @@ export function makeShopActs(home, life) {
     a.pop();
   }
 
+  // Over to a customer to say hello (customers.js): sit by them, wagging, to be patted; till they go on.
+  function* greet(a, who) {
+    const at = freeNear(a, [who.x + 12, who.z + 6]);
+    if (!at) return;
+    yield* walk(a, at, 1.3);
+    a.faceTowards(who.x, who.z);
+    a.sit = true;
+    a.look = who;
+    a.happy = true;
+    yield* until(() => !who.visit || who.greeted, 12);
+    a.sit = false;
+  }
+
   // Asked over: come and sit by `host` (her on the stool, say), till she is done.
   function* beside(a, host) {
     const at = freeNear(a, [host.x + 14, host.z + 8]);
@@ -565,7 +660,7 @@ export function makeShopActs(home, life) {
 
   const night = () => home.night;
   const acts = {
-    bouquet: { who: "human", weight: () => (night() ? 6 : 10), run: (a, asked) => bouquet(a, asked) },
+    bouquet: { who: "human", only: "girl", weight: () => (night() ? 6 : 10), run: (a, asked, deal) => bouquet(a, asked, deal) },
     water: { who: "human", weight: () => (buckets.some((b) => b.water < 0.6) ? 8 : 1), run: water },
     mist: { who: "human", weight: () => (night() ? 1 : 4), run: mist },
     sweep: { who: "human", weight: () => ((G.petals?.count?.() ?? 0) >= 6 ? 7 : 0.5), run: sweep },
@@ -584,13 +679,15 @@ export function makeShopActs(home, life) {
     chase: { who: "pet", weight: () => (G.birds?.landed?.() ? 3 : 0), run: chase },
     beside: { who: "invited", weight: () => 0, run: beside },
     come: { who: "invited", weight: () => 0, run: come },
+    greet: { who: "invited", weight: () => 0, run: greet },
+    serve: { who: "invited", weight: () => 0, run: serve },
   };
   // Each frame: the buckets drink, petals fall, the mist drifts.
   acts.tick = (dt) => {
     buckets.forEach((b) => (b.water = Math.max(0, (b.water ?? 1) - dt / 700)));
     if (t() > petalAt && G.petals?.drop) {
       petalAt = t() + rnd(8, 20);
-      const b = pick(buckets);
+      const b = pick(buckets.filter((b) => !b.away));
       if (b) G.petals.drop(b.x + rnd(-10, 10), b.z + rnd(8, 16), pick(FLOWERS[b.kind]?.colors ?? ["#f2a3b8"]));
     }
     drawMist();

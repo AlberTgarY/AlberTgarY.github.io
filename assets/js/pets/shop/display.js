@@ -56,52 +56,55 @@ const PLAN = [
   ["black", -60, 37, 0, "orchid", ["#3f6fd8", "#6a4fd0"], null],
   ["black", -47, 37, 0, "alstroemeria", ["#f4e9e4", "#e05a7a", "#f28aa0"], null],
   ["black", -34, 37, 0, "snapdragon", ["#d9467a", "#f6f2ea"], null],
-  // Along to the right: the back row up on the bench ...
+  // Along to the right, a walkway through the middle: the back row up on the bench ...
   ["pail", 0, 0, BENCH, "gypsophila", ["#fbfaf4"], "GYPSOPHILA $16"],
-  ["pail", 13, 0, BENCH, "statice", ["#7a4fb0", "#9b6fd0"], "STATICE $14"],
-  ["pail", 26, 0, BENCH, "protea", ["#d9707e", "#e88a9a"], "PROTEA $14"],
-  ["pail", 39, 0, BENCH, "lisianthus", ["#f4f0f6", "#8e5bc0"], "LISIANTHUS $22"],
-  ["pail", 52, 0, BENCH, "eryngium", ["#6c86b8"], null],
-  ["pail", 65, 0, BENCH, "waxflower", ["#f3b6c8", "#f7eef2"], null],
-  ["pail", 78, 0, BENCH, "freesia", ["#f6d23c", "#f7f2ea"], null],
-  ["pail", 91, 0, BENCH, "iris", ["#4b3fa8", "#5b4fc0"], "IRIS $20"],
-  ["pail", 104, 0, BENCH, "gypsophila", ["#fbfaf4"], null],
-  ["pail", 117, 0, BENCH, "lily", ["#f8f3ee", "#f3a9c4"], null],
-  ["pail", 130, 0, BENCH, "protea", ["#e88a9a"], null],
+  ["pail", 11.6, 0, BENCH, "statice", ["#7a4fb0", "#9b6fd0"], "STATICE $14"],
+  ["pail", 23.2, 0, BENCH, "protea", ["#d9707e", "#e88a9a"], "PROTEA $14"],
+  ["pail", 34.8, 0, BENCH, "lisianthus", ["#f4f0f6", "#8e5bc0"], "LISIANTHUS $22"],
+  ["pail", 46.4, 0, BENCH, "eryngium", ["#6c86b8"], null],
+  ["pail", 58, 0, BENCH, "waxflower", ["#f3b6c8", "#f7eef2"], null],
+  ["pail", 94, 0, BENCH, "freesia", ["#f6d23c", "#f7f2ea"], null],
+  ["pail", 105.6, 0, BENCH, "iris", ["#4b3fa8", "#5b4fc0"], "IRIS $20"],
+  ["pail", 117.2, 0, BENCH, "gypsophila", ["#fbfaf4"], null],
+  ["pail", 128.8, 0, BENCH, "lily", ["#f8f3ee", "#f3a9c4"], null],
+  ["pail", 140.4, 0, BENCH, "protea", ["#e88a9a"], null],
   // ... and, across the aisle, two rows on the pavement.
   ["black", 0, 33, 0, "rose", ["#c8102e"], "RED ROSES $45"],
-  ["black", 13, 33, 0, "rose", ["#e8507a", "#e23a74"], null],
-  ["black", 26, 33, 0, "rose", ["#f5c542"], null],
-  ["black", 39, 33, 0, "rose", ["#f6ad84"], null],
-  ["black", 52, 33, 0, "peony", ["#f39ab8", "#f7d7df"], "PEONY $35"],
-  ["black", 65, 33, 0, "peony", ["#f4746e", "#e2507a"], null],
-  ["black", 78, 33, 0, "tulip", ["#e23a3a", "#f5c542", "#f39ab5"], "TULIPS $25"],
-  ["black", 91, 33, 0, "carnation", ["#e53950", "#f07aa8"], "CARNATION $15"],
-  ["black", 104, 33, 0, "lisianthus", ["#8e5bc0", "#f2b5cf"], null],
-  ["black", 117, 33, 0, "gerbera", ["#f59a2a", "#e8452c"], "GERBERA $12"],
-  ["black", 130, 33, 0, "tulip", ["#8e4fb0", "#f6f2ea"], null],
+  ["black", 11.2, 33, 0, "rose", ["#e8507a", "#e23a74"], null],
+  ["black", 22.4, 33, 0, "rose", ["#f5c542"], null],
+  ["black", 33.6, 33, 0, "rose", ["#f6ad84"], null],
+  ["black", 44.8, 33, 0, "peony", ["#f39ab8", "#f7d7df"], "PEONY $35"],
+  ["black", 56, 33, 0, "peony", ["#f4746e", "#e2507a"], null],
+  ["black", 94, 33, 0, "tulip", ["#e23a3a", "#f5c542", "#f39ab5"], "TULIPS $25"],
+  ["black", 105.2, 33, 0, "carnation", ["#e53950", "#f07aa8"], "CARNATION $15"],
+  ["black", 116.4, 33, 0, "lisianthus", ["#8e5bc0", "#f2b5cf"], null],
+  ["black", 127.6, 33, 0, "gerbera", ["#f59a2a", "#e8452c"], "GERBERA $12"],
+  ["black", 138.8, 33, 0, "tulip", ["#8e4fb0", "#f6f2ea"], null],
   ["black", 0, 45, 0, "rose", ["#f6f0e6"], null],
-  ["black", 13, 45, 0, "tulip", ["#f39ab5", "#f6f2ea"], null],
-  ["black", 26, 45, 0, "freesia", ["#b27ad6", "#f28aa0"], "FREESIA $18.00"],
-  ["black", 39, 45, 0, "iris", ["#4b3fa8"], null],
-  ["black", 52, 45, 0, "sprayCarnation", ["#f7f0f2", "#c9a0dc"], null],
-  ["black", 65, 45, 0, "alstroemeria", ["#f6a35b", "#f7d34a"], null],
-  ["black", 78, 45, 0, "waxflower", ["#e78fb0", "#f3b6c8"], null],
-  ["black", 91, 45, 0, "carnation", ["#f6b3a0", "#f6f2ec"], null],
-  ["black", 104, 45, 0, "rose", ["#e23a74", "#e8507a"], "ROSES $40"],
-  ["black", 117, 45, 0, "pompom", ["#f6d23c", "#f7f4ea"], null],
-  ["black", 130, 45, 0, "stock", ["#f6f0f5", "#d8a6e8"], null],
+  ["black", 11.2, 45, 0, "tulip", ["#f39ab5", "#f6f2ea"], null],
+  ["black", 22.4, 45, 0, "freesia", ["#b27ad6", "#f28aa0"], "FREESIA $18.00"],
+  ["black", 33.6, 45, 0, "iris", ["#4b3fa8"], null],
+  ["black", 44.8, 45, 0, "sprayCarnation", ["#f7f0f2", "#c9a0dc"], null],
+  ["black", 56, 45, 0, "alstroemeria", ["#f6a35b", "#f7d34a"], null],
+  ["black", 94, 45, 0, "waxflower", ["#e78fb0", "#f3b6c8"], null],
+  ["black", 105.2, 45, 0, "carnation", ["#f6b3a0", "#f6f2ec"], null],
+  ["black", 116.4, 45, 0, "rose", ["#e23a74", "#e8507a"], "ROSES $40"],
+  ["black", 127.6, 45, 0, "pompom", ["#f6d23c", "#f7f4ea"], null],
+  ["black", 138.8, 45, 0, "stock", ["#f6f0f5", "#d8a6e8"], null],
 ];
 
 // What stands on the pavement, as boxes [x0, x1, z0, z1]: the step and the left's buckets, the middle's, the
-// right's bench row and its two rows across the aisle, and the bucket of bouquets made up (against the
-// kiosk's front, right of the doorway, clear of the way along it).
-const MADE_AT = [MADE.x + 2, -24];
+// right's bench row and its two rows across the aisle (either side of the walkway through them), and the
+// bucket of bouquets made up (left of the doorway: right of it, it would block the way along the kiosk's
+// front to the lock-up).
+const MADE_AT = [MADE.x, MADE.z];
 const OBSTACLES = [
   [STEP.x0, STEP.x1, STEP.z0, LEFT.z1 - 3],
   [MIDDLE.x0, MIDDLE.x1, 7, 43],
-  [-8, 137, -6, 6],
-  [-5, 136, 28, 50],
+  [-8, 65, -6, 6],
+  [87, 148, -6, 6],
+  [-6, 62, 27, 51],
+  [88, 145, 27, 51],
   [MADE_AT[0] - 6, MADE_AT[0] + 6, MADE_AT[1] - 6, MADE_AT[1] + 6],
 ];
 // And what the other builders put there (layout.js), roughly: where to stand is kept clear of all of it.
@@ -206,16 +209,21 @@ function timber() {
     };
     step(STEP.x0, STEP.x1 - 1, STEP.h - 1, STEP.z0, STEP.z1 - 1);
     step(MIDDLE.x0, MIDDLE.x1 - 1, RISER - 1, 7, 19);
-    // The bench: a slatted top on legs, a rail along the front near the foot.
-    for (let x = -8; x <= 136; x++)
-      for (let z = -6; z <= 5; z++) {
-        p.add(x, BENCH - 1, z, z % 3 === 2 ? GAP : GREEN);
-        if (z === 5 || z === -6) p.add(x, BENCH - 2, z, EDGE);
-      }
-    for (const lx of [-8, 40, 88, 135])
-      for (const lz of [-6, 4])
-        for (let y = 0; y < BENCH - 2; y++) for (let dx = 0; dx < 2; dx++) for (let dz = 0; dz < 2; dz++) p.add(lx + dx, y, lz + dz, GAP);
-    for (let x = -8; x <= 136; x++) p.add(x, 1, 5, GAP);
+    // The benches, either side of the walkway: a slatted top on legs, a rail along the front near the foot.
+    for (const [x0, x1] of [
+      [-8, 64],
+      [88, 147],
+    ]) {
+      for (let x = x0; x <= x1; x++)
+        for (let z = -6; z <= 5; z++) {
+          p.add(x, BENCH - 1, z, z % 3 === 2 ? GAP : GREEN);
+          if (z === 5 || z === -6) p.add(x, BENCH - 2, z, EDGE);
+        }
+      for (const lx of [x0, Math.round((x0 + x1) / 2), x1 - 1])
+        for (const lz of [-6, 4])
+          for (let y = 0; y < BENCH - 2; y++) for (let dx = 0; dx < 2; dx++) for (let dz = 0; dz < 2; dz++) p.add(lx + dx, y, lz + dz, GAP);
+      for (let x = x0; x <= x1; x++) p.add(x, 1, 5, GAP);
+    }
   });
 }
 
@@ -290,6 +298,7 @@ function tagBoard() {
 // Built a bucket at a time (a yield after each: shop.js spreads the work over frames); returns the display.
 export function* buildingDisplay(shared) {
   const group = new THREE.Group();
+  const selling = { on: true }; // (the buckets clicked for a bouquet only while the shop is open)
   const forward = new THREE.Vector3(Math.sin(VIEW_YAW), 0, Math.cos(VIEW_YAW)); // towards the viewer
 
   // The timber under it all.
@@ -314,9 +323,12 @@ export function* buildingDisplay(shared) {
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
+  const one = new THREE.Vector3(1, 1, 1);
+  // A bucket of `kind` standing at (x, y, z), turned `yaw`: its place in the kind's instanced mesh.
   function stand(kind, x, y, z, yaw) {
     const mesh = instanced[kind];
-    mesh.setMatrixAt(mesh.count++, m4.compose(new THREE.Vector3(x, y, z), q.setFromAxisAngle(up, yaw), new THREE.Vector3(1, 1, 1)));
+    mesh.setMatrixAt(mesh.count, m4.compose(new THREE.Vector3(x, y, z), q.setFromAxisAngle(up, yaw), one));
+    return mesh.count++;
   }
 
   // The tags, one a bucket, and the bamboo sticks they are on, pushed down into the bucket among the stems.
@@ -324,6 +336,7 @@ export function* buildingDisplay(shared) {
   const tagPositions = [];
   const tagUvs = [];
   const tagIndex = [];
+  const stickAt = []; // each stick's middle and length, at home
   const sticks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.45, 1, 0.45), new THREE.MeshLambertMaterial({ color: 0xc9a46a }), PLAN.length);
   sticks.count = 0;
   group.add(sticks);
@@ -347,6 +360,7 @@ export function* buildingDisplay(shared) {
     const top = y - TAG.h / 2 + 0.5;
     const at = new THREE.Vector3(x, (top + foot) / 2, z).addScaledVector(forward, -0.4);
     sticks.setMatrixAt(sticks.count++, m4.compose(at, q.identity(), new THREE.Vector3(1, top - foot, 1)));
+    stickAt.push([at.clone(), top - foot]);
   }
 
   // Each bucket: the bucket, its blooms (a mesh each), its cellophane, its tag; and what clicking it does.
@@ -359,7 +373,7 @@ export function* buildingDisplay(shared) {
     const k = KINDS[kind];
     const rand = rng(i * 131 + 7);
     const yaw = rand() * Math.PI * 2;
-    stand(kind, x, y, z, yaw);
+    const slot = stand(kind, x, y, z, yaw);
     const rim = y + k.h;
     const H = FLOWERS[flower].tall * k.tall;
     const blooms = bucketBlooms(flower, colors, k.spread, H, i * 977 + 31);
@@ -390,6 +404,18 @@ export function* buildingDisplay(shared) {
       tag,
       level: 3,
       mesh: blooms,
+      // Where it stands by day (the foot of the bucket), and where it is now (moved(): carried in at night).
+      home: [x, y, z],
+      where: [x, y, z],
+      shown: true,
+      bucketKind: kind,
+      slot,
+      turn: yaw,
+      tagIndex: n,
+      height: rim + H - y, // from its foot to the top of its blooms
+      radius: k.r,
+      // (each part's place when it is at home)
+      parts: { blooms: blooms.position.clone(), stick: null, box: null },
       // A few stems taken out (thinner, down to the last third); filled up again.
       pick() {
         bucket.level = Math.max(1, bucket.level - 1);
@@ -405,9 +431,12 @@ export function* buildingDisplay(shared) {
     const box = new THREE.Mesh(new THREE.BoxGeometry(2 * k.r + 2, rim + H - y, 2 * k.r + 2), clickMaterial);
     box.position.set(x, (y + rim + H) / 2, z);
     group.add(box);
+    bucket.parts.box = box.position.clone();
+    bucket.box = box;
     clickables.push({
       key: "bucket",
       bucket,
+      can: () => selling.on && !bucket.away,
       parts: [box, blooms],
       toggle(home) {
         home.life?.want?.({ bouquet: bucket.kind });
@@ -425,9 +454,50 @@ export function* buildingDisplay(shared) {
   group.add(tagMesh);
   buckets.forEach((b) => b.tag && (b.tag.mesh = tagMesh));
 
+  // Moving a bucket (carried in for the night, out in the morning: life.js): the bucket, its blooms, its tag
+  // and stick and the box clicked, all shifted together from where they are by day; or out of sight (put in
+  // a cool room). Anything moved has the sun's shadows drawn again.
+  const tagPos = tagGeometry.attributes.position;
+  const tagHome = tagPos.array.slice();
+  const nowhere = new THREE.Matrix4().makeScale(0, 0, 0);
+  const v = new THREE.Vector3();
+  const shift = new THREE.Vector3();
+  const size = new THREE.Vector3();
+  let moved = false;
+  for (const b of buckets) {
+    b.parts.stick = stickAt[b.tagIndex];
+    // Its foot to (x, y, z), shown or not.
+    b.place = (x, y, z, shown = true) => {
+      const [dx, dy, dz] = [x - b.home[0], y - b.home[1], z - b.home[2]];
+      shift.set(dx, dy, dz);
+      b.where = [x, y, z];
+      b.shown = shown;
+      b.away = dx !== 0 || dy !== 0 || dz !== 0 || !shown;
+      const mesh = instanced[b.bucketKind];
+      mesh.setMatrixAt(b.slot, shown ? m4.compose(v.set(x, y, z), q.setFromAxisAngle(up, b.turn), one) : nowhere);
+      mesh.instanceMatrix.needsUpdate = true;
+      b.mesh.position.copy(b.parts.blooms).add(shift);
+      b.mesh.visible = shown;
+      const [mid, len] = b.parts.stick;
+      sticks.setMatrixAt(b.tagIndex, shown ? m4.compose(v.copy(mid).add(shift), q.identity(), size.set(1, len, 1)) : nowhere);
+      sticks.instanceMatrix.needsUpdate = true;
+      const at = b.tagIndex * 12;
+      for (let k = 0; k < 12; k += 3) {
+        tagPos.array[at + k] = shown ? tagHome[at + k] + dx : tagHome[at];
+        tagPos.array[at + k + 1] = shown ? tagHome[at + k + 1] + dy : tagHome[at + 1];
+        tagPos.array[at + k + 2] = shown ? tagHome[at + k + 2] + dz : tagHome[at + 2];
+      }
+      tagPos.needsUpdate = true;
+      b.box.position.copy(b.parts.box).add(shift);
+      b.box.visible = shown;
+      moved = true;
+    };
+    b.away = false;
+  }
+
   // The bucket of bouquets made up, by the door: wrapped bouquets stood in it round the middle, leaning out.
   const MADE_RIM = KINDS.pail.h;
-  stand("pail", MADE_AT[0], 0, MADE_AT[1], 0.4);
+  const madeSlot = stand("pail", MADE_AT[0], 0, MADE_AT[1], 0.4);
   const madeGroup = new THREE.Group();
   madeGroup.position.set(MADE_AT[0], MADE_RIM - 7, MADE_AT[1]);
   group.add(madeGroup);
@@ -456,16 +526,36 @@ export function* buildingDisplay(shared) {
       madeGroup.add(bouquetGroup);
       slots[k] = { group: bouquetGroup, at: shared.clock.t };
     },
-    // One sold: the one in longest; whether there was one.
+    // One sold: the one in longest, taken out (its group), if there was one.
     take() {
       let oldest = -1;
       slots.forEach((s, k) => s && (oldest < 0 || s.at < slots[oldest].at) && (oldest = k));
-      if (oldest < 0) return false;
-      madeGroup.remove(slots[oldest].group);
+      if (oldest < 0) return null;
+      const { group } = slots[oldest];
+      madeGroup.remove(group);
       slots[oldest] = null;
-      return true;
+      return group;
     },
   };
+  // Moved like the others (its foot at (x, y, z)), with the bouquets in it.
+  Object.assign(made, {
+    home: [MADE_AT[0], 0, MADE_AT[1]],
+    where: [MADE_AT[0], 0, MADE_AT[1]],
+    shown: true,
+    away: false,
+    height: MADE_RIM + 16,
+    radius: KINDS.pail.r,
+    place(x, y, z, shown = true) {
+      made.where = [x, y, z];
+      made.shown = shown;
+      made.away = x !== made.home[0] || y !== made.home[1] || z !== made.home[2] || !shown;
+      instanced.pail.setMatrixAt(madeSlot, shown ? m4.compose(v.set(x, y, z), q.setFromAxisAngle(up, 0.4), one) : nowhere);
+      instanced.pail.instanceMatrix.needsUpdate = true;
+      madeGroup.position.set(x, y + MADE_RIM - 7, z);
+      madeGroup.visible = shown;
+      moved = true;
+    },
+  });
   made.add(bouquet(["rose", "gypsophila"], 11));
   made.add(bouquet(["gerbera", "pompom", "waxflower"], 23));
 
@@ -479,6 +569,13 @@ export function* buildingDisplay(shared) {
     clickables,
     buckets,
     made,
+    selling,
+    // Something moved: its shadow drawn again.
+    shadowsDirty() {
+      const was = moved;
+      moved = false;
+      return was;
+    },
     dress() {},
     daylight() {},
     // The breeze: the tall bunches nodding, now and then in a gust.
