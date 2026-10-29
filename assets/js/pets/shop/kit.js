@@ -95,3 +95,40 @@ export function voxels(fill, scale = 1, palette = PALETTE, lit = true) {
 }
 
 export { part, box, solidMaterial, glowing };
+
+// Something that swings when knocked (a chime, a bunch of flowers, a tree's crown): how far it is turned about
+// x and about z, each springing back to rest `hz` times a second and dying away at `damp` a second. A knock
+// adds to how fast it is turning (kick()), so that knocked again mid-swing it swings on from where it is; never
+// further than `max` ([about x, about z]) either way, however often it is knocked (a chime's tubes, say, kept
+// off each other).
+export function swinging(hz, damp, [maxX, maxZ] = [Infinity, Infinity]) {
+  const w2 = (2 * Math.PI * hz) ** 2;
+  const s = {
+    x: 0,
+    z: 0,
+    vx: 0,
+    vz: 0,
+    w: 2 * Math.PI * hz, // (a kick of `a` times this swings it about `a` either way)
+    kick(vx, vz) {
+      // (how far it will swing, from where it is at the speed it turns: past the most, only slower, never moved)
+      const most = (a, v, m) => (Math.hypot(a, v / s.w) <= m ? v : Math.sign(v) * s.w * Math.sqrt(Math.max(0, m * m - a * a)));
+      s.vx = most(s.x, s.vx + vx, maxX);
+      s.vz = most(s.z, s.vz + vz, maxZ);
+    },
+    still: () => Math.abs(s.x) + Math.abs(s.z) + (Math.abs(s.vx) + Math.abs(s.vz)) / s.w < 1e-4,
+    step(dt) {
+      if (s.still()) return Object.assign(s, { x: 0, z: 0, vx: 0, vz: 0 });
+      const n = Math.ceil(dt * 240); // (in short steps, steady however fast it swings)
+      const h = dt / n;
+      for (let i = 0; i < n; i++) {
+        s.vx += (-w2 * s.x - 2 * damp * s.vx) * h;
+        s.vz += (-w2 * s.z - 2 * damp * s.vz) * h;
+        s.x += s.vx * h;
+        s.z += s.vz * h;
+      }
+    },
+  };
+  return s;
+}
+// A knock of about `a` (radians), either way at random.
+export const knock = (s, ax, az) => s.kick((Math.random() < 0.5 ? -1 : 1) * ax * s.w, (Math.random() < 0.5 ? -1 : 1) * az * s.w);

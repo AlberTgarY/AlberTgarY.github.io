@@ -29,7 +29,7 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { pixelTexture } from "../room/house/kit.js";
-import { part, meshOf, paletteOf } from "./kit.js";
+import { part, meshOf, paletteOf, swinging, knock } from "./kit.js";
 import { KIOSK, FLOOR, DOOR, SILL, LINTEL, AWNING, BENCH, SHELF, COOL, BOARD, DOG_BED, STOOL, SHUTTER, LOCKUP } from "./layout.js";
 
 const PALETTE = paletteOf({
@@ -1216,7 +1216,7 @@ export function* buildingKiosk(shared) {
   chimeTop.cyl(0, 0, 1.4, [-1.5, -1], "oak");
   chimeTop.box([0, 0.25], [-1, 0], [0, 0.25], "chromeDark");
   chimeTop.box([0, 0.25], [-7, -1.5], [0, 0.25], "chromeDark"); // the striker's string
-  chimeTop.ball([0.12, -5, 0.12], 0.6, "oak");
+  chimeTop.ball([0.12, -5, 0.12], 0.5, "oak");
   chimeTop.box([-0.75, 1], [-9.5, -7], [0, 0.25], "ribPink"); // the sail
   chime.add(chimeTop.mesh());
   const chimeTubes = [4.5, 5.5, 6.5, 5, 6].map((len, k) => {
@@ -1440,11 +1440,17 @@ export function* buildingKiosk(shared) {
     flip: () => (openSign.open = !openSign.open),
     set: (open) => (openSign.open = open),
   };
-  const chimeState = { rangAt: -Infinity, strength: 0 };
+  // The chime swinging on its string, its tubes on theirs (knocked by its swing): rung harder, the more.
+  // (The tubes swing together, each only a little its own way: apart, they would swing through each other
+  // and the striker.)
+  const chimeSwing = swinging(0.67, 1.4, [0.1, 0.15]);
+  const tubesSwing = swinging(1.3, 1.6, [0.05, 0.05]);
+  const tubeSwings = chimeTubes.map((g, k) => swinging(1.6 + 0.2 * k, 2, [0.015, 0.015]));
   const chimeBell = {
-    ring(t = clock.t, strength = 1) {
-      chimeState.rangAt = t;
-      chimeState.strength = strength;
+    ring(strength = 1) {
+      knock(chimeSwing, 0.08 * strength, 0.12 * strength);
+      knock(tubesSwing, 0.04 * strength, 0.05 * strength);
+      tubeSwings.forEach((s) => knock(s, 0.012 * strength, 0.015 * strength));
       float("spark", new THREE.Vector3(CH[0], CH[1] - 12, CH[2]), 0.7);
     },
   };
@@ -1458,9 +1464,19 @@ export function* buildingKiosk(shared) {
   const aircon = { on: false, k: 0, next: 0, set: (on) => (aircon.on = on) };
   // The clock: wound on a click, its minute hand going round once, and then it chimes.
   const wallClock = { at: -Infinity, notes: 0, next: 0, wind: (t) => Object.assign(wallClock, { at: t, notes: 3, next: t + 1.4 }) };
-  // The dried flowers and the pampas: set swinging, a few dry bits dropping off.
-  const dried = { at: -Infinity, shake: (t) => (dried.at = t) };
-  const sways = [...bunches, pampas].map(() => ({ phase: Math.random() * 6, rate: 3 + Math.random() * 1.5 }));
+  // The dried flowers and the pampas: set swinging (a few dry bits dropping off), the bunches with their
+  // branch, each only a little its own way (apart, they would swing into each other; and only a little to and
+  // from the wall).
+  const branchSwing = swinging(0.55, 1.1, [0.07, 0.2]);
+  const sways = bunches.map(() => swinging(0.7 + 0.2 * Math.random(), 1.5, [0.02, 0.04]));
+  const pampasSwing = swinging(0.6, 1.1, [0.04, 0.06]);
+  const dried = {
+    shake() {
+      knock(branchSwing, 0.06, 0.18);
+      sways.forEach((s) => knock(s, 0.02, 0.04));
+      knock(pampasSwing, 0.04, 0.06);
+    },
+  };
   // The stool's seat: set spinning, slowing to a stop (not while someone sits on it).
   const spin = { speed: 0, taken: false, give: () => (spin.speed = spin.taken ? 0 : 9 + Math.random() * 4) };
 
@@ -1502,16 +1518,15 @@ export function* buildingKiosk(shared) {
     if (home)
       for (const a of home.actors) {
         const before = was.get(a);
-        if (before !== undefined && before > Z1 - 1 !== a.z > Z1 - 1 && a.x > DOOR.x0 && a.x < DOOR.x1) chimeBell.ring(t, a.human ? 0.7 : 0.4);
+        if (before !== undefined && before > Z1 - 1 !== a.z > Z1 - 1 && a.x > DOOR.x0 && a.x < DOOR.x1) chimeBell.ring(a.human ? 0.7 : 0.4);
         was.set(a, a.z);
       }
-    const c = Math.min(t - chimeState.rangAt, 4); // (still after 4 s: never rung, not NaN)
-    const swing = c < 4 ? chimeState.strength * Math.exp(-1.4 * c) : 0;
-    chime.rotation.z = 0.12 * swing * Math.sin(c * 4.2);
-    chime.rotation.x = 0.08 * swing * Math.sin(c * 3.3 + 1);
+    chimeSwing.step(dt);
+    chime.rotation.set(chimeSwing.x, 0, chimeSwing.z);
+    tubesSwing.step(dt);
     chimeTubes.forEach((g, k) => {
-      g.rotation.z = 0.35 * swing * Math.sin(c * (8 + k * 1.3) + k);
-      g.rotation.x = 0.3 * swing * Math.sin(c * (7 + k) + 2 * k);
+      tubeSwings[k].step(dt);
+      g.rotation.set(tubesSwing.x + tubeSwings[k].x, 0, tubesSwing.z + tubeSwings[k].z);
     });
     // The downlights flickering on.
     if (lights.on) {
@@ -1539,14 +1554,14 @@ export function* buildingKiosk(shared) {
       wallClock.next = t + 0.3;
       float("note", clockTop, 2);
     }
-    // The dried flowers swinging, each its own way, dying down.
-    const d = Math.min(t - dried.at, 5); // (still after 5 s: never shaken, not NaN)
-    const sway = d < 5 ? Math.exp(-1.1 * d) : 0;
-    [...bunches, pampas].forEach((m, k) => {
-      const { phase, rate } = sways[k];
-      m.rotation.z = (k === bunches.length ? 0.06 : 0.22) * sway * Math.sin(d * rate + phase);
-      m.rotation.x = (k === bunches.length ? 0.04 : 0.12) * sway * Math.sin(d * rate * 0.8 + 2 * phase);
+    // The dried flowers swinging with their branch (each a little its own way), and the pampas, dying down.
+    branchSwing.step(dt);
+    bunches.forEach((m, k) => {
+      sways[k].step(dt);
+      m.rotation.set(branchSwing.x + sways[k].x, 0, branchSwing.z + sways[k].z);
     });
+    pampasSwing.step(dt);
+    pampas.rotation.set(pampasSwing.x, 0, pampasSwing.z);
     // The stool's seat spinning down.
     spin.taken = !!home && home.actors.some((a) => a.seated && Math.hypot(a.x - STOOL.x, a.z - STOOL.z) < 4);
     if (spin.taken) spin.speed = 0;
@@ -1627,7 +1642,7 @@ export function* buildingKiosk(shared) {
     { key: "register", parts: [tillMesh, drawer], toggle: () => register.ring(clock.t) },
     { key: "lights", parts: [sign, downlights], toggle: () => lights.set(!lights.on) },
     { key: "openSign", parts: [signGroup], toggle: () => openSign.flip() },
-    { key: "chime", parts: [chimeBox], toggle: () => chimeBell.ring(clock.t) },
+    { key: "chime", parts: [chimeBox], toggle: () => chimeBell.ring() },
     { key: "cool", parts: [coolDoor, curtain], toggle: () => cool.toggle() },
     { key: "aircon", parts: [acBox, flap], toggle: () => aircon.set(!aircon.on) },
     { key: "clock", parts: [dialMesh, hourHand, minuteHand], toggle: () => wallClock.wind(clock.t) },
@@ -1635,7 +1650,7 @@ export function* buildingKiosk(shared) {
       key: "dried",
       parts: [...bunches, pampas],
       toggle() {
-        dried.shake(clock.t);
+        dried.shake();
         for (let k = 0; k < 3; k++) {
           const m = bunches[Math.floor(Math.random() * bunches.length)];
           float("bit", new THREE.Vector3(m.position.x, DRY_Y - 11, m.position.z + 1), 1.6 + Math.random() * 0.8);

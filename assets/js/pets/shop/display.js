@@ -16,7 +16,7 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { VIEW_YAW } from "../room/view.js";
-import { COLORS, voxels } from "./kit.js";
+import { COLORS, voxels, swinging, knock } from "./kit.js";
 import { FLOWERS, bucketBlooms, bouquet, rng } from "./flowers.js";
 import { GROUND, KIOSK, DOOR, STEP, LEFT, MIDDLE, RIGHT, MADE, PLINTH, TRAYS, TREE, TAP, BUCKET_STACKS, SIGN, BOWL } from "./layout.js";
 
@@ -368,7 +368,7 @@ export function* buildingDisplay(shared) {
   const buckets = [];
   const clickables = [];
   const swaying = [];
-  const shake = new Map(); // blooms -> when they were last clicked (a shake dying away)
+  const shaken = new Map(); // blooms -> their shake (swinging()), while it lasts
   const clickMaterial = new THREE.MeshBasicMaterial({ visible: false }); // (hit by a click, never drawn)
   let tags = 0;
   for (const [i, [kind, x, z, y, flower, colors, text]] of PLAN.entries()) {
@@ -441,7 +441,8 @@ export function* buildingDisplay(shared) {
       can: () => !bucket.away,
       parts: [box, blooms],
       toggle(home) {
-        shake.set(blooms, shared.clock.t);
+        if (!shaken.has(blooms)) shaken.set(blooms, swinging(2.6, 3, [0.08, 0.14]));
+        knock(shaken.get(blooms), 0.08, 0.14);
         if (selling.on) home.life?.want?.({ bouquet: bucket.kind });
       },
     });
@@ -582,22 +583,18 @@ export function* buildingDisplay(shared) {
     dress() {},
     daylight() {},
     // The breeze: the tall bunches nodding, now and then in a gust; a bucket clicked, its flowers shaken.
-    update(t) {
+    update(t, dt) {
       const gust = 0.55 + 0.45 * Math.sin(t * 0.31) * Math.sin(t * 0.17 + 1);
       for (const { mesh, phase, amp } of swaying) {
         mesh.rotation.x = amp * gust * Math.sin(t * 1.6 + phase);
         mesh.rotation.z = amp * 0.7 * gust * Math.sin(t * 1.2 + phase * 1.7);
       }
-      for (const [mesh, at] of shake) {
-        const s = t - at;
+      for (const [mesh, s] of shaken) {
         if (!swaying.some((w) => w.mesh === mesh)) mesh.rotation.set(0, 0, 0); // (no breeze in it to add to)
-        if (s > 1.6) {
-          shake.delete(mesh);
-          continue;
-        }
-        const k = 0.14 * Math.exp(-3 * s);
-        mesh.rotation.z += k * Math.sin(s * 19);
-        mesh.rotation.x += 0.6 * k * Math.sin(s * 15 + 1);
+        s.step(dt);
+        mesh.rotation.x += s.x;
+        mesh.rotation.z += s.z;
+        if (s.still()) shaken.delete(mesh);
       }
     },
   };

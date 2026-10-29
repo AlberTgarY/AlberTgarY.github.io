@@ -19,7 +19,7 @@ import { pixelTexture } from "../room/house/kit.js";
 import { makeWater } from "../room/water.js";
 import { VIEW_YAW } from "../room/view.js";
 import { rnd, pick } from "../stage.js";
-import { part, box, meshOf, voxels, paletteOf, seenFaces, seenMaterial } from "./kit.js";
+import { part, box, meshOf, voxels, paletteOf, seenFaces, seenMaterial, swinging, knock } from "./kit.js";
 import { PLANTS, PLANT_COLORS, RACK, TRAY_W, TRAY_COUNT, POT_STACKS, planted, trayX, potStack } from "./plants.js";
 import { GROUND, MURAL, KIOSK, FLOOR, PLINTH, TRAYS, TREE, TAP, BUCKET_STACKS, SIGN, BOWL, MIDDLE, RIGHT, LEFT, DOOR } from "./layout.js";
 
@@ -837,6 +837,7 @@ export function* buildingGrounds(shared) {
     },
   };
   let shook = -Infinity; // when the tree was last shaken
+  const crownSwing = swinging(2.5, 2);
   const turned = { round: false, k: 0 }; // the A-frame turned round (its other board to the street), how far
   let shaking = false;
 
@@ -854,6 +855,7 @@ export function* buildingGrounds(shared) {
       parts: [crownMesh, trunkMesh],
       toggle() {
         shook = shared.clock.t;
+        knock(crownSwing, 0.015, 0.025);
         petals.leaves(4 + Math.floor(Math.random() * 4), shared.clock.t);
       },
     },
@@ -939,9 +941,8 @@ export function* buildingGrounds(shared) {
       signGroup.rotation.y = VIEW_YAW + Math.PI * k;
       signGroup.rotation.z = 0.05 * Math.sin(Math.PI * k) * Math.sin(t * 14);
       // The crown shaken: a sway dying away.
-      const s = t - shook;
-      crownGroup.rotation.z = s < 2.5 ? 0.025 * Math.exp(-2 * s) * Math.sin(16 * s) : 0;
-      crownGroup.rotation.x = s < 2.5 ? 0.015 * Math.exp(-2 * s) * Math.sin(13 * s + 1) : 0;
+      crownSwing.step(dt);
+      crownGroup.rotation.set(crownSwing.x, 0, crownSwing.z);
       petals.update(t, dt);
       birds.update(t, dt, home);
     },
