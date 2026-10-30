@@ -3,7 +3,7 @@
     "name": "Yicheng (Albert) Zhan",
     "image": "yicheng_zhan.png",
     "email": "yicheng_zhan2001@outlook.com",
-    "summary": "3rd year Ph.D. candidate at University College London, bringing the wave nature of light into algorithms and 3D representations through wave-optics rendering and learned and generative models.",
+    "summary": "3rd year Ph.D. candidate at University College London, working on computer vision, generative models, and neural rendering for photorealistic holographic AR/VR displays.",
     "location": {
       "address": "Computational Light Laboratory",
       "postalCode": "",
@@ -41,14 +41,14 @@
   },
   "work": [
     {
-      "name": "Meta Reality Lab",
+      "name": "Meta Reality Labs",
       "position": "Research Scientist Intern - Generative Model for AR display",
       "url": "https://www.meta.com/",
       "startDate": "2026-03-09",
       "endDate": "2026-10-01",
       "location": "Redmond, United States",
       "supervisor": "Dr. Yijing Fu and Dr. Changwon Jang",
-      "description": ""
+      "description": "Fine-tuned a flow-matching JiT foundation model for novel light phenomena synthesis, with the Display Systems Research team."
     },
     {
       "name": "Huawei Technologies Research & Development (UK) Ltd",
@@ -58,7 +58,7 @@
       "endDate": "2025-09-01",
       "location": "London, United Kingdom",
       "supervisor": "Dr. Arthur Moreau",
-      "description": ""
+      "description": "Feed-forward 3D reconstruction with Gaussian splatting and VGGT."
     },
     {
       "name": "Imperial College London",
@@ -68,7 +68,7 @@
       "endDate": "2025-01-01",
       "location": "London, United Kingdom",
       "supervisor": "Assoc. Prof. Dalal Alrajeh",
-      "description": ""
+      "description": "Developed a Siamese network for serial crime linkage analysis; first-author paper published at AAAI 2026."
     },
     {
       "name": "University of Leeds",
@@ -104,7 +104,7 @@
       "startDate": "2024-01-01",
       "score": "",
       "supervisor": "Assoc. Prof. Kaan Akşit",
-      "courses": ["Computer Graphics", "Computational Displays", "Machine Learning"]
+      "courses": ["Computer Vision", "Computer Graphics", "Computational Imaging", "Augmented Reality"]
     },
     {
       "institution": "University College London",

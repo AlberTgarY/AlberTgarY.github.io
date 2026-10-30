@@ -29,7 +29,7 @@ latest_posts:
 
 I am Yicheng Zhan (战弈诚), a Ph.D. candidate at University College London in the <a href="https://complightlab.com/" target="_blank">Computational Light Laboratory</a>, advised by Dr. Kaan Akşit. I received my M.Sc. from University College London and my B.Sc. from King's College London.
 
-My research interests lie at the intersection of computer graphics, computational displays, and machine learning. I aim to bring the wave nature of light, including interference and diffraction, into algorithms and 3D representations for better understanding and interaction with the real world. To this end, I develop wave-optics renderers alongside learned and generative models for understanding light phenomena.
+My research lies at the intersection of computer vision, generative models, and neural rendering, with a focus on photorealistic 3D content for holographic AR/VR displays. I build learned 3D representations, such as Gaussian splatting and radiance fields, and generative models that bring the wave nature of light, including interference and diffraction, into how scenes are captured, represented, and displayed. I also develop wave-optics renderers to simulate these light phenomena.
 
 My main goal is to build visual models that behave like the real world, serving as reliable sources of reality beyond visually correct scenes. Applications span AR/VR, next-generation holographic displays, virtual production, and physically accurate simulation for scientific discovery and machine perception.
 
