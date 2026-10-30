@@ -175,7 +175,7 @@ def generate_latex(json_data):
         end = format_date(job.get('endDate', 'Now'))
         location = escape_latex(job.get('location', ''))
         supervisor = escape_latex(job.get('supervisor', ''))
-        description = job.get('description', '')
+        description = escape_latex(job.get('description', '').strip())
 
         latex_content += f"""\\textbf{{{position}}} \\hfill \\textbf{{{start} - {end}}} \\\\
 """
@@ -186,14 +186,10 @@ def generate_latex(json_data):
         else:
             latex_content += f"""{company_name} \\hfill \\textbf{{{location}}}"""
 
-        if description and description.strip():
-            latex_content += f"""\\begin{{itemize}}
-\\item {description}
-\\end{{itemize}}
-
-"""
-        else:
-            latex_content += "\n\\vspace{0.01em}\n\n"
+        if description:
+            latex_content += f""" \\\\
+{description}"""
+        latex_content += "\n\\vspace{0.01em}\n\n"
 
     latex_content += r"""\section*{PUBLICATIONS}
 \begin{enumerate}[label={[\arabic*]}, leftmargin=*, before=\raggedright]
