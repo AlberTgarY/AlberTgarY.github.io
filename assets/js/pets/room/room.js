@@ -534,6 +534,32 @@ export function* buildingRoom(stage) {
     return thing && (!thing.can || thing.can()) ? thing : null;
   };
 
+  // What at canvas px (x, y) can be dragged about (a clickable with `drag`: the duck in the bath), if anything:
+  // taken hold of where it is, then moved over the level it was at, under the pointer (`to(x, y)`), until let
+  // go (`end()`).
+  const level = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const onLevel = new THREE.Vector3();
+  const under = (x, y) => {
+    ndc.set((x / view.W) * 2 - 1, 1 - (y / view.H) * 2);
+    raycaster.setFromCamera(ndc, view.camera);
+    return raycaster.ray.intersectPlane(level, onLevel) && [onLevel.x, onLevel.z];
+  };
+  function grabAt(x, y) {
+    const drag = thingAt(x, y)?.drag;
+    if (!drag) return null;
+    level.constant = -drag.y();
+    const [p, at] = [under(x, y), drag.at()];
+    if (!p) return null;
+    const off = [at[0] - p[0], at[1] - p[1]]; // (held where it was taken hold of, not by its middle)
+    return {
+      to(x, y) {
+        const p = under(x, y);
+        if (p) drag.to(p[0] + off[0], p[1] + off[1]);
+      },
+      end: drag.end,
+    };
+  }
+
   // A visitor's pick of the other kind given up (`kind` "outfit" or "watch", acted on by `act`): no longer
   // wanted, and no longer next for her.
   function dropPick(kind, act) {
@@ -553,6 +579,7 @@ export function* buildingRoom(stage) {
     onCloset,
     onPc,
     thingAt,
+    grabAt,
     // A click on someone: a hop and a heart (a sleeper wakes); her, lying in the hammock, she gets up
     // (acts/outdoors.js).
     greet(who) {

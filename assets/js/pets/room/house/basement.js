@@ -1105,9 +1105,14 @@ export function* buildBasement(shared) {
   // Where the spout's water lands, in the texture (its x along the world's x, its rows down the world's z).
   const SPOUT = { x: TAPS.x + 7.25, y: TUB.deck + 3.25 };
   const landing = [((SPOUT.x - TUB.x) / (2 * TUB.r) + 0.5) * RW, 0.5 * RW];
-  // `drain` 0..1: swirling down the plug in the middle (a spiral, a dimple); `pouring` 0..1, how hard the
-  // spout's water falls into it: churned white where it lands, bubbles drifting off it, rings spreading.
-  const splashes = []; // (bath.splash(): each { t, u, v, a } in the texture, for 2.5 s, `a` how big)
+  // `drain` 0..1, how hard it swirls down the plug in the middle: the water going round, taking the net of
+  // light round with it, twisted round the plug (as a whirlpool twists it); a dimple over the plug, lit on one
+  // side; flecks of foam drawn round and in, faster the nearer they get. `pouring` 0..1,
+  // how hard the spout's water falls into it: churned white where it lands, bubbles drifting off it, rings
+  // spreading.
+  // (bath.splash(): each { t, u, v, a } in the texture, for 2.5 s, `a` how big; bath.wake(): smaller rings,
+  // slower and shorter lived, a little lighter on their crests, `wake` true)
+  const splashes = [];
   // The net of light: the bright lines between neighbouring cells round points strewn one to a cell, each
   // wandering a little on its own (texture px of a cell `size`, `seed` for its points); 1 on a line, fading
   // off over a px or so. Two of them, of sizes that never line up, so that the net is uneven and never repeats.
@@ -1141,35 +1146,74 @@ export function* buildBasement(shared) {
     };
   }
   const nets = [makeNet(8.6, 41), makeNet(5.3, 47)];
+  // The net of light at texture px (x, y), the water there bent by `bend`: the lines bowed into rounded cells
+  // and wavering (more where it is stirred), brighter in some patches than others, drifting.
+  function causticAt(x, y, t, bend) {
+    const wx = x + 2.4 * Math.sin(y * 0.16 + t * 0.55) + 1.4 * Math.sin((x + y) * 0.09 - t * 0.35) + 1.2 * bend;
+    const wy = y + 2.4 * Math.sin(x * 0.14 - t * 0.5) + 1.4 * Math.sin((x - y) * 0.1 + t * 0.4) - 1.2 * bend;
+    const patch = 0.6 + 0.4 * Math.sin(x * 0.11 + t * 0.3) * Math.sin(y * 0.09 - t * 0.23);
+    return patch * Math.max(nets[0].at(wx, wy), 0.55 * nets[1].at(wx + 17, wy + 5)) ** 2;
+  }
+  // How fast the water goes round at `rm` (0 at the plug, 1 at the side), radians a second: as a whirlpool,
+  // about as 1 / rm^2 out from a core that turns whole. (What floats on it goes so: the flecks, the duck.)
+  const spinAt = (rm, drain) => (0.35 * drain) / (rm * rm + 0.04);
+  // The net of light is shown turned as a whole, and twisted by as much again and more in towards the plug: so
+  // it never winds ever tighter, and stays as sharp as when it is still. (`turned`: radians so far.)
+  let turned = 0;
+  const twistAt = (rm, drain) => 2.6 * drain * Math.exp(-((rm / 0.5) ** 2));
+  // The flecks of foam going round and in: each at [rm, angle], until it goes down the plug and comes up
+  // somewhere new out by the side.
+  const flecks = Array.from({ length: 14 }, () => [0.35 + 0.6 * Math.random(), Math.random() * 2 * Math.PI]);
+  const FLECK_AT = new Float32Array(2 * 2 * flecks.length); // (each drawn at two points along its way: a streak)
+  let drawnAt = 0;
   function drawWater(t, foam, drain = 0, pouring = 0) {
     const { data } = image;
+    const dt = Math.min(0.1, t - drawnAt);
+    drawnAt = t;
     while (splashes.length && t - splashes[0].t > 2.5) splashes.shift();
-    const live = splashes.filter((s) => t >= s.t);
+    const live = splashes.filter((s) => t >= s.t && (!s.wake || t - s.t < 1.4));
     nets[0].points(t);
     nets[1].points(t * 1.3);
+    turned += 0.5 * drain * dt;
+    for (const [i, f] of flecks.entries()) {
+      f[1] += spinAt(f[0], drain) * dt;
+      f[0] -= drain * (0.04 + 0.012 / (f[0] + 0.05)) * dt;
+      if (f[0] < 0.05) [f[0], f[1]] = [0.4 + 0.55 * Math.random(), Math.random() * 2 * Math.PI];
+      for (const [j, back] of [0, 0.07].entries()) {
+        const a = f[1] - spinAt(f[0], drain) * back;
+        FLECK_AT[4 * i + 2 * j] = RW / 2 + f[0] * (RW / 2) * Math.cos(a);
+        FLECK_AT[4 * i + 2 * j + 1] = RW / 2 + f[0] * (RW / 2) * Math.sin(a);
+      }
+    }
     for (let y = 0; y < RW; y++)
       for (let x = 0; x < RW; x++) {
         const [mx, my] = [x - RW / 2 + 0.5, y - RW / 2 + 0.5];
         const rm = Math.hypot(mx, my) / (RW / 2);
-        // How far the water is stirred here: the drain's spiral, rings from where the spout's water lands and
-        // from splashes. They show by bending the net of light, a little lighter on their crests.
+        // How far the water is stirred here: rings from where the spout's water lands and from splashes. They
+        // show by bending the net of light, a little lighter on their crests.
         let c = 0;
-        if (drain) c += 2.2 * drain * Math.sin(3 * Math.atan2(my, mx) + 5 * Math.log(rm + 0.05) - t * 7) * Math.max(0, 1 - rm * 1.6);
         const rl = pouring ? Math.hypot(x - landing[0], y - landing[1]) : Infinity;
         if (pouring) c += 2 * pouring * Math.sin(rl * 1.3 - t * 9) * Math.max(0, 1 - rl / 16);
+        let crest = 0;
         for (const s of live) {
           const [age, rs] = [t - s.t, Math.hypot(x - s.u, y - s.v)];
-          c += 2.2 * s.a * Math.sin(rs * 1.1 - age * 12) * Math.max(0, 1 - Math.abs(rs - age * 11) / 5) * Math.max(0, 1 - age / 2.5);
+          if (!s.wake) {
+            c += 2.2 * s.a * Math.sin(rs * 1.1 - age * 12) * Math.max(0, 1 - Math.abs(rs - age * 11) / 5) * Math.max(0, 1 - age / 2.5);
+            continue;
+          }
+          const wave = s.a * Math.sin((rs - age * 5) * 1.8) * Math.max(0, 1 - Math.abs(rs - age * 5 - 1) / 2.5) * Math.max(0, 1 - age / 1.4);
+          c += 2.4 * wave;
+          crest += Math.max(0, wave);
         }
-        // Gently swelling: the net's lines bowed into rounded cells and wavering (more where it is stirred),
-        // brighter in some patches than others, drifting.
         const bend = Math.max(-3, Math.min(3, c));
-        const wx = x + 2.4 * Math.sin(y * 0.16 + t * 0.55) + 1.4 * Math.sin((x + y) * 0.09 - t * 0.35) + 1.2 * bend;
-        const wy = y + 2.4 * Math.sin(x * 0.14 - t * 0.5) + 1.4 * Math.sin((x - y) * 0.1 + t * 0.4) - 1.2 * bend;
-        const patch = 0.6 + 0.4 * Math.sin(x * 0.11 + t * 0.3) * Math.sin(y * 0.09 - t * 0.23);
-        const caustic = patch * Math.max(nets[0].at(wx, wy), 0.55 * nets[1].at(wx + 17, wy + 5)) ** 2;
+        // (what is here came from further back round: as far as it has turned, so it stays where it got to once
+        // the water is still again)
+        const a = -(turned + twistAt(rm, drain));
+        const [cos, sin] = [Math.cos(a), Math.sin(a)];
+        const caustic = causticAt(RW / 2 - 0.5 + mx * cos - my * sin, RW / 2 - 0.5 + mx * sin + my * cos, t, bend);
         const deep = Math.min(1, (1 - rm) * 2.2); // (0 at the rim, 1 a little way in)
         let [r, g, b] = [196 - 64 * deep + 6 * c, 234 - 32 * deep + 4 * c, 240 - 22 * deep + 3 * c];
+        [r, g, b] = [r + 34 * crest, g + 30 * crest, b + 26 * crest];
         r += 58 * caustic;
         g += 36 * caustic;
         b += 22 * caustic;
@@ -1188,21 +1232,36 @@ export function* buildBasement(shared) {
         }
         if (Math.hypot(mx, my) < 1.6) [r, g, b] = [r * 0.88, g * 0.9, b * 0.92]; // (the plug, under it)
         if (drain) {
-          // Streaks of foam drawn round and in along three arms, closer and quicker towards the plug; the
-          // dimple over it.
-          const arm = Math.sin(3 * Math.atan2(my, mx) + 9 * Math.log(rm + 0.04) - t * 8);
-          const near = Math.max(0, 1 - rm / (0.25 + 0.4 * drain));
-          if (arm > 0.55 - 0.3 * near && near > 0.05) {
-            const k = Math.min(1, near * 1.8) * drain;
-            [r, g, b] = [r + (245 - r) * k, g + (250 - g) * k, b + (252 - b) * k];
-          }
-          if (rm < 0.1 * drain) [r, g, b] = [r * 0.5, g * 0.58, b * 0.68];
+          // The dimple over the plug: deeper and wider the harder it swirls, its far side lit by the lamps and the
+          // side towards them in shade (it slopes away from them), the air drawn down a dark thread in its middle; then the flecks of foam.
+          const core = 0.08 + 0.1 * drain;
+          const slope = (drain * rm * core * core) / (rm * rm + core * core) ** 2; // (how steep its side is here)
+          const lit = Math.max(-1, Math.min(1, (-1.5 * slope * (0.62 * mx - 0.78 * my)) / (Math.hypot(mx, my) + 1e-3)));
+          const sink = 1 - 0.18 * drain * Math.exp(-((rm / (1.6 * core)) ** 2));
+          [r, g, b] = [r * sink + 40 * lit, g * sink + 34 * lit, b * sink + 28 * lit];
+          const air = drain * Math.max(0, 1 - rm / (0.35 * core));
+          [r, g, b] = [r * (1 - 0.45 * air), g * (1 - 0.4 * air), b * (1 - 0.32 * air)];
         }
         const k = 4 * (y * RW + x);
         data[k] = Math.min(255, r);
         data[k + 1] = Math.min(255, g);
         data[k + 2] = Math.min(255, b);
         data[k + 3] = 255;
+      }
+    // The flecks of foam, each over the few px round it.
+    if (drain)
+      for (let i = 0; i < FLECK_AT.length; i += 2) {
+        const [fx, fy] = [FLECK_AT[i], FLECK_AT[i + 1]];
+        for (let y = Math.max(0, Math.floor(fy - 1.2)); y <= Math.min(RW - 1, Math.floor(fy + 1.2)); y++)
+          for (let x = Math.max(0, Math.floor(fx - 1.2)); x <= Math.min(RW - 1, Math.floor(fx + 1.2)); x++) {
+            const k = 0.75 * Math.min(1, drain * 1.5) * Math.max(0, 1 - Math.hypot(x + 0.5 - fx, y + 0.5 - fy) / 1.2);
+            const o = 4 * (y * RW + x);
+            [data[o], data[o + 1], data[o + 2]] = [
+              data[o] + (246 - data[o]) * k,
+              data[o + 1] + (250 - data[o + 1]) * k,
+              data[o + 2] + (252 - data[o + 2]) * k,
+            ];
+          }
       }
     ripple.g.putImageData(image, 0, 0);
     ripple.tex.needsUpdate = true;
@@ -3194,11 +3253,12 @@ export function* buildBasement(shared) {
   const col = new THREE.Color();
   let rippledAt = -1;
   let screenAt = -1;
-  let duckAngle = 0;
-  let duckSpin = 0; // (radians a second, dying away)
-  let duckR = 14.5; // how far out from the plug it floats
+  // The duck: where it is from the plug and how fast it goes, which way it faces (`turn`: how far a nudge has
+  // spun it round, `spin` radians a second, dying away); `held`, the point it is dragged towards.
+  // `wake`: where it last left a ring on the water; `splashedAt`: when the spout's stream last splashed off it.
+  const duckAt = { x: 14.5, z: 0, vx: 0, vz: 0, yaw: 0, turn: 0, spin: 0, held: null, wake: [14.5, 0], wokeAt: -9, splashedAt: 0 };
   let puddleAt = 0; // (x from the middle the water spreads from, or shrinks to)
-  let duckTurn = 0;
+  let whirl = 0; // how hard it swirls down the plug (gathering over a few seconds as it is let out)
   let clockNow = 0;
   function update(t, dt) {
     runBath(dt); // (seen or not: someone may be waiting for it)
@@ -3223,9 +3283,11 @@ export function* buildBasement(shared) {
     water.scale.set(s, s, 1);
     water.position.set(TUB.x + puddleAt * (1 - s), W(level), TUB.z);
     water.material.opacity = 0.45 + 0.35 * spread;
-    if (water.visible && t - rippledAt > 0.1) {
+    whirl += ((bath.flow < 0 ? 0.5 + 0.5 * (1 - bath.fill) : 0) - whirl) * Math.min(1, dt / 2.5);
+    const lively = whirl > 0.02 || duckAt.held || t - duckAt.wokeAt < 1.4; // (drawn more often: smooth as it goes)
+    if (water.visible && t - rippledAt > (lively ? 0.05 : 0.1)) {
       rippledAt = t;
-      drawWater(t, bath.foam && bath.fill > 0.4 ? 1 : 0, bath.flow < 0 ? 0.5 + 0.5 * (1 - bath.fill) : 0, tap.pouring);
+      drawWater(t, bath.foam && bath.fill > 0.4 ? 1 : 0, whirl > 0.02 ? whirl : 0, tap.pouring);
     }
     const open = bath.flow < 0 || (!bath.flow && bath.fill < 0.01);
     plug.position.y += (W(TUB.floor + (open ? 0.9 : 0.25)) - plug.position.y) * Math.min(1, dt * 6);
@@ -3270,25 +3332,75 @@ export function* buildBasement(shared) {
       }
       fizz.instanceMatrix.needsUpdate = true;
     }
-    // The duck, drifting slowly round the tub (in and out a little), bobbing and rocking. As the bath is let
-    // out the whirlpool draws it in, round and round the plug the way the water turns, quicker the nearer it
-    // gets (as a skater pulls in their arms); let down onto the tub's floor as the water goes, where it sits
-    // still until it floats again and drifts back out (round clear of whoever is lying in it).
+    // The duck, carried by the water: drifting slowly round the tub (in and out a little), bobbing and rocking.
+    // As the bath is let out the whirlpool draws it in, round and round the plug the way the water turns,
+    // quicker the nearer it gets; let down onto the tub's floor as the water goes, where it sits still until
+    // it floats again and drifts back out. Dragged, it is pulled through the water after the pointer, and let
+    // go, it glides on and slows, bumping off the tub's side; never in on whoever is lying in it. It turns to
+    // face the way it goes, leaving rings along its way as it goes quickly; under the spout's stream as the
+    // bath runs, it is splashed and pushed off.
     const afloat = Math.min(1, bath.fill * 4);
-    const pull = bath.flow < 0 ? 0.5 + 0.5 * (1 - bath.fill) : 0; // (as drawWater()'s drain)
-    duckR = pull ? Math.max(3.5, duckR - dt * 1.6 * pull * afloat) : duckR + (14.5 - duckR) * Math.min(1, dt * 0.15 * afloat);
-    duckAngle += dt * (0.07 * afloat + duckSpin * 0.05 + (pull * afloat * 9) / duckR);
-    duckSpin *= Math.max(0, 1 - dt * 0.8);
-    const da = duckAngle;
-    const dr = duckR + Math.sin(t * 0.13) * afloat * (1 - pull);
-    duck.position.set(
-      TUB.x + dr * Math.cos(da),
-      Math.max(W(level) - 0.9, W(TUB.floor)) + 0.25 * Math.sin(t * 2.1) * afloat,
-      TUB.z + dr * Math.sin(da)
-    );
+    const D = duckAt;
+    const r = Math.hypot(D.x, D.z) || 1e-6;
+    const [ux, uz] = [D.x / r, D.z / r]; // (out from the plug)
+    if (D.held) {
+      const k = Math.min(1, dt * 12);
+      const [x, z] = [D.x + (D.held[0] - D.x) * k, D.z + (D.held[1] - D.z) * k];
+      [D.vx, D.vz] = dt > 0 ? [(x - D.x) / dt, (z - D.z) / dt] : [D.vx, D.vz];
+      [D.x, D.z] = [x, z];
+    } else {
+      const swirling = whirl > 0.02;
+      const round = swirling ? spinAt(r / TUB.r, whirl) * r : 0.07 * r; // (as fast as the water goes round there)
+      const inward = swirling ? (r > 3.5 ? 2.2 * whirl : 0) : 0.15 * (r - 14.5 - Math.sin(t * 0.13));
+      const [fx, fz] = [-uz * round - ux * inward, ux * round - uz * inward];
+      const k = afloat ? Math.min(1, dt * 2.5) : Math.min(1, dt * 6); // (the water's drag; on the tub's floor, stopped)
+      D.vx += ((afloat ? fx : 0) - D.vx) * k;
+      D.vz += ((afloat ? fz : 0) - D.vz) * k;
+      D.x += D.vx * dt;
+      D.z += D.vz * dt;
+    }
+    const [most, least] = [TUB.r - 3.5, bath.free() || !afloat ? 0 : 13]; // (clear of the side; of someone in it)
+    const out = Math.hypot(D.x, D.z) || 1e-6;
+    if (out > most || out < least) {
+      const [nx, nz] = [D.x / out, D.z / out];
+      const into = D.vx * nx + D.vz * nz; // (its speed out, or in)
+      if (out > most ? into > 0 : into < 0) {
+        if (Math.abs(into) > 4 && afloat) bath.splash(TUB.x + D.x, TUB.z + D.z, 0.25);
+        D.vx -= 1.4 * into * nx;
+        D.vz -= 1.4 * into * nz;
+      }
+      const to = out > most ? most : least;
+      [D.x, D.z] = [nx * to, nz * to];
+    }
+    const speed = Math.hypot(D.vx, D.vz);
+    if (afloat && Math.hypot(D.x - D.wake[0], D.z - D.wake[1]) > 1.5) {
+      if (speed > 1.5) {
+        bath.wake(TUB.x + D.x, TUB.z + D.z, Math.min(1, 0.25 + 0.03 * speed));
+        D.wokeAt = t;
+      }
+      D.wake = [D.x, D.z];
+    }
+    const [sx, sz] = [D.x - (SPOUT.x - TUB.x), D.z]; // (from where the stream lands)
+    const under = Math.hypot(sx, sz);
+    if (tap.pouring && afloat && under < 4.5) {
+      const k = tap.pouring * (1 - under / 4.5);
+      if (!D.held) {
+        D.vx += ((sx || 0.3) / (under || 1)) * 14 * k * dt;
+        D.vz += ((sz || 0.3) / (under || 1)) * 14 * k * dt;
+      }
+      if (t - D.splashedAt > 0.08) {
+        D.splashedAt = t;
+        for (let i = 0; i < 2; i++) drops.splash(TUB.x + D.x, W(level) + 2.5, TUB.z + D.z, 0.5 + 0.5 * k); // (off its back and head)
+        bath.splash(TUB.x + D.x, TUB.z + D.z, 0.2 + 0.3 * k);
+      }
+    }
+    if (speed > 0.3) D.yaw += Math.atan2(Math.sin(Math.atan2(D.vx, D.vz) - D.yaw), Math.cos(Math.atan2(D.vx, D.vz) - D.yaw)) * Math.min(1, dt * 2);
+    D.turn += D.spin * dt;
+    D.spin *= Math.max(0, 1 - dt * 0.8);
+    duck.position.set(TUB.x + D.x, Math.max(W(level) - 0.9, W(TUB.floor)) + 0.25 * Math.sin(t * 2.1) * afloat, TUB.z + D.z);
     duck.rotation.set(
-      0.06 * Math.sin(t * 1.7) * afloat,
-      Math.atan2(-Math.sin(da), Math.cos(da)) + 0.25 * Math.sin(t * 0.3) * afloat + (duckTurn += dt * duckSpin),
+      0.06 * Math.sin(t * 1.7) * afloat + (D.held ? Math.min(0.2, speed * 0.012) : 0), // (leaning back as it is pulled)
+      D.yaw + 0.25 * Math.sin(t * 0.3) * afloat + D.turn,
       0.05 * Math.sin(t * 2.3) * afloat
     );
     flushing(t - toilet.flushedAt, dt);
@@ -3534,7 +3646,17 @@ export function* buildBasement(shared) {
       toggle: () => ((tank.scaredAt = clockNow), fish.forEach((f) => (f.next = 0))),
       can: free("fish"),
     },
-    { parts: [duck], toggle: () => bath.nudge() },
+    {
+      parts: [duck],
+      toggle: () => bath.nudge(),
+      // Dragged about the bath with the mouse (room.js grabAt()): on the level it floats at.
+      drag: {
+        y: () => duck.position.y,
+        at: () => [duck.position.x, duck.position.z],
+        to: (x, z) => (duckAt.held = [x - TUB.x, z - TUB.z]),
+        end: () => (duckAt.held = null),
+      },
+    },
     {
       parts: [cabinFront], // (the whole curved front: the doors and the fixed panels either side of them)
       toggle: () => (cabin.goal = cabin.goal ? 0 : 1),
@@ -3613,7 +3735,9 @@ export function* buildBasement(shared) {
     splashes.push({ t: clockNow + after, u: ((x - TUB.x) / (2 * TUB.r) + 0.5) * RW, v: ((z - TUB.z) / (2 * TUB.r) + 0.5) * RW, a });
     if (a === 1) for (let k = 0; k < 6; k++) drops.splash(x + (Math.random() - 0.5) * 6, bath.level(), z + (Math.random() - 0.5) * 6, 1);
   };
-  bath.nudge = () => (duckSpin = 6);
+  bath.wake = (x, z, a) =>
+    splashes.push({ t: clockNow, u: ((x - TUB.x) / (2 * TUB.r) + 0.5) * RW, v: ((z - TUB.z) / (2 * TUB.r) + 0.5) * RW, a, wake: true });
+  bath.nudge = () => (duckAt.spin = 6);
   bath.spout = [SPOUT.x, W(SPOUT.y), TUB.z];
 
   // Where a drop lands down here: in the bath (its water, or its floor let out), on the deck round it, or on

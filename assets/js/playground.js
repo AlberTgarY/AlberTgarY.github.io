@@ -352,6 +352,7 @@ async function start() {
   const presses = new Map(); // pointer id -> where it is, canvas px
   let travel = 0; // how far the press has moved
   let dragged = false;
+  let held = null; // what the mouse's left button is dragging about the home (room.grabAt(): the duck), if anything
   const zoomedNow = (w) => {
     w.view.canvas.style.touchAction = w.view.zoomed() ? "none" : "pan-y";
     moved = true; // (what is under the mouse may have changed)
@@ -370,9 +371,19 @@ async function start() {
       canvas.setPointerCapture(e.pointerId); // (let go off the canvas, it still ends here)
       presses.set(e.pointerId, toCanvas(e));
       if (presses.size === 1) [travel, dragged] = [0, false];
+      if (w === room && presses.size === 1 && e.pointerType === "mouse" && e.button === 0 && live()) held = room.grabAt(...toCanvas(e));
+      document.documentElement.classList.toggle("pet-grab", !!held);
     });
     canvas.addEventListener("pointermove", (e) => {
       if (!presses.has(e.pointerId) || !live()) return;
+      if (held) {
+        const [[x0, y0], [x1, y1]] = [presses.get(e.pointerId), toCanvas(e)];
+        presses.set(e.pointerId, [x1, y1]);
+        travel += Math.hypot(x1 - x0, y1 - y0);
+        dragged ||= travel > 4; // (a press that hardly moves is a click: a nudge)
+        held.to(x1, y1);
+        return;
+      }
       const before = [...presses.values()];
       presses.set(e.pointerId, toCanvas(e));
       const now = [...presses.values()];
@@ -391,7 +402,13 @@ async function start() {
       } else return;
       zoomedNow(w);
     });
-    for (const type of ["pointerup", "pointercancel"]) canvas.addEventListener(type, (e) => presses.delete(e.pointerId));
+    for (const type of ["pointerup", "pointercancel"])
+      canvas.addEventListener(type, (e) => {
+        presses.delete(e.pointerId);
+        held?.end();
+        held = null;
+        document.documentElement.classList.remove("pet-grab");
+      });
     canvas.addEventListener(
       "wheel",
       (e) => {

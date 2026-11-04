@@ -71,6 +71,11 @@ html.pet-hover * {
   cursor: pointer !important;
 }
 
+html.pet-grab,
+html.pet-grab * {
+  cursor: grabbing !important;
+}
+
 .pet-heart {
   position: absolute;
   width: 21px;
