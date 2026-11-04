@@ -6,8 +6,9 @@
  *   stands sniffing, sits to groom, naps curled up under the awning, sits
  *   under the lamp watching the moths and leaps at them, sits staring up at
  *   the possum in the tree or on the hoarding, and goes off again a while.
- *   The possum rearing up at her, she jumps back and makes off (and grooms, as
- *   if nothing happened); someone passing may stop to stroke her.
+ *   The possum rearing up at her (or the wonton man's bell, she in his way), she
+ *   jumps back and makes off (and grooms, as if nothing happened); someone
+ *   passing may stop to stroke her.
  * - the council's street sweeper at first light, in his hi-vis, pushing his
  *   bin on wheels: he leaves it at the kerb, sweeps up the petals and leaves
  *   where they lie thickest, tips the dustpan into the bin and goes on along
@@ -211,10 +212,10 @@ function makeStreet(home, cat, sweeper, bin) {
     cat.sit = false;
   }
   // The possum rearing at her: a jump back, off at a run, and a groom when well away.
-  function* fright() {
+  function* fright(from = possum) {
     Object.assign(cat, { sit: false, lie: false, asleep: false, bow: false });
-    cat.faceTowards(possum.x, possum.z);
-    const [dx, dz] = [cat.x - possum.x, cat.z - possum.z];
+    cat.faceTowards(from.x, from.z);
+    const [dx, dz] = [cat.x - from.x, cat.z - from.z];
     const d = Math.hypot(dx, dz) || 1;
     const t0 = t();
     const [x0, z0] = [cat.x, cat.z];
@@ -227,7 +228,7 @@ function makeStreet(home, cat, sweeper, bin) {
       yield;
     }
     cat.y = 0;
-    const away = spot(PROWL.filter(([x0, x1, z0, z1]) => Math.hypot((x0 + x1) / 2 - possum.x, (z0 + z1) / 2 - possum.z) > 90)) ?? spot(PROWL);
+    const away = spot(PROWL.filter(([x0, x1, z0, z1]) => Math.hypot((x0 + x1) / 2 - from.x, (z0 + z1) / 2 - from.z) > 90)) ?? spot(PROWL);
     if (away) yield* walk(cat, away, 2.2);
     yield* groom(rnd(3, 5));
   }
@@ -354,6 +355,12 @@ function makeStreet(home, cat, sweeper, bin) {
       patter = a;
       catRun = thenOn(stroked(a));
       return { cat, stop: () => patter === a && (patter = null) };
+    },
+    // Startled by something at {x, z} (the wonton man's bell): she jumps back and makes off.
+    shoo(from) {
+      if (cat.away || cat.fleeing) return;
+      cat.fleeing = true;
+      catRun = thenOn(fright(from));
     },
     step() {
       // The cat: by now and then while it is shut, at night and into the morning.

@@ -25,7 +25,10 @@
  * maybe), a couple side by side talking, someone stopping to read the hours
  * on the shutter; of a morning joggers, someone with a coffee. Any of them may
  * stop to stroke the stray cat (street.js), or to point out the possum
- * (night.js). Each time someone goes off they are dressed anew (townsfolk.js
+ * (night.js). From two till eleven, now and then someone comes for a bowl
+ * of wontons at the stall under the tree (stall-life.js visit(): ordering at
+ * the cabinet, a stool, the bowl brought out and eaten), a couple of them at
+ * a time at most. Each time someone goes off they are dressed anew (townsfolk.js
  * redress()).
  * A customer is an actor like the others (room/actor.js) but goes by this
  * file, not life.js; the staff's side of it (serving at the till, the bouquet
@@ -48,6 +51,7 @@ import { HOURS, STREET, GROUND, KIOSK, SHUTTER, AWNING } from "./layout.js";
 const CROWD = 12; // the people of the town who come by (two of them children; each looks anew at every page)
 const KIDS = 2;
 const AT_ONCE = 2; // parties about at once, at most (now and then one more)
+const DINING = 2; // people at the wonton stall at once, at most (as well as the girl or the boy)
 const LAST_IN = HOURS.close - 0.3; // no one new comes after this
 const EDGE = GROUND.z1 - 8; // the pavement's front edge, where people step on and off it
 // Where they stand at the till, across from whoever serves, and where the next waits their turn: both back
@@ -108,6 +112,7 @@ function makeCustomers(home, people) {
   const dog = home.byName.collie;
   let nextAt = t() + rnd(4, 10);
   let passAt = t() + rnd(8, 20);
+  let dineAt = t() + rnd(10, 25);
   let atCounter = null; // who stands at the till
 
   // What `a` holds: a bouquet (makeBouquet()), or nothing; its meshes thrown away once let go of for good.
@@ -297,7 +302,7 @@ function makeCustomers(home, people) {
 
   // A visit by a party (its first leads), from coming up the street to going off along it.
   function* visit(a, party) {
-    const from = rnd(-30, 160);
+    const from = rnd(-30, STREET.lane);
     a.comeAt = from;
     yield* comeIn(a, [from, STREET.z, EDGE], clock);
     a.away = false;
@@ -369,10 +374,19 @@ function makeCustomers(home, people) {
   }
   function* leave(a) {
     life.release(a);
-    a.leaving = [rnd(-30, 160), EDGE]; // (the others of the party go off with them)
+    a.leaving = [rnd(-30, STREET.lane), EDGE]; // (the others of the party go off with them)
     yield* walk(a, a.leaving);
     yield* goOff(a, STREET.z, clock);
     away(a);
+  }
+
+  // Someone come for a bowl of wontons: up the street to the stall, the visit there (stall-life.js), and off.
+  function* dine(a) {
+    const from = rnd(100, STREET.lane);
+    yield* comeIn(a, [from, STREET.z, EDGE], clock);
+    a.away = false;
+    yield* home.stallLife.visit(a);
+    yield* leave(a);
   }
 
   // One of a party going along with `lead`: in with them, beside them, looking where they look, now and then
@@ -604,6 +618,7 @@ function makeCustomers(home, people) {
       leaving: null,
       comeAt: undefined,
       passing: false,
+      dining: false,
     });
     a.cleanups.splice(0).forEach((fn) => fn());
     a.show("say", null);
@@ -674,6 +689,19 @@ function makeCustomers(home, people) {
           if (other) other.passing = true;
         }
       }
+      // Someone for the wonton stall, now and then while it is open (fewer late; not too many at once).
+      if (t() >= dineAt) {
+        dineAt = t() + rnd(22, 50) * (h > 21 ? 1.5 : 1);
+        const at = people.filter((o) => o.dining).length;
+        if (at < DINING && home.stallLife.canOrder()) {
+          const a = pick(free((o) => !o.kid));
+          if (a) {
+            a.lead = null;
+            a.dining = true;
+            a.visit = dine(a);
+          }
+        }
+      }
       for (const a of people.filter((o) => o.visit)) {
         try {
           if (a.visit.next().done) away(a);
@@ -689,11 +717,12 @@ function makeCustomers(home, people) {
       atCounter = null;
       nextAt = t() + rnd(4, 10);
       passAt = t() + rnd(8, 20);
+      dineAt = t() + rnd(10, 25);
     },
     // Closing time: anyone still about walks off (without anything half done).
     leaveAll() {
       for (const a of people)
-        if (a.visit && !a.goingHome && !a.passing) {
+        if (a.visit && !a.goingHome && !a.passing && !a.dining) {
           a.goingHome = true;
           a.cleanups.splice(0).forEach((fn) => fn());
           life.release(a);

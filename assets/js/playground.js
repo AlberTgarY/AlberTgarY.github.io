@@ -309,7 +309,7 @@ async function start() {
     moved = false;
     const { pointer } = world;
     if (inShop()) {
-      overThing = onCanvas && !!shop.thingAt(pointer.x, pointer.y);
+      overThing = onCanvas && !!shop.pickAt(pointer.x, pointer.y).thing;
       return;
     }
     overThing = onCanvas && (room.onCloset(pointer.x, pointer.y) || room.onPc(pointer.x, pointer.y) || !!room.thingAt(pointer.x, pointer.y));
@@ -340,8 +340,7 @@ async function start() {
   }
   // In the shop: someone says hi; a thing does what it does (a bucket: she makes up a bouquet of it).
   function clickShop(x, y) {
-    const who = shop.hit(x, y);
-    const thing = !who && shop.thingAt(x, y);
+    const { who, thing } = shop.pickAt(x, y);
     if (who) shop.greet(who);
     else if (thing) shop.click(thing);
   }

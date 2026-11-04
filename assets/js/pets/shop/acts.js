@@ -6,7 +6,9 @@
  * house plants, sweep up fallen petals, chalk a new price on a tag, fetch fresh
  * stock from the cool room for a bucket picked thin, count the till, put the
  * radio on (and dance a little), sit with a cup of tea (the dog comes to be
- * stroked), give the dog a treat and look out of the door; and for customers
+ * stroked), give the dog a treat, look out of the door, and of an afternoon
+ * or evening go over for a bowl of wontons at the stall under the tree (him
+ * too, now and then, the other minding the shop); and for customers
  * (customers.js), serve them at the till (wrap what they picked, ring it up,
  * hand it back) and bring out a bouquet one asked for. The dog's: keep near
  * her, nap in his bed, sniff the flowers (and sneeze), drink, lie in the
@@ -113,6 +115,25 @@ export function makeShopActs(home, life) {
     });
     mists.count = puffs.length;
     mists.instanceMatrix.needsUpdate = true;
+  }
+
+  /* ----- a bowl of wontons at the stall ----- */
+
+  // Over to the stall under the tree (stall-life.js visit()), if he is open and there is a stool; the other
+  // stays to mind the shop. Once an afternoon or evening each, about.
+  const ate = { girl: -Infinity, boy: -Infinity };
+  const quiet = () => !home.actors.some((o) => o.customer && o.visit && !o.passing && !o.dining);
+  const wontonWeight = (a) => {
+    const L = home.stallLife;
+    const other = a === girl ? home.byName.boy : girl;
+    if (!L?.canOrder() || t() - ate[a.name] < 600 || other.jobName === "wonton" || other.away || !quiet()) return 0;
+    return home.hour() >= 15 ? 7 : 2;
+  };
+  function* wonton(a) {
+    ate[a.name] = t();
+    a.calm = false;
+    a.shop?.only(); // (whatever they were working with put down)
+    yield* home.stallLife.visit(a);
   }
 
   /* ----- the steps activities are made of ----- */
@@ -671,6 +692,7 @@ export function makeShopActs(home, life) {
     tea: { who: "human", weight: () => (night() ? 6 : 4), run: tea },
     treat: { who: "human", weight: () => 3, run: treat },
     lookout: { who: "human", weight: () => 2, run: lookout },
+    wonton: { who: "human", weight: wontonWeight, run: wonton },
     follow: { who: "pet", weight: () => 8, run: follow },
     nap: { who: "pet", weight: () => (night() ? 20 : 6), run: nap },
     sniff: { who: "pet", weight: () => 4, run: sniff },

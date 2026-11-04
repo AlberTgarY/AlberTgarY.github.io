@@ -10,7 +10,8 @@
  * dress; trousers, jeans, shorts, a skirt or a long one; trainers, boots or
  * flats; maybe a beanie, a cap, a sun hat or a flat cap, a scarf, and a tote,
  * a backpack or a little bag across them (or, the street sweeper,
- * shop/street.js: a hi-vis vest with reflective bands). They blink, smile and wave when
+ * shop/street.js: a hi-vis vest with reflective bands; or, the man at the wonton stall,
+ * shop/stall-life.js: a white apron over a T-shirt). They blink, smile and wave when
  * hovered, talk, hold a phone up in the left hand when they want it
  * (customers.js), and what they buy in the right. redress() gives them new colours (the same
  * meshes, coloured afresh), so that no one looks quite the same twice.
@@ -217,9 +218,13 @@ export function buildTownsfolk(look) {
       },
       puffer: (x, y) => (y % 3 === 0 ? "topShade" : "top"),
       hivis: (x, y) => (Math.abs(x) >= 6 ? (y === 12 ? "string" : "top2") : y === 12 || y === 16 ? "string" : "top"), // (a vest over long sleeves)
+      // (an apron over the front, from the waist down past the hem, its bib up the chest on a strap round the
+      // neck, tied at the back)
+      apron: (x, y, z) =>
+        z > -0.5 && (y <= 13 ? Math.abs(x) <= 4.5 : y <= 17 ? Math.abs(x) <= 3 : Math.abs(x) === 3) ? "top2" : y === 12 && z <= -3 ? "top2" : "top",
     }[look.top] ?? knit;
   const long = look.top === "coat";
-  const short = ["tee", "stripe", "dress"].includes(look.top); // sleeves
+  const short = ["tee", "stripe", "dress", "apron"].includes(look.top); // sleeves
 
   /* ----- the body ----- */
   const paint = (p, x, y, color) => {
@@ -293,6 +298,12 @@ export function buildTownsfolk(look) {
   }
   pose.add(meshOf(bodyPart));
   // A skirt flaring from the waist to the knee, or down to the ankle; a dress's skirt in the dress's fabric.
+  // An apron's skirt, hanging flat in front of the legs to the knee.
+  if (look.top === "apron") {
+    const p = part();
+    for (let y = 3; y <= 8; y++) for (let x = -4; x <= 4; x++) p.add(x, y, 3 + (y < 6 ? 0.5 : 0), y === 3 ? "button" : "top2");
+    pose.add(meshOf(p));
+  }
   const skirt = look.legs === "skirt" || look.legs === "longskirt" || look.top === "dress";
   if (skirt) {
     const p = part();
@@ -663,11 +674,12 @@ export function buildTownsfolk(look) {
       const p = paletteFor(look);
       meshes.forEach((m) => recolor(m, p));
     },
-    animate(dt, { happy, lying, stride, gait, elapsed, hold, legHold, talk }) {
+    animate(dt, { happy, lying, stride, gait, elapsed, hold, legHold, talk, seated }) {
       const wave = ease("wave", happy && !hold, 8, dt);
+      const sit = ease("seat", !!seated, 4, dt); // (on a stool at the wonton stall)
       phase.wave += Math.PI * 2 * 2.2 * dt;
       phase.pat += Math.PI * 2 * 1.2 * dt;
-      poseLimbs(body, { kneel: lying, stride, gait, elapsed, phase, wave, hold, legHold });
+      poseLimbs(body, { kneel: lying, sit: sit * sit * (3 - 2 * sit), stride, gait, elapsed, phase, wave, hold, legHold });
       pose.position.z = 0; // (actor.js adds the lean about the hips to it, each frame)
       const laughing = happy || (talk && Math.sin(elapsed * 30) > 0);
       open.visible = laughing;

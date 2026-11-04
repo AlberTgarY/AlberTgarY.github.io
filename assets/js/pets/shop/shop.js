@@ -11,6 +11,8 @@
  * it is open (customers.js); shut, the street has a life of its own: the lamp
  * and its moths and the possum in the tree (night.js), a stray cat and the
  * street sweeper at first light (street.js), people passing (customers.js).
+ * From two till eleven the wonton stall stands in the corner under the tree
+ * (stall.js, stall-life.js), its customers at its table (customers.js).
  * The page (playground.js) swaps it for the house and
  * back: it has the house's ways (`step`, `hit`, `thingAt`, `greet`, `dress`,
  * `hour`, `layout`), its own view (view.js) sized as the house's.
@@ -28,16 +30,18 @@ import { dressGirl } from "../models/girl-outfits.js";
 import { buildCollie } from "../models/collie.js";
 import { buildBoy } from "../models/boy.js";
 import { makeShopView } from "./view.js";
-import { GROUND, KIOSK, FLOOR, HOURS } from "./layout.js";
+import { GROUND, KIOSK, FLOOR, HOURS, LANE, STALL } from "./layout.js";
 import { setFade } from "./fade.js";
 import { buildingKiosk } from "./kiosk.js";
 import { buildingDisplay } from "./display.js";
 import { buildingGrounds } from "./grounds.js";
 import { buildingNight } from "./night.js";
+import { buildingStall } from "./stall.js";
 import { shopProps } from "./props.js";
 import { makeShopLife } from "./life.js";
 import { buildingCustomers } from "./customers.js";
 import { buildingStreet } from "./street.js";
+import { makeStallLife, stallOpenAt } from "./stall-life.js";
 
 // The three of them, where each starts the day, and how big (the collie as in the house).
 const CAST = [
@@ -104,13 +108,47 @@ export function* buildingShop(stage) {
   const kiosk = yield* built(buildingKiosk(shared), 0.05, 0.35, 14, "Flower shop · kiosk");
   const display = yield* built(buildingDisplay(shared), 0.35, 0.65, 54, "Flower shop · flowers");
   const grounds = yield* built(buildingGrounds(shared), 0.65, 0.78, 19, "Flower shop · pavement and plants");
-  const night = yield* built(buildingNight(shared), 0.78, 0.8, 3, "Flower shop · the night");
-  const builders = [kiosk, display, grounds, night];
-  const obstacles = builders.flatMap((b) => b.obstacles);
+  const night = yield* built(buildingNight(shared), 0.78, 0.79, 3, "Flower shop · the night");
+  const stall = yield* built(buildingStall(shared), 0.79, 0.8, 7, "Flower shop · wonton stall");
+  const builders = [kiosk, display, grounds, night, stall];
+  const fixed = builders.flatMap((b) => b.obstacles);
+  const obstacles = [...fixed];
   const bounds = [GROUND.x0 + 4, GROUND.x1 - 4, GROUND.z0 + 4, GROUND.z1 - 4];
 
-  // The floor plan the house's walking (room/steps.js) goes by: here only one, the shop's.
-  const nav = makeNav(bounds, obstacles, floorY);
+  // The floor plan the house's walking (room/steps.js) goes by: the shop's, as the corner by the tree stands
+  // just now (its own, made ready here, a yield each): the cacti's trolley and its trays out there (the
+  // morning), the trolley on its way along, beside the plinth (the corner empty), the wonton stall there,
+  // and the stall on its way up the side of the pavement or back down it. `nav` always goes by the one in use
+  // (`corner`), and `obstacles` (which the walking steps round) holds that one's things.
+  const C = grounds.corner;
+  const LANE_BOX = [LANE - 12, LANE + 12, STALL.cab.z1 + 2, GROUND.z1];
+  const CORNERS = {
+    morning: C.morning,
+    moving: [...C.morning.slice(0, 1), ...C.afternoon, [103, 143, -108, -70]], // (and where it swings round)
+    afternoon: C.afternoon,
+    stall: [...C.afternoon, ...stall.ground],
+    lane: [...C.afternoon, ...stall.ground, LANE_BOX],
+  };
+  const navs = {};
+  for (const [key, things] of Object.entries(CORNERS)) {
+    navs[key] = makeNav(bounds, [...fixed, ...things], floorY);
+    yield [0.8, "Flower shop · the way round", Object.keys(navs).length / 5];
+  }
+  let corner = "morning";
+  let inUse = navs[corner];
+  const nav = {
+    path: (...a) => inUse.path(...a),
+    free: (x, z) => inUse.free(x, z),
+    nearest: (x, z) => inUse.nearest(x, z),
+    clearLine: (...a) => inUse.clearLine(...a),
+    randomSpot: (...a) => inUse.randomSpot(...a),
+  };
+  function cornerIs(key) {
+    if (key === corner) return;
+    corner = key;
+    inUse = navs[key];
+    obstacles.splice(0, obstacles.length, ...fixed, ...CORNERS[key]);
+  }
   const plan = { floorY: (x, z) => floorY(x, z), bounds, obstacles };
   const home = {
     scene,
@@ -135,6 +173,7 @@ export function* buildingShop(stage) {
     display,
     grounds,
     nighttime: night, // (the lamp and the possum: night.js)
+    stall, // (the wonton stall: stall.js)
   };
   const CASTING = "Flower shop · people and the dog";
   yield [0.8, CASTING, 0];
@@ -172,6 +211,19 @@ export function* buildingShop(stage) {
       yield [0.99 + 0.01 * value, "Flower shop · the street", value];
     }
   })());
+  const stallLife = (home.stallLife = makeStallLife(home));
+  // The floor plan for the corner as it is (each frame).
+  const trolley = grounds.trolley;
+  const cornerNow = () =>
+    trolley.pose === "morning"
+      ? "morning"
+      : trolley.pose === "moving"
+        ? "moving"
+        : stallLife.onLane()
+          ? "lane"
+          : stallLife.parked()
+            ? "stall"
+            : "afternoon";
 
   // The time of day: night, the lights on (each builder's dress()); they keep to their day clothes at work.
   function nightfall(night) {
@@ -193,6 +245,8 @@ export function* buildingShop(stage) {
   nightfall(isNightAt(day.hour));
   daylight(true);
   life.hours.settle(day.hour);
+  stallLife.settle(day.hour);
+  cornerIs(cornerNow());
   let shadowsDirty = true;
 
   // The time put on to `hour` at a jump (the clock clicked, the shop seen again): everything put where it
@@ -207,12 +261,18 @@ export function* buildingShop(stage) {
     const signed = life.hours.open() === day.hour >= HOURS.open; // (the sign as it should be then)
     const out = life.hours.setOutAt(day.hour);
     const settled = (s === "open" && out && signed) || (s === "closed" && !out);
+    // (and the corner by the tree: the trolley there till two, the stall from half past two till eleven)
+    const h = day.hour;
+    const cornerRight = trolley.pose === (out && h < HOURS.clear + 0.5 ? "morning" : "afternoon");
+    const stallRight = (stallOpenAt(h) && h - STALL.open >= 0.5) === ["setting", "open"].includes(stallLife.phase);
     const moment = Math.abs(((day.hour - was + 36) % 24) - 12) < 0.05; // (within 3 minutes, either way)
-    if (!settled && !moment) {
+    if (!(settled && cornerRight && stallRight) && !moment) {
       life.hours.settle(day.hour);
       customers.clear();
       street.clear();
       night.settle();
+      stallLife.settle(day.hour);
+      cornerIs(cornerNow());
     }
     shadowsDirty = true;
   }
@@ -276,6 +336,10 @@ export function* buildingShop(stage) {
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   function thingAt(x, y) {
+    return seenAt(x, y)?.thing ?? null;
+  }
+  // (and how far along the line of sight it is)
+  function seenAt(x, y) {
     ndc.set((x / view.W) * 2 - 1, 1 - (y / view.H) * 2);
     raycaster.setFromCamera(ndc, view.camera);
     let best = null;
@@ -288,7 +352,17 @@ export function* buildingShop(stage) {
     raycaster.far = best.distance - 0.5;
     const hidden = raycaster.intersectObjects(hiders, true).some((h) => h.object.visible);
     raycaster.far = Infinity;
-    return hidden ? null : best.thing;
+    return hidden ? null : best;
+  }
+  // Someone or something under canvas px (x, y): `who` or `thing`. Someone is clicked anywhere near them (hit()),
+  // unless a thing is there too and the line of sight meets the thing before their own body (a big head drawn
+  // over the pot, say: a click on the pot is the pot's).
+  function pickAt(x, y) {
+    const who = hit(x, y);
+    const seen = seenAt(x, y);
+    if (!who || !seen) return { who, thing: who ? null : (seen?.thing ?? null) };
+    const body = raycaster.intersectObject(who.rig.group, true).find((h) => h.object.visible && h.object.isMesh);
+    return body && body.distance < seen.distance ? { who, thing: null } : { who: null, thing: seen.thing };
   }
 
   return {
@@ -297,6 +371,7 @@ export function* buildingShop(stage) {
     pointer,
     hit,
     thingAt,
+    pickAt,
     // A click on someone: a hop and a heart (a sleeper wakes).
     greet: (who) => who.cheer(),
     // A click on a thing: what it does (a bucket of flowers: she makes up a bouquet of them).
@@ -318,6 +393,7 @@ export function* buildingShop(stage) {
       const { renderer, camera } = view;
       const frame = () => new Promise((done) => requestAnimationFrame(() => setTimeout(done)));
       const parallel = renderer.extensions.has("KHR_parallel_shader_compile");
+      stall.preview(true); // (all of it out, its shaders made ready with the rest)
       const parts = [...builders.map((b) => b.group), ...home.actors.map((a) => a.rig.group)];
       const steps = 2 * parts.length + 2;
       let done = 0;
@@ -340,6 +416,7 @@ export function* buildingShop(stage) {
       view.render(scene);
       home.actors.forEach((a) => setFade(a, a.away ? 0 : 1));
       customers.sample(false);
+      stall.preview(false);
       progress(++done / steps);
       await frame();
       sun.shadow.needsUpdate = renderer.shadowMap.needsUpdate = true;
@@ -353,18 +430,21 @@ export function* buildingShop(stage) {
       clock.dt = dt;
       clock.t += dt;
       // (The clock goes slower while they close up or set out: it is an hour's work, done at a walk.)
-      day.hour = hour ?? (day.hour + ((dt * 24) / DAY_SECS) * (life.hours.busy() ? WORK_CLOCK : 1)) % 24;
+      day.hour = hour ?? (day.hour + ((dt * 24) / DAY_SECS) * (life.hours.busy() || stallLife.busy() ? WORK_CLOCK : 1)) % 24;
       if (isNightAt(day.hour) !== home.night) nightfall(!home.night);
       daylight();
+      cornerIs(cornerNow());
       life.step();
       customers.step();
       street.step();
+      stallLife.step();
       giveWay(dt);
       builders.forEach((b) => b.update?.(clock.t, dt, home));
       const hovered = pointer.mouse ? hit(pointer.x, pointer.y) : null;
       // (anyone out of the scene, gone off up the street or home, is not posed: fade.js hides them)
       home.actors.forEach((a) => a.rig.group.visible && a.update(dt, a === hovered));
       life.hours.follow();
+      stallLife.follow();
       if (draw) {
         if (shadowsDirty || builders.some((b) => b.shadowsDirty?.())) {
           sun.shadow.needsUpdate = view.renderer.shadowMap.needsUpdate = true;

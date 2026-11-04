@@ -3,7 +3,8 @@
  * the painted hoarding along the back (big daisies, sunflowers and pink
  * dahlias on deep green, a market banner and a speech bubble), the house
  * plants on their concrete plinth and wire rack with trays in front
- * (plants.js), the plane tree in its iron grate, the empty
+ * (plants.js), the cacti on their trolley (rolled aside for the wonton stall
+ * of an afternoon), the plane tree in its iron grate, the empty
  * buckets stacked by the left, the chalkboard A-frame, the tap on the kiosk's
  * wall with the watering can by it, the dog's water bowl, petals and leaves
  * on the ground (petals), and the pigeons and the sparrow pecking about out
@@ -20,8 +21,8 @@ import { makeWater } from "../room/water.js";
 import { VIEW_YAW } from "../room/view.js";
 import { rnd, pick } from "../stage.js";
 import { part, box, meshOf, voxels, paletteOf, seenFaces, seenMaterial, swinging, knock } from "./kit.js";
-import { PLANTS, PLANT_COLORS, RACK, TRAY_W, TRAY_COUNT, POT_STACKS, planted, trayX, potStack } from "./plants.js";
-import { GROUND, MURAL, KIOSK, FLOOR, PLINTH, TRAYS, TREE, TAP, BUCKET_STACKS, SIGN, BOWL, MIDDLE, RIGHT, LEFT, DOOR } from "./layout.js";
+import { PLANTS, PLANT_COLORS, RACK, TRAY_W, TRAY_D, TRAY_COUNT, planted, trayX, trolleyPlanted } from "./plants.js";
+import { GROUND, MURAL, KIOSK, FLOOR, PLINTH, TRAYS, TREE, TROLLEY, TAP, BUCKET_STACKS, SIGN, BOWL, MIDDLE, RIGHT, LEFT, DOOR } from "./layout.js";
 
 const HALF = 0.5; // the fine parts are built in half voxels
 const SLAB = 6; // the pavement's depth under its top (y = 0)
@@ -347,6 +348,7 @@ function cardsMesh(cards) {
 // Built a part at a time (a yield after each: shop.js spreads the work over frames); returns the grounds.
 export function* buildingGrounds(shared) {
   const group = new THREE.Group();
+  let moved = false; // (anything moved: the sun's shadows drawn again)
   const shadowy = (m, cast = true) => Object.assign(m, { castShadow: cast, receiveShadow: true });
 
   /* ----- the pavement: one slab, its top painted, its edges plain ----- */
@@ -489,22 +491,13 @@ export function* buildingGrounds(shared) {
   /* ----- in half voxels: the plants, the stacked buckets, the tap, the bowl ----- */
   const H = (v) => Math.round(v / HALF);
   yield;
-  // The house plants, a mesh for each group of them (the work spread out); the stacks of empty pots for sale
-  // with those in the trays. Only the faces that can face the camera.
+  // The house plants, a mesh for each group of them (the work spread out). Only the faces that can face the
+  // camera.
   const { groups, cards } = planted();
   const plantMeshes = [];
-  for (const [g, plants] of groups.entries()) {
+  for (const plants of groups) {
     const fine = part();
     for (const [kind, x, y, z, seed, o] of plants) PLANTS[kind](fine, H(x), H(y), H(z), seed, o);
-    if (g === groups.length - 1) {
-      const PS = POT_STACKS;
-      for (const [x, z, r, n] of [
-        [PS.x0 + 4, PS.z0 + 4, 5, 7],
-        [PS.x0 + 5, PS.z1 - 4, 4, 5],
-        [PS.x1 - 4, (PS.z0 + PS.z1) / 2, 6, 4],
-      ])
-        potStack(fine, H(x), 0, H(z), r, n);
-    }
     yield;
     const mesh = shadowy(meshOf(fine, HALF, PALETTE));
     seenFaces(mesh.geometry);
@@ -572,6 +565,9 @@ export function* buildingGrounds(shared) {
   yield;
   // The plants' price cards.
   group.add(cardsMesh(cards));
+
+  yield;
+  const trolley = buildTrolley(group, () => (moved = true));
 
   yield;
   /* ----- the tree's crown: leaf blocks (as a voxel game's), a few hanging lower at its edges ----- */
@@ -687,8 +683,7 @@ export function* buildingGrounds(shared) {
   // as it comes; at closing it is unrolled back over (`tarp.set(k)`: 0 off, 1 on, the sheet as far back as
   // k of the way). Rolled, it is folded and kept in the lock-up (`bundle`). At each end it hangs down to the
   // pavement, so nothing shows under it from the side.
-  let moved = false; // (anything moved: the sun's shadows drawn again)
-  const TARP_X = [PLINTH.x0 - 1, PLINTH.x1 + 1];
+  const TARP_X = [PLINTH.x0 - 1, PLINTH.x1 + 1]; // (the cacti on their trolley stay out: they are hardy)
   const DRAPE = [
     [TRAYS.z1 + 4, 0],
     [TRAYS.z1 + 2, 16],
@@ -726,8 +721,8 @@ export function* buildingGrounds(shared) {
     k: 0,
     ends: [
       [TARP_X[0] - 6, TRAYS.z1 + 8],
-      [TARP_X[1] + 6, TRAYS.z1 + 8],
-    ], // where the two of them stand to pull it over, or off
+      [TARP_X[1] - 4, TRAYS.z1 + 8],
+    ], // where the two of them stand to pull it over, or off (the right one clear of the stall's table)
     set(k) {
       tarp.k = Math.min(1, Math.max(0, k));
       const reach = LENGTH * tarp.k * tarp.k * (3 - 2 * tarp.k); // (how far back the sheet goes)
@@ -866,13 +861,18 @@ export function* buildingGrounds(shared) {
   // Where she (and the dog) stand to do things here.
   const sideOn = (from, to) => Math.atan2(to[0] - from[0], to[1] - from[1]);
   const signAt = [SIGN.x + Math.sin(VIEW_YAW) * 13, SIGN.z + Math.cos(VIEW_YAW) * 13];
-  const treeAt = [163, -64];
+  const treeAt = [171, -56];
   const spots = {
     tap: { at: [TAP.x + 12, TAP.z], yaw: -Math.PI / 2 },
     can: { at: CAN_AT },
     bowl: { at: [BOWL.x, BOWL.z - 9], yaw: 0 },
     sign: { at: signAt, yaw: VIEW_YAW + Math.PI },
-    plants: [45, 68, 90, 112, 135].map((x) => ({ at: [x, -46], yaw: Math.PI, top: [x, 8, -64] })),
+    // (along the trays, and the trolley's shelves while it stands in the corner)
+    get plants() {
+      const along = [44, 64, 84].map((x) => ({ at: [x, -46], yaw: Math.PI, top: [x, 8, -64] }));
+      const { x, z } = TROLLEY.morning;
+      return trolley.pose === "morning" ? [...along, { at: [x, z + 20], yaw: Math.PI, top: [x, 22, z] }] : along;
+    },
     tree: { at: treeAt, yaw: sideOn(treeAt, [TREE.x, TREE.z]) },
   };
 
@@ -881,14 +881,20 @@ export function* buildingGrounds(shared) {
     obstacles: [
       [P.x0, P.x1, MURAL.z, P.z1], // the plinth, back to the mural
       [T.x0, T.x1, T.z0, T.z1],
-      [POT_STACKS.x0, POT_STACKS.x1, POT_STACKS.z0, POT_STACKS.z1],
       [G.x0 + 3, G.x1 - 3, MURAL.z, G.z1 - 3], // the tree's trunk in its grate
       [S.x0, S.x1, S.z0, S.z1],
       [SIGN.x - 7, SIGN.x + 7, SIGN.z - 6, SIGN.z + 6],
       [TAP.x - 2, TAP.x + 3, TAP.z - 3, TAP.z + 3],
       [CAN_AT[0] - 4, CAN_AT[0] + 4, CAN_AT[2] - 4, CAN_AT[2] + 4],
     ],
-    hides: [crownMesh, trunkMesh, wholeMesh, ...plantMeshes, ...stackMeshes],
+    // What stands in the corner by the tree in the morning, and beside the plinth after two (shop.js: the
+    // floor plan for each).
+    corner: {
+      morning: [trolley.box(TROLLEY.morning), ...TROLLEY.trays.map(([x, z]) => [x - TRAY_W / 2, x + TRAY_W / 2, z - TRAY_D / 2, z + TRAY_D / 2])],
+      afternoon: [trolley.box(TROLLEY.afternoon)],
+    },
+    trolley,
+    hides: [crownMesh, trunkMesh, wholeMesh, ...plantMeshes, ...stackMeshes, ...trolley.meshes],
     clickables,
     spots,
     can: canThing,
@@ -947,6 +953,149 @@ export function* buildingGrounds(shared) {
       birds.update(t, dt, home);
     },
   };
+}
+
+/* ---------------------------------------------------------------------------------------------------------- */
+/* The cacti's trolley: timber, on four castors, a slatted deck low down for two trays of plants and two
+   stepped shelves over it (TROLLEY, plants.js trolleyPlanted()), a push bar across its left end. Built about
+   its own middle (its length along x, its front to +z), turned and moved as a whole; its trays ride on its
+   deck, or stand on the pavement. */
+
+// Where the trays sit on its deck, about its middle; where the push bar is held.
+const DECK = [
+  [-8, 4, 0],
+  [8, 4, 0],
+];
+const GRIP = [-TROLLEY.length / 2 - 2, 18, 0];
+
+function buildTrolley(parent, onMove) {
+  const H = (v) => Math.round(v / HALF);
+  const shadowy = (m) => Object.assign(m, { castShadow: true, receiveShadow: true });
+  const [hl, hd] = [TROLLEY.length / 2, TROLLEY.depth / 2];
+  const g = new THREE.Group();
+  parent.add(g);
+  const frame = part();
+  for (const x of [-hl + 1, hl - 2])
+    for (const z of [-hd + 1, hd - 2]) {
+      box(frame, [x, x + 1], [0, 1], [z, z + 1], "tray"); // a castor's wheel
+      box(frame, [x, x + 1], [2, 2], [z, z + 1], "rackDark"); // and its swivel
+    }
+  for (const z of [-hd, hd - 1]) box(frame, [-hl, hl - 1], [2, 2], [z, z], "woodDark"); // the base's rails
+  for (const x of [-hl, hl - 1]) box(frame, [x, x], [2, 2], [-hd + 1, hd - 2], "woodDark");
+  box(frame, [-hl + 1, hl - 2], [3, 3], [-hd + 1, hd - 2], (x) => (x % 3 === 0 ? "woodDark" : "wood")); // the deck's slats
+  for (const x of [-hl, hl - 1]) {
+    box(frame, [x, x], [3, 14], [hd - 1, hd - 1], "woodDark");
+    box(frame, [x, x], [3, 14], [0, 0], "woodDark");
+    box(frame, [x, x], [3, 22], [-hd, -hd], "woodDark");
+  }
+  box(frame, [-hl, hl - 1], [14, 14], [0, hd - 1], (x, y, z) => (z === hd - 1 ? "wood" : "woodLight"));
+  box(frame, [-hl, hl - 1], [22, 22], [-hd, -1], (x, y, z) => (z === -1 ? "wood" : "woodLight"));
+  // The push bar, on two brackets off the left end's posts.
+  for (const z of [-hd + 2, hd - 3]) box(frame, [-hl - 2, -hl - 1], [18, 18], [z, z], "woodDark");
+  box(frame, [-hl - 2, -hl - 2], [17, 18], [-hd + 2, hd - 3], "wood");
+  const frameMesh = shadowy(meshOf(frame, 1, PALETTE));
+
+  const { shelf, cards, trays } = trolleyPlanted();
+  const fine = part();
+  for (const [kind, x, y, z, seed, o] of shelf) PLANTS[kind](fine, H(x), H(y), H(z), seed, o);
+  const plantMesh = shadowy(meshOf(fine, HALF, PALETTE));
+  g.add(frameMesh, plantMesh, cardsMesh(cards));
+
+  // Its trays: each a tray of black plastic with its nine pots and its card, as a whole; on the deck (`aboard`,
+  // the place there) going where the trolley goes, or carried (hours.js) and set down on the pavement.
+  const meshes = [frameMesh, plantMesh];
+  const t = {};
+  const onDeck = (k) => t.toWorld(DECK[k]);
+  const trayThings = trays.map(({ plants, card }, k) => {
+    const tg = new THREE.Group();
+    parent.add(tg);
+    const tp = part();
+    const [w, d] = [TRAY_W / 2, TRAY_D / 2];
+    box(tp, [-w, w - 1], [0, 1], [-d, d - 1], (x, y, z) => (y === 1 && x > -w && x < w - 1 && z > -d && z < d - 1 ? "potBlack" : "tray"));
+    const pf = part();
+    for (const [kind, x, y, z, seed, o] of plants) PLANTS[kind](pf, H(x), H(y), H(z), seed, o);
+    const parts = [shadowy(meshOf(tp, 1, PALETTE)), shadowy(meshOf(pf, HALF, PALETTE))];
+    tg.add(...parts, cardsMesh([card]));
+    meshes.push(...parts);
+    const [hx, hz] = TROLLEY.trays[k];
+    const tray = {
+      name: `tray${k}`,
+      home: [hx, 0, hz], // (out on the pavement, of a morning)
+      where: [hx, 0, hz],
+      shown: true,
+      height: 9,
+      radius: 8,
+      aboard: null, // the place on the deck it rides in, if on it
+      yaw: 0,
+      place(x, y, z, shown = true) {
+        tray.where = [x, y, z];
+        tray.shown = shown;
+        tg.position.set(x, y, z);
+        tg.rotation.y = tray.yaw;
+        tg.visible = shown;
+        onMove();
+      },
+      spin(yaw) {
+        tray.yaw = yaw;
+        tg.rotation.y = yaw;
+      },
+      // Up onto its place on the deck (`on`), riding there, or off it.
+      ride(on) {
+        tray.aboard = on ? k : null;
+        if (on) {
+          tray.spin(t.yaw);
+          tray.place(...onDeck(k));
+        }
+      },
+      deck: () => onDeck(k), // where on the deck it goes
+    };
+    return tray;
+  });
+
+  const [c, sn] = [new THREE.Vector3(), new THREE.Vector3()];
+  Object.assign(t, {
+    pose: "morning", // where it stands: "morning" (in the corner) or "afternoon" (beside the plinth), or "moving"
+    x: 0,
+    z: 0,
+    yaw: 0,
+    meshes,
+    trays: trayThings,
+    // A point about its middle (its own frame) in the world.
+    toWorld([x, y, z]) {
+      const [cs, s] = [Math.cos(t.yaw), Math.sin(t.yaw)];
+      return [t.x + x * cs + z * s, y, t.z - x * s + z * cs];
+    },
+    grip: () => t.toWorld(GRIP),
+    // Moved to (x, z), turned to `yaw`, its trays on board with it.
+    place(x, z, yaw) {
+      Object.assign(t, { x, z, yaw });
+      g.position.set(x, 0, z);
+      g.rotation.y = yaw;
+      for (const tray of trayThings) if (tray.aboard !== null) tray.ride(true);
+      onMove();
+    },
+    // Where it stands in the morning or the afternoon (TROLLEY), its trays out in front of it or on board.
+    set(pose, traysOut = pose === "morning") {
+      const p = TROLLEY[pose];
+      t.pose = pose;
+      t.place(p.x, p.z, p.yaw);
+      for (const tray of trayThings) {
+        tray.ride(!traysOut);
+        if (traysOut) {
+          tray.spin(0);
+          tray.place(...tray.home);
+        }
+      }
+    },
+    // Its footprint at a pose, as a box [x0, x1, z0, z1] (end on, the long way along z), the push bar in.
+    box({ x, z, yaw }) {
+      const along = Math.abs(Math.sin(yaw)) > 0.5;
+      const [ax, az] = along ? [hd, hl + 2] : [hl + 2, hd];
+      return [x - ax, x + ax, z - az, z + az];
+    },
+  });
+  t.set("morning");
+  return t;
 }
 
 /* ---------------------------------------------------------------------------------------------------------- */

@@ -488,10 +488,12 @@ export function potStack(p, cx, cy, cz, r, n) {
 
 // The rack on the plinth: two stepped shelves of wire.
 export const RACK = { x0: PLINTH.x0 + 6, x1: PLINTH.x1 - 6, low: { z0: -97, z1: -90, y: 22 }, high: { z0: -104, z1: -97, y: 30 } };
-// The trays on the pavement in front, side by side with a gap between; the stacks of empty pots past them.
-export const TRAY_W = 15;
-export const TRAY_COUNT = 7;
-export const POT_STACKS = { x0: PLINTH.x1 + 5, x1: PLINTH.x1 + 19, z0: TRAYS.z0, z1: TRAYS.z1 - 2 }; // (clear of the tarp's end)
+// The trays on the pavement in front, side by side with a gap between.
+export const TRAY_W = 14;
+export const TRAY_D = TRAYS.z1 - TRAYS.z0;
+export const TRAY_COUNT = 4;
+// A tray's pots, three by three, as [x, z] off its middle.
+const TRAY_POTS = [-5, 0, 5].flatMap((x) => [-4.5, 0, 4.5].map((z) => [x, z]));
 
 // Every plant as [kind, x, y, z, seed, options], in three groups (on the rack, on the plinth, in the trays:
 // none reaching into another), and every card as [name, price, x, y, z] (its middle, on a front facing the
@@ -501,8 +503,8 @@ export function planted() {
   const cards = [];
   // On the rack: tall ones up top, mid-sized below, a trailing one here and there; the trails up top short
   // (the shelf below is close under), those below longer, over the plinth's back.
-  const HIGH = ["lily", "snake", "pothos", "strelitzia", "rubber", "pearls", "lily", "snake", "strelitzia", "pothos", "rubber", "snake"];
-  const LOW = ["orchid", "fern", "calathea", "anthurium", "orchid", "pothos", "fern", "orchid", "calathea", "anthurium", "pearls", "orchid"];
+  const HIGH = ["lily", "snake", "pothos", "strelitzia", "rubber", "pearls", "snake", "strelitzia"];
+  const LOW = ["orchid", "fern", "calathea", "anthurium", "pothos", "orchid", "pearls", "calathea"];
   for (const [row, kinds, trail] of [
     [RACK.high, HIGH, 10],
     [RACK.low, LOW, 16],
@@ -512,20 +514,15 @@ export function planted() {
       rack.push([kind, RACK.x0 + step * (i + 0.5), row.y + 1, (row.z0 + row.z1) / 2, 50 + i * 7 + row.y, { trail, pink: i % 2 === 0 }])
     );
   }
-  // On the plinth in front, a block of each cactus or succulent two pots wide and three deep, the tall
-  // kinds between low ones; its card on the plinth's face below.
+  // On the plinth in front, a block of each succulent two pots wide and three deep, the tall kinds between
+  // low ones; its card on the plinth's face below. (The cacti are on the trolley: trolleyPlanted().)
   const BLOCKS = [
-    ["column", "Cactus", "$12"],
     ["echeveria", "Echeveria", "$8"],
     ["opuntia", "Bunny ears", "$14"],
-    ["ball", "Ball cactus", "$10"],
-    ["aloe", "Aloe", "$12"],
     ["haworthia", "Haworthia", "$8"],
-    ["jade", "Jade", "$15"],
-    ["moon", "Moon cactus", "$9"],
-    ["barrel", "Golden barrel", "$16"],
-    ["column", "Old man", "$18", { hairy: true }],
+    ["aloe", "Aloe", "$12"],
     ["kalanchoe", "Kalanchoe", "$10"],
+    ["jade", "Jade", "$15"],
     ["echeveria", "Echeveria", "$8", { peach: true }],
   ];
   const col = (PLINTH.x1 - PLINTH.x0 - 4) / (BLOCKS.length * 2);
@@ -541,19 +538,42 @@ export function planted() {
   const TRAY_KINDS = [
     ["peperomia", "Peperomia", "$15"],
     ["calathea", "Calathea", "$22"],
-    ["fern", "Fern", "$18", { r: 4 }],
     ["zz", "ZZ plant", "$25"],
-    ["peperomia", "Peperomia", "$15", { rosso: true }],
     ["monstera", "Monstera", "$20"],
-    ["dracaena", "Dracaena", "$22"],
   ];
   TRAY_KINDS.forEach(([kind, name, price, o = {}], t) => {
-    const x0 = trayX(t);
-    for (let c = 0; c < 3; c++)
-      [-68.5, -64, -59.5].forEach((z, r) => trays.push([kind, x0 + 2.5 + c * 5, 2, z, t * 17 + c * 5 + r, { pot: "nursery", ...o }]));
-    cards.push([name, price, x0 + TRAY_W / 2, 3.2, TRAYS.z1]);
+    const x = trayX(t) + TRAY_W / 2;
+    const z = (TRAYS.z0 + TRAYS.z1) / 2;
+    TRAY_POTS.forEach(([dx, dz], k) => trays.push([kind, x + dx, 2, z + dz, t * 17 + k, { pot: "nursery", ...o }]));
+    cards.push([name, price, x, 3.2, TRAYS.z1]);
   });
   return { groups: [rack, plinth, trays], cards };
 }
 // The left edge of tray `t`.
 export const trayX = (t) => TRAYS.x0 + t * ((TRAYS.x1 - TRAYS.x0 - TRAY_W) / (TRAY_COUNT - 1));
+
+// The trolley's plants, as planted() but about its own middle on the ground (its length along x, its front
+// to +z; TROLLEY): the cacti on its two stepped shelves, the short ones on the low front one, the tall
+// columns behind; its cards on the shelves' front edges. Its two trays' plants about a tray's middle on
+// the ground, and their cards.
+export const TROLLEY_SHELVES = { front: { y: 15, z: 4 }, back: { y: 23, z: -4 } };
+export function trolleyPlanted() {
+  const shelf = [];
+  const cards = [];
+  const rows = [
+    [TROLLEY_SHELVES.front, ["ball", "moon", "barrel", "ball", "moon", "barrel", "ball"], ["Ball cactus", "$10"], ["Moon cactus", "$9"]],
+    [TROLLEY_SHELVES.back, ["column", "column", "column", "column", "column", "column", "column"], ["Cactus", "$12"], ["Old man", "$18"]],
+  ];
+  for (const [{ y, z }, kinds, left, right] of rows) {
+    kinds.forEach((kind, i) => shelf.push([kind, -13.5 + i * 4.5, y, z, 90 + i * 13 + y, { hairy: kind === "column" && i % 2 === 1 }]));
+    cards.push([...left, -8, y - 2.5, z + 4], [...right, 8, y - 2.5, z + 4]);
+  }
+  const trays = [
+    ["fern", "Fern", "$18", { r: 4 }],
+    ["peperomia", "Peperomia", "$15", { rosso: true }],
+  ].map(([kind, name, price, o], t) => ({
+    plants: TRAY_POTS.map(([dx, dz], k) => [kind, dx, 2, dz, 140 + t * 17 + k, { pot: "nursery", ...o }]),
+    card: [name, price, 0, 3.2, TRAY_D / 2],
+  }));
+  return { shelf, cards, trays };
+}

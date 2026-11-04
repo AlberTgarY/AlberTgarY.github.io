@@ -29,7 +29,14 @@ export function makeShopLife(home) {
   // Whether `a` (one of the staff) may be called away to a customer: there, not at a duty, not serving one
   // already or making up a bouquet someone asked for.
   const free = (a) =>
-    !a.away && !a.jobLong && a.jobName !== "openSign" && a.jobName !== "serve" && !a.asked && !a.pending?.asked && a.pending?.name !== "serve";
+    !a.away &&
+    !a.jobLong &&
+    a.jobName !== "openSign" &&
+    a.jobName !== "serve" &&
+    a.jobName !== "wonton" &&
+    !a.asked &&
+    !a.pending?.asked &&
+    a.pending?.name !== "serve";
   // `a` to do `todo` next, what it is doing put back.
   function call(a, todo) {
     a.pending = todo;
@@ -176,7 +183,7 @@ export function makeShopLife(home) {
     hours.step();
     acts.tick?.(clock.dt);
     for (const a of home.actors) {
-      if (a.customer || a.street) continue; // (not theirs: customers.js, street.js)
+      if (a.customer || a.street || a.boss) continue; // (not theirs: customers.js, street.js, stall-life.js)
       if (!a.job) {
         const duty = hours.duty(a);
         if (duty) start(a, duty);

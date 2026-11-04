@@ -13,6 +13,16 @@
  * In the morning they come back and do it all the other way round, in time to
  * turn the sign to OPEN at ten.
  *
+ * The corner by the tree is theirs till two (the cacti's trolley and its two
+ * trays out there): at two they make it over to the wonton stall
+ * (stall-life.js), she putting the trays up on the trolley's deck, he
+ * pulling the trolley along to stand end on beside the plinth and then
+ * bringing the shop's folding table and stools out of the lock-up for the
+ * stall's customers, she sweeping the corner after it; at night, closing up,
+ * he folds them away again once the last of them have eaten. In the morning,
+ * the stall gone, he rolls the trolley back to the corner and she sets the
+ * trays out in front of it again.
+ *
  * What each of them is to do just now is their duty (`duty(a)`, run by life.js
  * before anything else); the shop between times is `state`: "open" (all set out,
  * them at work; the sign OPEN in the hours), "closing", "closed" (all in, no one
@@ -25,7 +35,8 @@ import { rnd } from "../stage.js";
 import { makeSteps } from "../room/steps.js";
 import { HOLDS, MOVES } from "../room/props.js";
 import { setFade, comeIn, goOff } from "./fade.js";
-import { HOURS, KIOSK, FLOOR, DOG_BED, STREET, GROUND } from "./layout.js";
+import { HOURS, KIOSK, FLOOR, DOG_BED, STREET, GROUND, TROLLEY, STALL } from "./layout.js";
+import { WORK } from "./acts.js";
 
 // Hurrying, setting out or closing up (an hour's work done in a few minutes): a brisk walk with things in the
 // hands, a jog without (actor.js JOG).
@@ -76,6 +87,7 @@ export function makeShopHours(home, life) {
   const D = home.display;
   const G = home.grounds;
   const { shutter, lockup, openSign } = K;
+  const trolley = G.trolley;
   const girl = home.byName.girl;
   const boy = home.byName.boy;
   const dog = home.byName.collie;
@@ -162,6 +174,7 @@ export function makeShopHours(home, life) {
         const hands = carryAt(a, c.item, c.side, c.crouch);
         const e = c.k * c.k * (3 - 2 * c.k);
         const [p, q] = c.down ? [hands, c.to] : [c.from, hands];
+        c.item.spin?.(a.yaw); // (a tray, square, carried square on)
         c.item.place(p[0] + (q[0] - p[0]) * e, p[1] + (q[1] - p[1]) * e, p[2] + (q[2] - p[2]) * e);
       }
   }
@@ -577,6 +590,158 @@ export function makeShopHours(home, life) {
     setFade(a, gone ? 0 : 1);
   }
 
+  /* ----- the corner by the tree: made over to the wonton stall at two, and back in the morning ----- */
+
+  // Rolling the trolley between its two places (TROLLEY), him at its push bar: out from the mural and along,
+  // turned end on, and along beside the plinth (or the other way). Its trays ride on its deck.
+  const P = [TROLLEY.morning, { ...TROLLEY.morning, x: 123, z: -89 }, { ...TROLLEY.afternoon, x: 123 }, TROLLEY.afternoon];
+  const ROLL_SECS = [2.6, 3.2, 2.6];
+  const barStand = ({ x, z, yaw }) => [x - 21 * Math.cos(yaw), z + 21 * Math.sin(yaw)];
+  function* roll(a, to) {
+    const poses = to === "afternoon" ? P : [...P].reverse();
+    const at = barStand(poses[0]);
+    yield* walk(a, home.nav.nearest(...at) ?? at, pace(a));
+    yield* stepTo(a, at, 0.8);
+    yield* turn(a, poses[0].yaw + Math.PI / 2);
+    a.hold = HOLDS.grip;
+    a.since = t();
+    a.lean = to === "afternoon" ? -0.15 : 0.15; // (pulling it, or pushing)
+    trolley.pose = "moving";
+    a.cleanups.push(() => {
+      if (trolley.pose === "moving") trolley.set(to, false);
+    });
+    for (let i = 1; i < poses.length; i++) {
+      const [p, q] = [poses[i - 1], poses[i]];
+      const t0 = t();
+      for (let k = 0; k < 1; ) {
+        k = Math.min(1, (t() - t0) / ROLL_SECS[i - 1]);
+        const e = k * k * (3 - 2 * k);
+        trolley.place(p.x + (q.x - p.x) * e, p.z + (q.z - p.z) * e, p.yaw + (q.yaw - p.yaw) * e);
+        const [sx, sz] = barStand(trolley);
+        a.walking = Math.hypot(sx - a.x, sz - a.z) > 0.02;
+        a.pace = 0.45;
+        [a.x, a.z] = [sx, sz];
+        a.snap(trolley.yaw + Math.PI / 2);
+        yield;
+      }
+    }
+    a.walking = false;
+    a.pace = 1;
+    trolley.pose = to;
+    a.lean = 0;
+    a.hold = null;
+    yield* stepTo(a, [a.x + (to === "afternoon" ? 0 : -6), a.z + (to === "afternoon" ? 6 : 0)], 0.8);
+  }
+  // A tray up onto its place on the trolley's deck from the pavement (`on`), or down off it to the pavement:
+  // from before its place on the pavement, in over it (a step) to the deck.
+  const DECK_STAND = -84; // (the trolley in the corner: before its deck)
+  const PAVE_STAND = -60; // (before the trays out on the pavement)
+  function* trayMove(a, tray, on) {
+    const [hx, , hz] = tray.home;
+    const deck = tray.deck();
+    a.cleanups.push(() => {
+      carrying.delete(a);
+      if (on) tray.ride(true);
+      else {
+        tray.ride(false);
+        tray.spin(0);
+        tray.place(...tray.home);
+      }
+    });
+    yield* goTo(a, [hx, PAVE_STAND]);
+    if (!on) yield* stepTo(a, [deck[0], DECK_STAND], 0.8);
+    yield* turn(a, Math.PI);
+    if (!on) tray.ride(false);
+    yield* lift(a, [[tray, 0]]);
+    yield* stepTo(a, on ? [deck[0], DECK_STAND] : [hx, PAVE_STAND], 0.7);
+    yield* turn(a, Math.PI);
+    yield* setDown(a, [[tray, on ? deck : tray.home]]);
+    if (on) tray.ride(true);
+    else tray.spin(0);
+    if (on) yield* stepTo(a, [hx, PAVE_STAND], 0.8);
+  }
+  // The corner swept after the trolley, a few places.
+  function* sweepCorner(a) {
+    a.shop.only("broom", "dustpan");
+    for (const at of [
+      [140, -92],
+      [152, -76],
+      [128, -74],
+    ]) {
+      yield* walk(a, at, pace(a));
+      a.face(rnd(-0.4, 0.4));
+      a.hold = WORK.sweep;
+      a.since = t();
+      yield* wait(a, rnd(1.6, 2.2));
+      G.petals?.sweep?.(a.x, a.z + 6, 18);
+    }
+    a.hold = null;
+    a.shop.only();
+  }
+  // At two: she puts the trays up, he rolls it along once they are, she sweeps up after it.
+  const cleared = new Set(); // (who has done their part today)
+  let clearing = false; // (from two till both have)
+  function* clearCorner(a) {
+    if (a === girl) {
+      for (const tray of trolley.trays) if (tray.aboard === null) yield* trayMove(a, tray, true);
+      yield* until(() => trolley.pose === "afternoon", 40);
+      yield* sweepCorner(a);
+    } else {
+      yield* outOfDoorway(a);
+      yield* until(() => trolley.trays.every((x) => x.aboard !== null), 60);
+      if (trolley.pose === "morning") yield* roll(a, "afternoon");
+      yield* stallTable(a, true);
+    }
+    cleared.add(a);
+  }
+  // The shop's folding table and stools for the stall's customers: out of the lock-up and set out before the
+  // tricycle (carried in his arms, the stools stacked), or folded and stacked and back in (once no one is at it).
+  function* stallTable(a, out) {
+    const S = home.stall;
+    if (!S || S.state.furniture === out) return;
+    const stand = STALL.table.stand;
+    if (out) {
+      yield* intoLockup(a, function* () {
+        a.hold = HOLDS.tray;
+        yield* wait(a, 0.4);
+      });
+      S.carryTable(a);
+      yield* walk(a, stand, pace(a));
+      yield* turn(a, Math.PI);
+      S.carryTable(null);
+      a.hold = MOVES.press;
+      a.since = t();
+      S.set({ furniture: true });
+      yield* wait(a, 0.7);
+      a.hold = null;
+    } else {
+      yield* until(() => home.stallLife?.tableFree() ?? true, 900);
+      yield* walk(a, stand, pace(a));
+      yield* turn(a, Math.PI);
+      a.hold = MOVES.press;
+      a.since = t();
+      yield* wait(a, 0.6);
+      S.set({ furniture: false });
+      a.hold = HOLDS.tray;
+      S.carryTable(a);
+      yield* intoLockup(a, function* () {
+        S.carryTable(null);
+        yield* wait(a, 0.4);
+        a.hold = null;
+      });
+    }
+  }
+  // In the morning (setting out): he rolls it back, she takes the trays down off it once it is there.
+  function* cornerOut(a) {
+    if (a === boy) {
+      yield* until(() => home.stallLife?.gone() ?? true, 120); // (the stall gone from the corner)
+      if (trolley.pose === "afternoon") yield* roll(a, "morning");
+    } else {
+      yield* until(() => trolley.pose === "morning", 60);
+      for (const tray of trolley.trays) if (tray.aboard !== null) yield* trayMove(a, tray, false);
+    }
+  }
+
   /* ----- what each has to do ----- */
 
   let state = "open";
@@ -653,6 +818,7 @@ export function makeShopHours(home, life) {
       if (load && Math.random() < plan.pause) yield* moment(a);
     }
     if (G.tarp.k < 1) yield* tarpOver(a, true);
+    if (a === boy) yield* stallTable(a, false);
     if (a === boy && !lockup.locked) yield* lockLockup(a, true);
     if (a === girl && K.lights.on) yield* lightsOut(a);
     if (shutter.k < 1 || !shutter.locked) yield* shutterRun(a, true);
@@ -691,6 +857,7 @@ export function makeShopHours(home, life) {
       if (load && Math.random() < plan.pause) yield* moment(a);
     }
     if (G.tarp.k > 0) yield* tarpOver(a, false);
+    if (trolley.pose !== "morning" || trolley.trays.some((x) => x.aboard !== null)) yield* cornerOut(a);
     if (a === boy && lockup.open) {
       yield* walk(a, lockup.at, pace(a));
       yield* turn(a, Math.PI);
@@ -709,14 +876,16 @@ export function makeShopHours(home, life) {
     },
     // Whether customers may come: the sign OPEN, and not yet closing.
     open: () => state === "open" && openSign.open,
-    // Whether they are closing up or setting out.
-    busy: () => state === "closing" || state === "opening",
+    // Whether they are closing up or setting out (or clearing the corner for the stall).
+    busy: () => state === "closing" || state === "opening" || clearing,
+    clearing: () => clearing,
     // What `a` has to do just now, if anything (a todo for life.js: { name, run, long }).
     duty(a) {
       if (a.away && state !== "opening") return null;
       if (state === "closing") return { name: "closeUp", long: true, run: closeUp };
       if (state === "opening" && !a.setUp) return { name: "setUp", long: true, run: setUp };
       if (a === girl && signDue()) return { name: "openSign", run: (b) => turnSign(b, true) };
+      if (clearing && staff.includes(a) && !cleared.has(a)) return { name: "clearCorner", long: true, run: clearCorner };
       return null;
     },
     // Each frame, before anyone moves: the hour to close up or to come in reached.
@@ -727,6 +896,13 @@ export function makeShopHours(home, life) {
       else if (state === "closing" && crew.every((o) => o.away)) state = "closed";
       else if (state === "opening" && crew.every((o) => o.setUp)) state = "open";
       else if (signDue() && girl.job && girl.jobName !== "openSign") life.drop(girl); // (ten o'clock: whatever she is at)
+      // Two o'clock: the corner to be cleared (each drops what they are at, once free of a customer).
+      if (!clearing && state === "open" && h >= HOURS.clear && h < HOURS.close && trolley.pose === "morning") {
+        clearing = true;
+        cleared.clear();
+        for (const a of staff) if (a.job && a.jobName !== "serve" && a.jobName !== "bouquet") life.drop(a);
+      }
+      if (clearing && (cleared.size === staff.length || state !== "open")) clearing = false;
     },
     // Each frame, after everyone has moved: what is carried kept in their arms.
     follow,
@@ -748,6 +924,10 @@ export function makeShopHours(home, life) {
       const day = hours.setOutAt(h);
       entries.forEach(day ? setOut : stow);
       G.tarp.set(day ? 0 : 1);
+      // (the corner the stall's from two, and through the night; theirs from ten, set out)
+      clearing = false;
+      cleared.clear();
+      trolley.set(day && h < HOURS.clear + CATCH ? "morning" : "afternoon");
       things.bundle.place(...things.bundle.home, false);
       lockup.set(false);
       lockup.k = 0;
