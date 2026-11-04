@@ -248,8 +248,9 @@ const PAL = {
   bambooDark: "#c4a370",
 };
 
-// `shared`: what the house so far has to share (house.js).
-export function buildBasement(shared) {
+// `shared`: what the house so far has to share (house.js). Built a piece at a time (it took a few seconds,
+// the page frozen): after each it yields how far it has got (0 to 1).
+export function* buildBasement(shared) {
   const { scene, updates, water: drops } = shared; // (drops: water.js)
   const group = new THREE.Group();
   group.name = "basement";
@@ -400,6 +401,7 @@ export function buildBasement(shared) {
   });
   const wash = (a, b, at, axis) => (sheet(washMat, a, b, at, axis, null).renderOrder = 1);
 
+  yield 0.1;
   /* ---------- the shell: floors, walls, the slab ---------- */
 
   // The bathroom tiled, everywhere else the house's oak boards.
@@ -508,6 +510,7 @@ export function buildBasement(shared) {
   glassAlongX([SPLIT.x + 1.5, GYM.door[0]], GYM.z, clearMat);
   glassAlongX([GYM.door[1], SIDE - 2], GYM.z, clearMat);
 
+  yield 0.2;
   /* ---------- the bathroom ---------- */
 
   // The toilet's nook in the back left corner: a tiled side wall, an oak panel hiding the cistern with an
@@ -1857,6 +1860,7 @@ export function buildBasement(shared) {
   const tank = { fedAt: -1e9, scaredAt: -1e9, mid: [(TANK.x0 + TANK.x1) / 2, W((TANK.y0 + TANK.y1) / 2), (TANK.z0 + TANK.z1) / 2] };
   tank.feed = (t) => (tank.fedAt = t);
 
+  yield 0.45;
   /* ---------- the lounge ---------- */
 
   // A blush velvet pouf by the tank on the lounge side, for the cat to sit on and watch.
@@ -2243,6 +2247,7 @@ export function buildBasement(shared) {
   basketTree(22, -10, 0, 1, 0.4);
   basketTree(163, 40, 0, 1.1, 2.2);
 
+  yield 0.55;
   /* ---------- the gym ---------- */
 
   // The mirror across the back wall in an oak frame (its glass shows the room: mirror.js, given `gymGlass`).
@@ -2782,6 +2787,7 @@ export function buildBasement(shared) {
     fill(4, [BARS.x0 + 2, BARS.x1 - 2], [y, y + 1], [BACK + 1, BACK + 2], (x, yy, z) => (Math.abs(z - BACK - 1.5) < 0.5 ? "woodLight" : null));
   block(BARS.x0, BARS.x1, BACK, BACK + 4);
 
+  yield 0.7;
   /* ---------- lights ---------- */
 
   // An invisible box over a thing a visitor can click (`clickables`): what the ray finds.
@@ -3037,6 +3043,7 @@ export function buildBasement(shared) {
     }
   );
 
+  yield 0.75;
   /* ---------- the patch over whoever should not be seen ---------- */
 
   // Soft pastel tiles, 6 by 8, each lit along its top and left edges and shaded along the others, the corner
@@ -3101,7 +3108,8 @@ export function buildBasement(shared) {
   // The static parts, one mesh each.
   // (All of it casting the arc lamp's shadows, and the floors and all of it taking them: room.js draws them.)
   const still = []; // (only what the gym's mirror shows of them drawn in it: mirror.js)
-  for (const { n, glow, far, near } of grids.values())
+  let meshed = 0;
+  for (const { n, glow, far, near } of grids.values()) {
     for (const [p, into] of [
       [far, rest],
       [near, group],
@@ -3112,6 +3120,8 @@ export function buildBasement(shared) {
       into.add(m);
       still.push(m);
     }
+    yield 0.8 + (0.2 * ++meshed) / grids.size;
+  }
   grids.clear(); // (their cells, half the page's memory, let go: kept, every collection of it took longer)
   floors.forEach((m) => (m.receiveShadow = true));
 

@@ -117,7 +117,14 @@ export function* buildingHouse(scene, water) {
   };
   const parts = [buildShell, buildWindows, buildKitchen, buildLoft, buildLiving, buildStairs, buildDecor, buildYard, buildGarden, buildBasement];
   for (const [k, build] of parts.entries()) {
-    Object.assign(shared, build(shared));
+    let made = build(shared);
+    if (made?.next) {
+      // (built a piece at a time, the basement: it yields how far it has got, then returns what it made)
+      let step;
+      while (!(step = made.next()).done) yield (k + step.value) / parts.length;
+      made = step.value;
+    }
+    Object.assign(shared, made);
     yield (k + 1) / parts.length;
   }
   const {

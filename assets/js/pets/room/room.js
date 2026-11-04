@@ -12,7 +12,7 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { clamp, rnd } from "../stage.js";
+import { clamp, rnd, compiledInTurns } from "../stage.js";
 import { buildingHouse, built, floorY, X0, X1, SIDE, BACK, FRONT, YARD } from "./house.js";
 import { makeWater, GRAVITY } from "./water.js";
 import { makeWeather } from "./weather.js";
@@ -611,40 +611,39 @@ export function* buildingRoom(stage) {
     },
     layout: (width, maxHeight) => view.layout(width, maxHeight),
     // Gets the shaders ready to draw it all before the first frame: without holding up the page where the
-    // browser can compile them in the background (three.js's compileAsync waits for ever without that, and
-    // it is given a few seconds at most anyway), or else all at once. (The pictures in the mirror and the
-    // windows are drawn with the screen's shaders: view.js srgbTarget().)
-    warm() {
+    // browser can compile them in the background (compiledInTurns()), or else all at once. (The pictures in
+    // the mirror and the windows are drawn with the screen's shaders: view.js srgbTarget().)
+    async warm(progress = () => {}) {
       const { renderer, camera } = view;
       const parallel = renderer.extensions.has("KHR_parallel_shader_compile");
       renderer.render(new THREE.Scene(), camera); // (a frame sets up the view's clipping planes, which the shaders are made for)
       // (With what is painted beyond the windows, unlit scenes of their own: else made as a window first shows.)
       const scenes = [scene, ...new Set(house.outlooks.map((o) => o.scene))];
-      const compiled = Promise.all(scenes.map((s) => (parallel ? renderer.compileAsync(s, camera) : renderer.compile(s, camera))));
       view.warm(); // (what is drawn between floors)
+      for (const [k, s] of scenes.entries())
+        if (parallel) await compiledInTurns(renderer, camera, s, s, (done) => progress(k === 0 ? done : 1));
+        else renderer.compile(s, camera);
       // A frame each other way it can be seen (round to the front garden, down in the basement), by night and
       // by day, before the page shows it: what is first drawn there (its buffers and textures, a shader for
       // that view, the lamps and glows lit only at night) ready before it is needed, not a hitch as the view
-      // first gets there or the night first falls. Then the time of day as it was.
-      const views = () => {
-        const [night, hour] = [home.night, day.hour];
-        for (const dark of [!night, night]) {
-          nightfall(dark);
-          for (const [turned, below] of [
-            [true, false],
-            [false, true],
-            [false, false],
-          ]) {
-            view.turnTo(turned, true);
-            view.floorTo(below, true);
-            this.step(0);
-          }
+      // first gets there or the night first falls; one a frame (all at once they held the page up half a
+      // second). Then the time of day as it was.
+      const [night, hour] = [home.night, day.hour];
+      for (const dark of [!night, night]) {
+        nightfall(dark);
+        for (const [turned, below] of [
+          [true, false],
+          [false, true],
+          [false, false],
+        ]) {
+          await new Promise((done) => requestAnimationFrame(() => setTimeout(done)));
+          view.turnTo(turned, true);
+          view.floorTo(below, true);
+          this.step(0);
         }
-        day.hour = hour;
-        daylight(true);
-      };
-      if (!parallel) return Promise.resolve(views());
-      return Promise.race([compiled, new Promise((done) => setTimeout(done, 4000))]).then(views);
+      }
+      day.hour = hour;
+      daylight(true);
     },
     // Turn the view round to the front garden (true), or back to the house; `now`, all at once.
     turn: (out, now = false) => view.turnTo(out, now),

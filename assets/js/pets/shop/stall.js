@@ -567,25 +567,25 @@ export function* buildingStall(shared) {
     blending: THREE.AdditiveBlending,
     opacity: 0.55,
   });
-  const bulbs = []; // { mesh, halo }
+  const bulbs = []; // { mesh, halo, at } a string
   const haloGeometry = new THREE.PlaneGeometry(7, 7);
-  function bulb(parent, x, y, z) {
-    const m = new THREE.Mesh(bulbGeometry, bulbOff);
-    m.position.set(x, y, z);
-    const h = new THREE.Mesh(haloGeometry, haloMat);
-    h.position.set(x, y, z);
-    h.visible = false;
-    h.userData.face = true; // (turned to the camera: update())
-    parent.add(m, h);
-    bulbs.push({ mesh: m, halo: h });
+  // A string's bulbs at points `at` (in `parent`), and their glows: all its bulbs one mesh, and all its glows
+  // (a draw each, not one a bulb).
+  function bulbsAt(parent, at) {
+    const mesh = new THREE.InstancedMesh(bulbGeometry, bulbOff, at.length);
+    const halo = new THREE.InstancedMesh(haloGeometry, haloMat, at.length); // (turned to the camera: update())
+    for (const [k, p] of at.entries()) for (const m of [mesh, halo]) m.setMatrixAt(k, new THREE.Matrix4().setPosition(p));
+    halo.visible = false;
+    parent.add(mesh, halo);
+    bulbs.push({ mesh, halo, at });
   }
   const string = new THREE.Group(); // the valance's string, which swings when clicked
   string.position.set(ROOF.x1 - 0.4, roofAt(ROOF.x1, 0) - 6.4, 0);
   cart.add(string);
-  for (let k = 0; k < 9; k++) {
-    const z = -16 + k * 4;
-    bulb(string, 0, -0.6 - 0.9 * Math.sin((Math.PI * (k + 0.5)) / 9) * 0.6, z);
-  }
+  bulbsAt(
+    string,
+    Array.from({ length: 9 }, (_, k) => new THREE.Vector3(0, -0.6 - 0.9 * Math.sin((Math.PI * (k + 0.5)) / 9) * 0.6, -16 + k * 4))
+  );
   const wire = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 36), new THREE.MeshLambertMaterial({ color: 0x2a2a2a }));
   string.add(wire);
 
@@ -861,10 +861,10 @@ export function* buildingStall(shared) {
       new THREE.MeshLambertMaterial({ color: 0x2a2a2a })
     );
     treeString.add(line);
-    for (let k = 1; k <= 7; k++) {
-      const p = points[Math.round((k * 24) / 8)];
-      bulb(treeString, p.x, p.y - 0.7, p.z);
-    }
+    bulbsAt(
+      treeString,
+      Array.from({ length: 7 }, (_, k) => points[Math.round(((k + 1) * 24) / 8)].clone().add(new THREE.Vector3(0, -0.7, 0)))
+    );
   }
   treeString.visible = false;
   yield;
@@ -1008,6 +1008,7 @@ export function* buildingStall(shared) {
   const sunDir = new THREE.Vector3(120, 380, 160).normalize();
   const lightNow = { sky: new THREE.Color(), ground: new THREE.Color(), sun: new THREE.Color(), sunDir, lamp: new THREE.Color(), lampAt: [0, 0, 0] };
   let nightK = 0;
+  const [facing, ONE] = [new THREE.Matrix4(), new THREE.Vector3(1, 1, 1)];
   Object.assign(stall, {
     // The time of day: the bulbs, the lamp and the lantern lit after dusk (and while it is set out).
     dress(night) {
@@ -1032,7 +1033,12 @@ export function* buildingStall(shared) {
       lanternGlow.material.opacity = 0.5 * nightK * (0.92 + 0.08 * Math.sin(t * 7));
       // (the halos turned to face the camera)
       const cam = home.view.camera;
-      for (const h of [...bulbs.map((b) => b.halo), lampHalo, lanternGlow]) if (h.visible) h.quaternion.copy(cam.quaternion);
+      for (const h of [lampHalo, lanternGlow]) if (h.visible) h.quaternion.copy(cam.quaternion);
+      for (const { halo, at } of bulbs) {
+        if (!halo.visible) continue;
+        at.forEach((p, k) => halo.setMatrixAt(k, facing.compose(p, cam.quaternion, ONE)));
+        halo.instanceMatrix.needsUpdate = true;
+      }
       // The swings.
       for (const s of [lanternSwing, stringSwing, lampSwing]) s.step(dt);
       lantern.rotation.set(lanternSwing.x + 0.02 * Math.sin(t * 0.9), 0, lanternSwing.z);

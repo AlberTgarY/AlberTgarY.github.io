@@ -20,7 +20,7 @@
 
 import "../room/house.js"; // (first, as in room.js: the house's modules import one another round in a ring)
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { rnd } from "../stage.js";
+import { rnd, compiledInTurns } from "../stage.js";
 import { makeNav } from "../room/nav.js";
 import { makeActor } from "../room/actor.js";
 import { propsFor } from "../room/props.js";
@@ -399,7 +399,7 @@ export function* buildingShop(stage) {
       let done = 0;
       for (const g of parts) {
         await frame();
-        if (parallel) await Promise.race([renderer.compileAsync(g, camera, scene), new Promise((ok) => setTimeout(ok, 4000))]);
+        if (parallel) await compiledInTurns(renderer, camera, g, scene);
         else renderer.compile(g, camera, scene);
         progress(++done / steps);
       }

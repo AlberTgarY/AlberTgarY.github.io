@@ -57,6 +57,25 @@ export const pick = (list) => list[Math.floor(Math.random() * list.length)];
 export const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 export const isDark = () => document.documentElement.getAttribute("data-theme") === "dark";
 
+// The shaders of `what` (in `scene`) compiled in the background a few materials at a time, each lot done (or
+// given a few seconds: three.js's compileAsync can wait for ever) before the next: all at once, the browser
+// compiled them on as many threads as the computer has cores, and the whole computer stuttered while the page
+// loaded. Each lot is handed over as just the things drawn with those materials, in `scene` (its lights, each
+// counted once, the ones they will be drawn with): three.js r160's compile asks of what it compiles only
+// traverse(), and traverseVisible() for any lights of its own. `progress(k)`: how far it has got (0 to 1).
+export async function compiledInTurns(renderer, camera, what, scene = what, progress = () => {}) {
+  const LOT = 4; // materials
+  const drawnWith = new Map(); // material -> the things drawn with it
+  what.traverse((o) => [o.material ?? []].flat().forEach((m) => (drawnWith.get(m) ?? drawnWith.set(m, []).get(m)).push(o)));
+  const materials = [...drawnWith.keys()];
+  for (let i = 0; i < materials.length; i += LOT) {
+    const things = new Set(materials.slice(i, i + LOT).flatMap((m) => drawnWith.get(m)));
+    const lot = { traverse: (f) => things.forEach(f), traverseVisible() {} };
+    await Promise.race([renderer.compileAsync(lot, camera, scene), new Promise((done) => setTimeout(done, 4000))]);
+    progress(Math.min(1, (i + LOT) / materials.length));
+  }
+}
+
 // Critically damped spring (implicit Euler, stable for any dt): eases in and out with no overshoot, for
 // the big whole-body moves where a sudden start would look like a jolt.
 export const spring = (value, omega) => ({ x: value, v: 0, omega });

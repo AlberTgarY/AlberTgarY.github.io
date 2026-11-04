@@ -426,7 +426,7 @@ async function start() {
   layout();
   loading.show(0.55, "Home · shaders", 0); // built; the shaders next
   await painted();
-  await room.warm();
+  await room.warm((part) => loading.show(0.55 + 0.07 * part, "Home · shaders", part));
   room.step(0);
   loading.show(0.62, "Home · shaders", 1);
   lookPics = lookPictures(...PIC) || []; // (her looks' pictures for the picker now: drawn at its first opening, they held it up)
