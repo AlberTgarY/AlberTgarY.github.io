@@ -2,7 +2,7 @@
  * The TV's channels (a nature programme, a cartoon, a cooking show, the
  * weather forecast with today's real sky, adverts, football, a concert, baking,
  * travel, the ocean, tennis, a late-night film, the evening news at seven and
- * the dramas 放羊的星星, 就想賴著妳 and two episodes of 我的前半生, clips from
+ * the dramas 放羊的星星, 就想賴著妳, two episodes of 我的前半生 and 爱了散了, clips from
  * the real episodes: clipshows.js) and the game the two of them play on it.
  ******************************************************************************/
 
@@ -29,6 +29,7 @@ export const CHANNELS = [
   "downwithlove",
   "firsthalf6",
   "firsthalf27",
+  "ailesanle",
 ];
 
 // The shows drawn twice as finely (w x h texels twice the others': house/living.js).

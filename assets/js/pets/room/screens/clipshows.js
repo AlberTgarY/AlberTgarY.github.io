@@ -1,10 +1,11 @@
 /*******************************************************************************
- * The four real dramas, on the TV (tv.js: a channel each) and on his computer
+ * The real dramas, on the TV (tv.js: a channel each) and on his computer
  * for her (acts/pc.js), each as clips of its leads cut from an episode:
  * 放羊的星星 (My Lucky Star: 夏之星 and 仲天骐, four scenes), 就想賴著妳 (Down
- * With Love: 簡單 and 馬克, four scenes) and two episodes of 我的前半生 (The
+ * With Love: 簡單 and 馬克, four scenes), two episodes of 我的前半生 (The
  * First Half of My Life): 6, 罗子君's mother storming 凌玲's office, and 27,
- * 罗子君 and 贺涵 on the bridge in the rain. Clips are 168 x 96 and five
+ * 罗子君 and 贺涵 on the bridge in the rain, and the first episode of 爱了散了
+ * (its two leads, six scenes). Clips are 168 x 96 and five
  * frames a second, played at twice that, one after another and round again
  * (on his computer, 我的前半生 is one drama of two episodes: DRAMAS).
  * Each clip is one sheet of its frames, COLS across (assets/playground/<show>/,
@@ -74,12 +75,38 @@ export const CLIP_SHOWS = {
     // 罗子君 alone on the bridge in the rain, crying out; 贺涵 running up with his umbrella; words; his arms.
     moods: { 1: "sad", 3: "sad", 5: "sad", 7: "sad", 9: "twist", 10: "love", 12: "tense", 15: "tense", 18: "sad", 20: "love", 21: "love" },
   },
+  ailesanle: {
+    clips: 28,
+    title: "爱了散了",
+    ep: "第1集",
+    thumb: [22, 20],
+    // In the library, he leans over her desk; side by side in the car, talking; at the desk in his studio, his
+    // hands on the controls; on a bench outside; holding each other, foreheads together; his hands on her face.
+    moods: {
+      1: "love",
+      3: "tense",
+      5: "laugh",
+      7: "love",
+      9: "love",
+      11: "laugh",
+      13: "twist",
+      15: "laugh",
+      17: "sad",
+      19: "tense",
+      21: "love",
+      23: "love",
+      24: "twist",
+      25: "love",
+      27: "love",
+    },
+  },
 };
 // On his computer the same, as her dramas: each an episode or two of them, in order.
 export const DRAMAS = {
   luckystar: { title: "放羊的星星", episodes: ["luckystar"] },
   downwithlove: { title: "就想賴著妳", episodes: ["downwithlove"] },
   firsthalf: { title: "我的前半生", episodes: ["firsthalf6", "firsthalf27"] },
+  ailesanle: { title: "爱了散了", episodes: ["ailesanle"] },
 };
 // The show (CLIP_SHOWS) that is episode `ep` of `drama`.
 export const episodeOf = (drama, ep) => DRAMAS[drama].episodes[ep];
