@@ -360,7 +360,7 @@ export function* buildingShop(stage) {
   function pickAt(x, y) {
     const who = hit(x, y);
     const seen = seenAt(x, y);
-    if (!who || !seen) return { who, thing: who ? null : (seen?.thing ?? null) };
+    if (!who || !seen) return { who, thing: who ? null : seen?.thing ?? null };
     const body = raycaster.intersectObject(who.rig.group, true).find((h) => h.object.visible && h.object.isMesh);
     return body && body.distance < seen.distance ? { who, thing: null } : { who: null, thing: seen.thing };
   }

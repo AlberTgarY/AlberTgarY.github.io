@@ -511,7 +511,10 @@ export function* buildingStall(shared) {
   awning.add(shadowy(valance, false));
   const endsTex = textures.ends(9).tex;
   const ends = [ROOF.z0, ROOF.z1].map((z) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(AW, 1.8).translate(0, -0.9, 0), new THREE.MeshLambertMaterial({ map: endsTex, side: THREE.DoubleSide, alphaTest: 0.5 }));
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(AW, 1.8).translate(0, -0.9, 0),
+      new THREE.MeshLambertMaterial({ map: endsTex, side: THREE.DoubleSide, alphaTest: 0.5 })
+    );
     m.userData.z = z;
     awning.add(shadowy(m, false));
     return m;
@@ -668,7 +671,9 @@ export function* buildingStall(shared) {
   qr.position.set(8, 16.2, -6); // (on a little stand on the counter's front edge, as they are: low, under their heads)
   qr.rotation.y = Math.PI / 2;
   cart.add(shadowy(qr, false));
-  const qrStand = shadowy(new THREE.Mesh(new THREE.BoxGeometry(0.5, 3.2, 2.8).translate(0, 1.6, 0), new THREE.MeshLambertMaterial({ color: 0xf4f4f0 })));
+  const qrStand = shadowy(
+    new THREE.Mesh(new THREE.BoxGeometry(0.5, 3.2, 2.8).translate(0, 1.6, 0), new THREE.MeshLambertMaterial({ color: 0xf4f4f0 }))
+  );
   qrStand.position.set(7.7, TOP + 0.5, -6);
   cart.add(qrStand);
 
@@ -979,7 +984,12 @@ export function* buildingStall(shared) {
     // The code to pay by: a beep, its screen lit up a moment.
     { key: "qr", parts: [qr, qrStand], can: () => cart.visible, toggle: () => ((beeped = clock.t), stall.poked?.("qr")) },
     { key: "bowls", parts: [stackMesh], can: () => cart.visible, toggle: () => knock(stackSwing, 0.04, 0.04) },
-    ...bottles.map((b) => ({ key: "bottle", parts: [b.mesh], can: () => cart.visible && furniture.visible, toggle: () => knock(b.swing, 0.15, 0.15) })),
+    ...bottles.map((b) => ({
+      key: "bottle",
+      parts: [b.mesh],
+      can: () => cart.visible && furniture.visible,
+      toggle: () => knock(b.swing, 0.15, 0.15),
+    })),
     // A stool no one is sat on.
     ...stools.map((st, k) => ({
       key: "stool",

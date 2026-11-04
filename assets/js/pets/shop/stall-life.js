@@ -212,7 +212,19 @@ export function makeStallLife(home) {
     m.visible = false;
     props.add(m);
   }
-  const NOTHING = { ladle: null, strainer: null, blade: false, wrapper: false, ball: null, rag: false, handful: 0, handfulIn: 0, bowl: null, bowlIn: null, pinch: false };
+  const NOTHING = {
+    ladle: null,
+    strainer: null,
+    blade: false,
+    wrapper: false,
+    ball: null,
+    rag: false,
+    handful: 0,
+    handfulIn: 0,
+    bowl: null,
+    bowlIn: null,
+    pinch: false,
+  };
   const shown = { ...NOTHING };
   const resetShown = () => Object.assign(shown, NOTHING);
   // Each diner's spoon (white porcelain: a bowl on a short handle; a wonton on it on its way up), and the
@@ -401,7 +413,15 @@ export function makeStallLife(home) {
     const [t0, from] = [clock.t, hand.map(now)];
     const eased = (i, p) => {
       const k = (clock.t - t0) / EASE;
-      return k >= 1 || boss.away ? p : pathAt([[0, from[i]], [1, p]], k);
+      return k >= 1 || boss.away
+        ? p
+        : pathAt(
+            [
+              [0, from[i]],
+              [1, p],
+            ],
+            k
+          );
     };
     return (t, e) => {
       const [r, l] = [right ?? (isBehind() ? onEdge : null), left ?? (isBehind() ? onEdgeLeft : null)];
@@ -571,7 +591,11 @@ export function makeStallLife(home) {
     for (const t0 = t(); t() - t0 < 0.45; ) {
       const k = Math.min(1, (t() - t0) / 0.45);
       const e = k * k * (3 - 2 * k);
-      Object.assign(boss, { x: from[0] + (to[0] - from[0]) * e, z: from[1] + (to[1] - from[1]) * e, y: y0 + (y1 - y0) * e + 6 * Math.sin(Math.PI * k) });
+      Object.assign(boss, {
+        x: from[0] + (to[0] - from[0]) * e,
+        z: from[1] + (to[1] - from[1]) * e,
+        y: y0 + (y1 - y0) * e + 6 * Math.sin(Math.PI * k),
+      });
       yield;
     }
     boss.y = y1;
@@ -766,7 +790,14 @@ export function makeStallLife(home) {
   const glide = (a, b, secs = 0.35) => {
     const t0 = t();
     const at = (p) => (typeof p === "function" ? p() : p);
-    return () => pathAt([[0, at(a)], [1, at(b)]], (t() - t0) / secs);
+    return () =>
+      pathAt(
+        [
+          [0, at(a)],
+          [1, at(b)],
+        ],
+        (t() - t0) / secs
+      );
   };
   // Over the pot, for his left hand: just over the rim on its near side (under his chin), his forearm outside
   // it; `dx` along the rim, `dz` back from it.
@@ -780,12 +811,14 @@ export function makeStallLife(home) {
   // turns or goes along it (lifted a little: his hands come after him a moment late).
   const EDGE = STALL.boss.z + 6.2; // (the counter's edge, a little over it, from where he stands)
   // (drawn in as he turns, so that neither comes any nearer the counter than its edge)
-  const before = (side, up, ahead = EDGE - STALL.boss.z) => () => {
-    const [c, s] = [Math.cos(boss.yaw), Math.sin(boss.yaw)];
-    const lift = boss.walking ? 2 : 0;
-    const out = ahead - Math.abs(side * s);
-    return [boss.x + side * c + out * s, up + lift, boss.z - side * s + out * c];
-  };
+  const before =
+    (side, up, ahead = EDGE - STALL.boss.z) =>
+    () => {
+      const [c, s] = [Math.cos(boss.yaw), Math.sin(boss.yaw)];
+      const lift = boss.walking ? 2 : 0;
+      const out = ahead - Math.abs(side * s);
+      return [boss.x + side * c + out * s, up + lift, boss.z - side * s + out * c];
+    };
   const onEdge = before(-4.2, 15.5 + HAND_UP);
   const onEdgeLeft = before(4.2, 15.5 + HAND_UP);
   const ready = () => handsAt(onEdge, onEdgeLeft);
@@ -846,9 +879,17 @@ export function makeStallLife(home) {
   function* knob(then) {
     yield* to(potAt(), 1);
     yield* work(handsAt(glide(now(hand[0]), overEdge, 0.25), null), 0.25);
-    yield* work(handsAt(glide(overEdge, under, 0.3), null, (t) => 0.35 * Math.sin(t * 6)), 0.5, 0.06);
+    yield* work(
+      handsAt(glide(overEdge, under, 0.3), null, (t) => 0.35 * Math.sin(t * 6)),
+      0.5,
+      0.06
+    );
     then();
-    yield* work(handsAt(under, null, (t) => 0.35 * Math.sin(t * 6)), 0.4, 0.06);
+    yield* work(
+      handsAt(under, null, (t) => 0.35 * Math.sin(t * 6)),
+      0.4,
+      0.06
+    );
     yield* work(handsAt(glide(under, overEdge, 0.3), null), 0.3);
     boss.hold = null;
   }
@@ -992,13 +1033,21 @@ export function makeStallLife(home) {
   function* pinch(name) {
     const tub = S.spot.tub(name);
     yield* to(tub, 0);
-    yield* work(handsAt((t, e) => [tub[0], 17.25 + HAND_UP + 0.5 * Math.abs(Math.cos(e * 5)), tub[2]], null), 0.6, LEAN);
+    yield* work(
+      handsAt((t, e) => [tub[0], 17.25 + HAND_UP + 0.5 * Math.abs(Math.cos(e * 5)), tub[2]], null),
+      0.6,
+      LEAN
+    );
     shown.pinch = true;
   }
   function* sprinkle() {
     const f = fillAt();
     yield* to(f, 0);
-    yield* work(handsAt((t, e) => [f[0] - 0.4 + 0.3 * Math.sin(e * 14), f[1] + 3.6, f[2]], null), 0.5, LEAN / 2);
+    yield* work(
+      handsAt((t, e) => [f[0] - 0.4 + 0.3 * Math.sin(e * 14), f[1] + 3.6, f[2]], null),
+      0.5,
+      LEAN / 2
+    );
     shown.pinch = false;
     boss.hold = null;
   }
@@ -1235,7 +1284,11 @@ export function makeStallLife(home) {
       c[2] -= 1.5;
       yield* to(c, 0);
       shown.rag = true;
-      yield* work(handsAt((t) => [c[0] + 1.4 * Math.cos(t * 6), c[1], c[2] + 0.8 * Math.sin(t * 6)], null), rnd(1.5, 2.5), LEAN / 2);
+      yield* work(
+        handsAt((t) => [c[0] + 1.4 * Math.cos(t * 6), c[1], c[2] + 0.8 * Math.sin(t * 6)], null),
+        rnd(1.5, 2.5),
+        LEAN / 2
+      );
       shown.rag = false;
       boss.hold = null;
       return;
@@ -1361,7 +1414,16 @@ export function makeStallLife(home) {
         const u = spoonful((e % BITE) / BITE);
         const dip = p.bowl.surface();
         const near = [dip[0] - fx * 1.8, dip[1] + 1.2, dip[2] - fz * 1.8]; // (the near side of the bowl)
-        return [pathAt([[0, near], [1, toMouth()]], u), lap(1)];
+        return [
+          pathAt(
+            [
+              [0, near],
+              [1, toMouth()],
+            ],
+            u
+          ),
+          lap(1),
+        ];
       });
     const DRINK = () =>
       smoothly(a, (t, e) => {
@@ -1499,7 +1561,18 @@ export function makeStallLife(home) {
         const k = (t() - t0) / secs;
         if (k >= 1) return reachOf(a, i, p);
         const lifted = [from[i][0], Math.max(from[i][1], p[1] + 1), from[i][2]];
-        return reachOf(a, i, pathAt([[0, from[i]], [0.45, lifted], [1, p]], k));
+        return reachOf(
+          a,
+          i,
+          pathAt(
+            [
+              [0, from[i]],
+              [0.45, lifted],
+              [1, p],
+            ],
+            k
+          )
+        );
       });
   }
   // A bowl carried before them in both hands, their forearms level (clear of the counter's edge as they turn
