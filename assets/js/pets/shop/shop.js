@@ -33,6 +33,7 @@ import { makeShopView } from "./view.js";
 import { GROUND, KIOSK, FLOOR, HOURS, LANE, STALL } from "./layout.js";
 import { setFade } from "./fade.js";
 import { buildingKiosk } from "./kiosk.js";
+import { buildingKoalas } from "./koalas.js";
 import { buildingDisplay } from "./display.js";
 import { buildingGrounds } from "./grounds.js";
 import { buildingNight } from "./night.js";
@@ -110,7 +111,8 @@ export function* buildingShop(stage) {
   const grounds = yield* built(buildingGrounds(shared), 0.65, 0.78, 19, "Flower shop · pavement and plants");
   const night = yield* built(buildingNight(shared), 0.78, 0.79, 3, "Flower shop · the night");
   const stall = yield* built(buildingStall(shared), 0.79, 0.8, 7, "Flower shop · wonton stall");
-  const builders = [kiosk, display, grounds, night, stall];
+  const koalas = yield* built(buildingKoalas(kiosk), 0.8, 0.8, 2, "Flower shop · koalas");
+  const builders = [kiosk, display, grounds, night, stall, koalas];
   const fixed = builders.flatMap((b) => b.obstacles);
   const obstacles = [...fixed];
   const bounds = [GROUND.x0 + 4, GROUND.x1 - 4, GROUND.z0 + 4, GROUND.z1 - 4];
