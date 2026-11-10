@@ -219,9 +219,10 @@ export function makeView() {
     if (fitted) zoomed(); // (laid out)
   };
 
-  // Device px drawn per CSS px at most: the screen's own (up to 3, a phone's), stepped down to 2, then 1.5,
-  // each time lower() finds the device cannot keep up; whether it went lower.
-  let ratio = 3;
+  // Device px drawn per CSS px at most: the screen's own, but no more than 2 (a phone's 3 is more than twice
+  // the pixels, a warm phone, for a sharpness hardly seen), stepped down to 1.5 when lower() finds the device
+  // cannot keep up; whether it went lower.
+  let ratio = 2;
   view.lower = () => {
     const now = Math.min(ratio, window.devicePixelRatio || 1);
     if (now <= 1.5) return false;

@@ -95,7 +95,7 @@ export function makeShopView() {
     if (fitted) zoomed();
   };
 
-  let ratio = 3; // device px per CSS px at most (lower() steps it down, as the house's)
+  let ratio = 2; // device px per CSS px at most, a phone's 3 too (lower() steps it down, as the house's)
   view.lower = () => {
     const now = Math.min(ratio, window.devicePixelRatio || 1);
     if (now <= 1.5) return false;
