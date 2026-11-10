@@ -278,12 +278,18 @@ async function start() {
   }
 
   // The canvas spans the whole width of the window, out past the page's margins, and the house is fitted
-  // into it and into the height of the window.
+  // into it and into the height of the window. While another page of the site is shown (swap.js), where the
+  // page's margin lies cannot be seen: it is laid out again when this one is back (`laidFor` the window it was
+  // laid out for, or none).
+  let laidFor = "";
+  const windowSize = () => `${document.documentElement.clientWidth}x${window.innerHeight}`;
   function layout() {
     const width = document.documentElement.clientWidth;
     room.layout(width, window.innerHeight * 0.92);
     shop?.layout(view.W, view.H); // (the shop in a canvas the size of the home's)
-    stage.style.left = `${-host.getBoundingClientRect().left}px`;
+    const shown = host.getClientRects().length > 0;
+    if (shown) stage.style.left = `${-host.getBoundingClientRect().left}px`;
+    laidFor = shown ? windowSize() : "";
     stage.style.width = `${width}px`;
     host.style.height = `${view.H}px`;
     if (reducedMotion) world.step(0);
@@ -437,6 +443,7 @@ async function start() {
     if (reducedMotion) world.step(0);
   }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   window.addEventListener("resize", layout);
+  document.addEventListener("swap:shown", (e) => e.target.contains(host) && laidFor !== windowSize() && layout());
 
   room.dress(isDark());
   showTime();
@@ -457,7 +464,10 @@ async function start() {
   // About 60 frames a second at most: on a faster screen (120 Hz, say), every other one. A device that
   // cannot keep up (under about 45 a second over 3 s, while the page's own work takes well under the time
   // between frames: the drawing holds it up, a phone's GPU say) draws fewer pixels (view.js lower()).
+  // Out of sight (scrolled away, or another page of the site shown: swap.js), life goes on undrawn, in steps of
+  // a tenth of a second, so coming back finds it moved on; in a hidden browser tab it waits.
   let last = performance.now();
+  let unseen = 0;
   const pace = { frames: 0, between: 0, busy: 0 };
   function frame(now) {
     requestAnimationFrame(frame);
@@ -465,7 +475,15 @@ async function start() {
     const between = now - last;
     const dt = Math.min(0.1, between / 1000);
     last = now;
-    if (document.hidden || !onScreen) return;
+    if (document.hidden) return;
+    if (!onScreen) {
+      unseen += dt;
+      if (unseen < 0.1) return;
+      world.step(unseen, false);
+      if (shop) (inShop() ? room : shop).step(unseen, false, world.hour());
+      unseen = 0;
+      return;
+    }
     if (moved) underMouse();
     // From the one world to the other: the one going stays as it was last drawn, fading, while the one
     // coming moves on; only ever the one drawn a frame. The other goes on unseen, at the time in view.

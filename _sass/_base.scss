@@ -276,6 +276,38 @@ ul.task-list input[type="checkbox"] {
   }
 }
 
+// The line under the tab in view, sliding to the next tab (swap.js)
+#navbar .navbar-nav {
+  position: relative;
+}
+
+#navbar .nav-line {
+  position: absolute;
+  left: 0;
+  bottom: 0.2rem;
+  width: 1px;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--global-theme-color);
+  transform-origin: 0 0;
+  pointer-events: none;
+
+  &.moving {
+    transition:
+      transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1),
+      opacity 0.2s;
+  }
+
+  @media (max-width: 575.98px) {
+    display: none;
+  }
+}
+
+// While a page slides in from the side (swap.js), no sideways scroll bar
+html.swapping {
+  overflow-x: hidden;
+}
+
 .navbar.navbar-light {
   a {
     &:hover {
@@ -289,6 +321,7 @@ ul.task-list input[type="checkbox"] {
 
   .navbar-nav .nav-item .nav-link {
     color: var(--global-text-color);
+    transition: color 0.3s;
 
     &:hover {
       color: var(--global-hover-color);

@@ -80,7 +80,7 @@ function start() {
     const t = now();
     const dt = Math.min(0.1, t - last);
     last = t;
-    if (!document.hidden) updateAll(dt);
+    if (!document.hidden && profile.getClientRects().length) updateAll(dt); // (none while another page of the site is shown: swap.js)
   }
 
   new MutationObserver(() =>

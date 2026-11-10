@@ -1,33 +1,28 @@
-$(document).ready(function () {
-  // add toggle functionality to abstract, award and bibtex buttons
-  $("a.abstract").click(function () {
-    $(this).parent().parent().find(".abstract.hidden").toggleClass("open");
-    $(this).parent().parent().find(".award.hidden.open").toggleClass("open");
-    $(this).parent().parent().find(".bibtex.hidden.open").toggleClass("open");
-  });
-  $("a.award").click(function () {
-    $(this).parent().parent().find(".abstract.hidden.open").toggleClass("open");
-    $(this).parent().parent().find(".award.hidden").toggleClass("open");
-    $(this).parent().parent().find(".bibtex.hidden.open").toggleClass("open");
-  });
-  $("a.bibtex").click(function () {
-    $(this).parent().parent().find(".abstract.hidden.open").toggleClass("open");
-    $(this).parent().parent().find(".award.hidden.open").toggleClass("open");
-    $(this).parent().parent().find(".bibtex.hidden").toggleClass("open");
-  });
-  $("a").removeClass("waves-effect waves-light");
+// The abstract, award and bibtex buttons: each shows its part of the entry and hides the others. Listened for on
+// the document, so the entries of a page shown later (swap.js) have them too.
+const ENTRY_PARTS = ["abstract", "award", "bibtex"];
+ENTRY_PARTS.forEach((part) =>
+  $(document).on("click", `a.${part}`, function () {
+    const entry = $(this).parent().parent();
+    ENTRY_PARTS.forEach((other) => entry.find(other === part ? `.${other}.hidden` : `.${other}.hidden.open`).toggleClass("open"));
+  })
+);
+
+// What a page's content needs set up: on a page load, the page; for a page shown later, its panel (swap.js).
+function setUpContent(root) {
+  const $root = $(root);
+  $root.find("a").removeClass("waves-effect waves-light");
 
   // bootstrap-toc
-  if ($("#toc-sidebar").length) {
+  const $myNav = $root.find("#toc-sidebar");
+  if ($myNav.length) {
     // remove related publications years from the TOC
-    $(".publications h2").each(function () {
+    $root.find(".publications h2").each(function () {
       $(this).attr("data-toc-skip", "");
     });
-    var navSelector = "#toc-sidebar";
-    var $myNav = $(navSelector);
     Toc.init($myNav);
     $("body").scrollspy({
-      target: navSelector,
+      target: "#toc-sidebar",
     });
   }
 
@@ -39,7 +34,7 @@ $(document).ready(function () {
 
   let jupyterTheme = determineComputedTheme();
 
-  $(".jupyter-notebook-iframe-container iframe").each(function () {
+  $root.find(".jupyter-notebook-iframe-container iframe").each(function () {
     $(this).contents().find("head").append(cssLink);
 
     if (jupyterTheme == "dark") {
@@ -53,7 +48,10 @@ $(document).ready(function () {
   });
 
   // trigger popovers
-  $('[data-toggle="popover"]').popover({
+  $root.find('[data-toggle="popover"]').popover({
     trigger: "hover",
   });
-});
+}
+
+$(document).ready(() => setUpContent(document));
+document.addEventListener("swap:content", (e) => setUpContent(e.target));

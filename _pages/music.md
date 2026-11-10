@@ -160,163 +160,166 @@ description: Here are the albums I made
 </style>
 
 <script>
-  const albums = [
-    {
-      name: "echoRealm (2026)",
-      cover: "{{ '/music/echorealm/echorealm.jpg' | relative_url }}",
-      link: "https://music.163.com/#/album?id=361732175&uct2=U2FsdGVkX1/xkPGdBqPZJy7ax778Wy99RpWKP530k34=",
-      tracks: [
-        { title: "Jasper JD7714",                    src: "{{ '/music/echorealm/AlbErt%20-%20Jasper%20JD7714.mp3' | relative_url }}" },
-        { title: "Seviyor mu",                       src: "{{ '/music/echorealm/AlbErt%20-%20Seviyor%20mu.mp3' | relative_url }}" },
-        { title: "Configurable - A",                 src: "{{ '/music/echorealm/AlbErt%20-%20Configurable%20-%20A.mp3' | relative_url }}" },
-        { title: "Configurable - B",                 src: "{{ '/music/echorealm/AlbErt%20-%20Configurable%20-%20B.mp3' | relative_url }}" },
-        { title: "Interlude - \"please take a seat\"", src: "{{ '/music/echorealm/AlbErt%20-%20Interlude%20-%20please%20take%20a%20seat.mp3' | relative_url }}" },
-        { title: "SW1V 2LF",                         src: "{{ '/music/echorealm/AlbErt%20-%20SW1V%202LF.mp3' | relative_url }}" },
-        { title: "Outro - \"Flauta Lunar\"",           src: "{{ '/music/echorealm/AlbErt%20-%20Outro%20-%20Flauta%20Lunar.mp3' | relative_url }}" },
-        { title: "Untitled-01",                      src: "{{ '/music/echorealm/AlbErt%20-%20Untitled-01.mp3' | relative_url }}" },
-      ],
-    },
-    {
-      name: "LEAVE 4OREVER PT.1 (2022)",
-      cover: "{{ '/music/leave4oreverpt1/leaveforeverpt1.jpg' | relative_url }}",
-      link: "",
-      tracks: [
-        { title: "intro - \"time to leave\"",   src: "{{ '/music/leave4oreverpt1/1%20-%20Leave%204orever%20Pt.1%20-%20intro%20-%20%E2%80%9Dtime%20to%20leave%E2%80%9D.mp3' | relative_url }}" },
-        { title: "do you even know me",        src: "{{ '/music/leave4oreverpt1/2%20-%20Leave%204orever%20Pt.1%20-%20do%20you%20even%20know%20me.mp3' | relative_url }}" },
-        { title: "skit1",                      src: "{{ '/music/leave4oreverpt1/3%20-%20Leave%204orever%20Pt.1%20-%20skit1.mp3' | relative_url }}" },
-        { title: "out of my reverie",          src: "{{ '/music/leave4oreverpt1/4%20-%20Leave%204orever%20Pt.1%20-%20out%20of%20my%20reverie.mp3' | relative_url }}" },
-        { title: "Orange Juice",               src: "{{ '/music/leave4oreverpt1/5%20-%20Leave%204orever%20Pt.1%20-%20Orange%20Juice.mp3' | relative_url }}" },
-        { title: "AffineWarp",                 src: "{{ '/music/leave4oreverpt1/6%20-%20Leave%204orever%20Pt.1%20-%20AffineWarp.mp3' | relative_url }}" },
-        { title: "雨宿",                       src: "{{ '/music/leave4oreverpt1/7%20-%20Leave%204orever%20Pt.1%20-%20%E9%9B%A8%E5%AE%BF.mp3' | relative_url }}" },
-        { title: "skit2",                      src: "{{ '/music/leave4oreverpt1/8%20-%20Leave%204orever%20Pt.1%20-%20skit2.mp3' | relative_url }}" },
-        { title: "remember that",              src: "{{ '/music/leave4oreverpt1/9%20-%20Leave%204orever%20Pt.1%20-%20remember%20that.mp3' | relative_url }}" },
-        { title: "sink into the ocean",        src: "{{ '/music/leave4oreverpt1/10%20-%20Leave%204orever%20Pt.1%20-%20sink%20into%20the%20ocean.mp3' | relative_url }}" },
-        { title: "too deep",                   src: "{{ '/music/leave4oreverpt1/11%20-%20Leave%204orever%20Pt.1%20-%20too%20deep.mp3' | relative_url }}" },
-        { title: "outro - \"rewind2018\"",       src: "{{ '/music/leave4oreverpt1/12%20-%20Leave%204orever%20Pt.1%20-%20outro%20-%20%E2%80%9Crewind2018%E2%80%9D.mp3' | relative_url }}" },
-        { title: "untitled-07",                src: "{{ '/music/leave4oreverpt1/13%20-%20Leave%204orever%20Pt.1%20-%20untitled-07.mp3' | relative_url }}" },
-      ],
-    },
-  ];
+  // (in a function of its own: its names, progressBar say, are not the whole page's)
+  (() => {
+    const albums = [
+      {
+        name: "echoRealm (2026)",
+        cover: "{{ '/music/echorealm/echorealm.jpg' | relative_url }}",
+        link: "https://music.163.com/#/album?id=361732175&uct2=U2FsdGVkX1/xkPGdBqPZJy7ax778Wy99RpWKP530k34=",
+        tracks: [
+          { title: "Jasper JD7714",                    src: "{{ '/music/echorealm/AlbErt%20-%20Jasper%20JD7714.mp3' | relative_url }}" },
+          { title: "Seviyor mu",                       src: "{{ '/music/echorealm/AlbErt%20-%20Seviyor%20mu.mp3' | relative_url }}" },
+          { title: "Configurable - A",                 src: "{{ '/music/echorealm/AlbErt%20-%20Configurable%20-%20A.mp3' | relative_url }}" },
+          { title: "Configurable - B",                 src: "{{ '/music/echorealm/AlbErt%20-%20Configurable%20-%20B.mp3' | relative_url }}" },
+          { title: "Interlude - \"please take a seat\"", src: "{{ '/music/echorealm/AlbErt%20-%20Interlude%20-%20please%20take%20a%20seat.mp3' | relative_url }}" },
+          { title: "SW1V 2LF",                         src: "{{ '/music/echorealm/AlbErt%20-%20SW1V%202LF.mp3' | relative_url }}" },
+          { title: "Outro - \"Flauta Lunar\"",           src: "{{ '/music/echorealm/AlbErt%20-%20Outro%20-%20Flauta%20Lunar.mp3' | relative_url }}" },
+          { title: "Untitled-01",                      src: "{{ '/music/echorealm/AlbErt%20-%20Untitled-01.mp3' | relative_url }}" },
+        ],
+      },
+      {
+        name: "LEAVE 4OREVER PT.1 (2022)",
+        cover: "{{ '/music/leave4oreverpt1/leaveforeverpt1.jpg' | relative_url }}",
+        link: "",
+        tracks: [
+          { title: "intro - \"time to leave\"",   src: "{{ '/music/leave4oreverpt1/1%20-%20Leave%204orever%20Pt.1%20-%20intro%20-%20%E2%80%9Dtime%20to%20leave%E2%80%9D.mp3' | relative_url }}" },
+          { title: "do you even know me",        src: "{{ '/music/leave4oreverpt1/2%20-%20Leave%204orever%20Pt.1%20-%20do%20you%20even%20know%20me.mp3' | relative_url }}" },
+          { title: "skit1",                      src: "{{ '/music/leave4oreverpt1/3%20-%20Leave%204orever%20Pt.1%20-%20skit1.mp3' | relative_url }}" },
+          { title: "out of my reverie",          src: "{{ '/music/leave4oreverpt1/4%20-%20Leave%204orever%20Pt.1%20-%20out%20of%20my%20reverie.mp3' | relative_url }}" },
+          { title: "Orange Juice",               src: "{{ '/music/leave4oreverpt1/5%20-%20Leave%204orever%20Pt.1%20-%20Orange%20Juice.mp3' | relative_url }}" },
+          { title: "AffineWarp",                 src: "{{ '/music/leave4oreverpt1/6%20-%20Leave%204orever%20Pt.1%20-%20AffineWarp.mp3' | relative_url }}" },
+          { title: "雨宿",                       src: "{{ '/music/leave4oreverpt1/7%20-%20Leave%204orever%20Pt.1%20-%20%E9%9B%A8%E5%AE%BF.mp3' | relative_url }}" },
+          { title: "skit2",                      src: "{{ '/music/leave4oreverpt1/8%20-%20Leave%204orever%20Pt.1%20-%20skit2.mp3' | relative_url }}" },
+          { title: "remember that",              src: "{{ '/music/leave4oreverpt1/9%20-%20Leave%204orever%20Pt.1%20-%20remember%20that.mp3' | relative_url }}" },
+          { title: "sink into the ocean",        src: "{{ '/music/leave4oreverpt1/10%20-%20Leave%204orever%20Pt.1%20-%20sink%20into%20the%20ocean.mp3' | relative_url }}" },
+          { title: "too deep",                   src: "{{ '/music/leave4oreverpt1/11%20-%20Leave%204orever%20Pt.1%20-%20too%20deep.mp3' | relative_url }}" },
+          { title: "outro - \"rewind2018\"",       src: "{{ '/music/leave4oreverpt1/12%20-%20Leave%204orever%20Pt.1%20-%20outro%20-%20%E2%80%9Crewind2018%E2%80%9D.mp3' | relative_url }}" },
+          { title: "untitled-07",                src: "{{ '/music/leave4oreverpt1/13%20-%20Leave%204orever%20Pt.1%20-%20untitled-07.mp3' | relative_url }}" },
+        ],
+      },
+    ];
 
-  const audio       = document.getElementById("echoAudio");
-  const playBtn     = document.getElementById("echoPlay");
-  const prevBtn     = document.getElementById("echoPrev");
-  const nextBtn     = document.getElementById("echoNext");
-  const trackTitle  = document.getElementById("echoTrackTitle");
-  const listEl      = document.getElementById("echoList");
-  const coverImg    = document.getElementById("echoCover");
-  const albumLink   = document.getElementById("echoAlbumLink");
-  const tabsEl      = document.getElementById("echoAlbumTabs");
-  const progressWrap = document.getElementById("echoProgressWrap");
-  const progressBar  = document.getElementById("echoProgressBar");
-  const timeCur      = document.getElementById("echoTimeCur");
-  const timeDur      = document.getElementById("echoTimeDur");
+    const audio       = document.getElementById("echoAudio");
+    const playBtn     = document.getElementById("echoPlay");
+    const prevBtn     = document.getElementById("echoPrev");
+    const nextBtn     = document.getElementById("echoNext");
+    const trackTitle  = document.getElementById("echoTrackTitle");
+    const listEl      = document.getElementById("echoList");
+    const coverImg    = document.getElementById("echoCover");
+    const albumLink   = document.getElementById("echoAlbumLink");
+    const tabsEl      = document.getElementById("echoAlbumTabs");
+    const progressWrap = document.getElementById("echoProgressWrap");
+    const progressBar  = document.getElementById("echoProgressBar");
+    const timeCur      = document.getElementById("echoTimeCur");
+    const timeDur      = document.getElementById("echoTimeDur");
 
-  let albumIdx = 0;
-  let trackIdx = 0;
+    let albumIdx = 0;
+    let trackIdx = 0;
 
-  function fmt(s) {
-    if (isNaN(s)) return "0:00";
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return m + ":" + String(sec).padStart(2, "0");
-  }
-
-  /* ---- Album tabs ---- */
-  function renderTabs() {
-    tabsEl.innerHTML = "";
-    albums.forEach((a, i) => {
-      const btn = document.createElement("button");
-      btn.className = "echo-tab" + (i === albumIdx ? " is-active" : "");
-      btn.textContent = a.name;
-      btn.addEventListener("click", () => switchAlbum(i));
-      tabsEl.appendChild(btn);
-    });
-  }
-
-  function switchAlbum(i) {
-    albumIdx = i;
-    trackIdx = 0;
-    const album = albums[albumIdx];
-    coverImg.src = album.cover;
-    if (album.link) {
-      albumLink.href = album.link;
-      albumLink.style.pointerEvents = "";
-    } else {
-      albumLink.removeAttribute("href");
-      albumLink.style.pointerEvents = "none";
+    function fmt(s) {
+      if (isNaN(s)) return "0:00";
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return m + ":" + String(sec).padStart(2, "0");
     }
-    albumLink.textContent = album.name;
-    audio.pause();
-    audio.currentTime = 0;
-    progressBar.style.width = "0%";
-    timeCur.textContent = "0:00";
-    timeDur.textContent = "0:00";
-    playBtn.textContent = "Play";
-    trackIdx = 0;
-    audio.src = album.tracks[0].src;
-    audio.load();
-    trackTitle.textContent = album.tracks[0].title;
-    renderList();
-    renderTabs();
-  }
 
-  /* ---- Track list ---- */
-  function renderList() {
-    listEl.innerHTML = "";
-    albums[albumIdx].tracks.forEach((t, i) => {
-      const item = document.createElement("div");
-      item.className = "echo-item" + (i === trackIdx ? " is-active" : "");
-      const num = document.createElement("span");
-      num.textContent = String(i + 1).padStart(2, "0");
-      const btn = document.createElement("button");
-      btn.textContent = t.title;
-      btn.addEventListener("click", () => loadTrack(i));
-      item.appendChild(num);
-      item.appendChild(btn);
-      listEl.appendChild(item);
+    /* ---- Album tabs ---- */
+    function renderTabs() {
+      tabsEl.innerHTML = "";
+      albums.forEach((a, i) => {
+        const btn = document.createElement("button");
+        btn.className = "echo-tab" + (i === albumIdx ? " is-active" : "");
+        btn.textContent = a.name;
+        btn.addEventListener("click", () => switchAlbum(i));
+        tabsEl.appendChild(btn);
+      });
+    }
+
+    function switchAlbum(i) {
+      albumIdx = i;
+      trackIdx = 0;
+      const album = albums[albumIdx];
+      coverImg.src = album.cover;
+      if (album.link) {
+        albumLink.href = album.link;
+        albumLink.style.pointerEvents = "";
+      } else {
+        albumLink.removeAttribute("href");
+        albumLink.style.pointerEvents = "none";
+      }
+      albumLink.textContent = album.name;
+      audio.pause();
+      audio.currentTime = 0;
+      progressBar.style.width = "0%";
+      timeCur.textContent = "0:00";
+      timeDur.textContent = "0:00";
+      playBtn.textContent = "Play";
+      trackIdx = 0;
+      audio.src = album.tracks[0].src;
+      audio.load();
+      trackTitle.textContent = album.tracks[0].title;
+      renderList();
+      renderTabs();
+    }
+
+    /* ---- Track list ---- */
+    function renderList() {
+      listEl.innerHTML = "";
+      albums[albumIdx].tracks.forEach((t, i) => {
+        const item = document.createElement("div");
+        item.className = "echo-item" + (i === trackIdx ? " is-active" : "");
+        const num = document.createElement("span");
+        num.textContent = String(i + 1).padStart(2, "0");
+        const btn = document.createElement("button");
+        btn.textContent = t.title;
+        btn.addEventListener("click", () => loadTrack(i));
+        item.appendChild(num);
+        item.appendChild(btn);
+        listEl.appendChild(item);
+      });
+    }
+
+    function loadTrack(i) {
+      const tracks = albums[albumIdx].tracks;
+      trackIdx = (i + tracks.length) % tracks.length;
+      audio.pause();
+      audio.src = tracks[trackIdx].src;
+      audio.load();
+      trackTitle.textContent = tracks[trackIdx].title;
+      progressBar.style.width = "0%";
+      timeCur.textContent = "0:00";
+      renderList();
+      audio.play();
+    }
+
+    /* ---- Controls ---- */
+    playBtn.addEventListener("click", () => {
+      if (audio.paused) audio.play(); else audio.pause();
     });
-  }
+    prevBtn.addEventListener("click", () => loadTrack(trackIdx - 1));
+    nextBtn.addEventListener("click", () => loadTrack(trackIdx + 1));
 
-  function loadTrack(i) {
-    const tracks = albums[albumIdx].tracks;
-    trackIdx = (i + tracks.length) % tracks.length;
-    audio.pause();
-    audio.src = tracks[trackIdx].src;
-    audio.load();
-    trackTitle.textContent = tracks[trackIdx].title;
-    progressBar.style.width = "0%";
-    timeCur.textContent = "0:00";
-    renderList();
-    audio.play();
-  }
+    audio.addEventListener("play",  () => (playBtn.textContent = "Pause"));
+    audio.addEventListener("pause", () => (playBtn.textContent = "Play"));
+    audio.addEventListener("ended", () => loadTrack(trackIdx + 1, true));
 
-  /* ---- Controls ---- */
-  playBtn.addEventListener("click", () => {
-    if (audio.paused) audio.play(); else audio.pause();
-  });
-  prevBtn.addEventListener("click", () => loadTrack(trackIdx - 1));
-  nextBtn.addEventListener("click", () => loadTrack(trackIdx + 1));
+    /* ---- Progress ---- */
+    audio.addEventListener("timeupdate", () => {
+      if (!audio.duration) return;
+      progressBar.style.width = (audio.currentTime / audio.duration * 100) + "%";
+      timeCur.textContent = fmt(audio.currentTime);
+    });
+    audio.addEventListener("loadedmetadata", () => {
+      timeDur.textContent = fmt(audio.duration);
+    });
+    progressWrap.addEventListener("click", (e) => {
+      if (!audio.duration) return;
+      const rect = progressWrap.getBoundingClientRect();
+      audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+    });
 
-  audio.addEventListener("play",  () => (playBtn.textContent = "Pause"));
-  audio.addEventListener("pause", () => (playBtn.textContent = "Play"));
-  audio.addEventListener("ended", () => loadTrack(trackIdx + 1, true));
-
-  /* ---- Progress ---- */
-  audio.addEventListener("timeupdate", () => {
-    if (!audio.duration) return;
-    progressBar.style.width = (audio.currentTime / audio.duration * 100) + "%";
-    timeCur.textContent = fmt(audio.currentTime);
-  });
-  audio.addEventListener("loadedmetadata", () => {
-    timeDur.textContent = fmt(audio.duration);
-  });
-  progressWrap.addEventListener("click", (e) => {
-    if (!audio.duration) return;
-    const rect = progressWrap.getBoundingClientRect();
-    audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
-  });
-
-  /* ---- Init ---- */
-  switchAlbum(0);
+    /* ---- Init ---- */
+    switchAlbum(0);
+  })();
 </script>
