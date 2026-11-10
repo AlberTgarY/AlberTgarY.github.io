@@ -164,6 +164,8 @@
     const lead = from.firstElementChild;
     const r = from.getBoundingClientRect();
     const top = lead?.getBoundingClientRect().top;
+    // Pinned and the new one shown in one go, so the page is never without content (its scroll would drop to
+    // the top in between, and a phone's address bar come back).
     Object.assign(from.style, {
       position: "fixed",
       top: `${r.top}px`,
@@ -172,19 +174,17 @@
       margin: "0",
       pointerEvents: "none",
     });
-    if (lead) from.style.top = `${r.top + top - lead.getBoundingClientRect().top}px`; // (its content's top margin no longer runs past it)
     to.hidden = false;
     window.scrollTo(0, scroll);
+    if (lead) from.style.top = `${r.top + top - lead.getBoundingClientRect().top}px`; // (its content's top margin no longer runs past it)
     const end = () => {
       settle = null;
       anims.forEach((a) => a.cancel());
       from.hidden = true;
       from.removeAttribute("style");
-      document.documentElement.classList.remove("swapping");
     };
     let anims = [];
     if (!reducedMotion.matches) {
-      document.documentElement.classList.add("swapping"); // (no sideways scroll bar from the panel coming in)
       const d = Math.min(120, window.innerWidth * 0.12) * dir;
       const opts = { duration: SLIDE_MS, easing: EASE };
       anims = [

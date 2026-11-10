@@ -281,11 +281,14 @@ async function start() {
   // into it and into the height of the window. While another page of the site is shown (swap.js), where the
   // page's margin lies cannot be seen: it is laid out again when this one is back (`laidFor` the window it was
   // laid out for, or none).
+  // The window's height is the page's (clientHeight), which stays put on a phone as its address bar comes and
+  // goes while scrolling (innerHeight does not: the house would be fitted again, and the page jump, each time).
   let laidFor = "";
-  const windowSize = () => `${document.documentElement.clientWidth}x${window.innerHeight}`;
+  const windowSize = () => `${document.documentElement.clientWidth}x${document.documentElement.clientHeight}`;
   function layout() {
+    if (laidFor && laidFor === windowSize()) return; // (only the address bar)
     const width = document.documentElement.clientWidth;
-    room.layout(width, window.innerHeight * 0.92);
+    room.layout(width, document.documentElement.clientHeight * 0.92);
     shop?.layout(view.W, view.H); // (the shop in a canvas the size of the home's)
     const shown = host.getClientRects().length > 0;
     if (shown) stage.style.left = `${-host.getBoundingClientRect().left}px`;
@@ -443,7 +446,7 @@ async function start() {
     if (reducedMotion) world.step(0);
   }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   window.addEventListener("resize", layout);
-  document.addEventListener("swap:shown", (e) => e.target.contains(host) && laidFor !== windowSize() && layout());
+  document.addEventListener("swap:shown", (e) => e.target.contains(host) && layout());
 
   room.dress(isDark());
   showTime();

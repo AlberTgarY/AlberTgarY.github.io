@@ -303,8 +303,9 @@ ul.task-list input[type="checkbox"] {
   }
 }
 
-// While a page slides in from the side (swap.js), no sideways scroll bar
-html.swapping {
+// No sideways scrolling, so a page sliding in from the side (swap.js) does not make the page pannable on a
+// phone for a moment; set for good, as switching the page's overflow on and off moves its scroll on a phone
+html {
   overflow-x: hidden;
 }
 
