@@ -145,7 +145,24 @@ layout: default
           {% endif %}
         {% endif %}
         {% if page.profile.more_info %}
-          <div class="more-info">{{ page.profile.more_info }}</div>
+          <div class="more-info profile-centered">{{ page.profile.more_info }}</div>
+        {% endif %}
+        {% assign cv_page = site.pages | where: 'layout', 'cv' | first %}
+        {% if cv_page.cv_pdf %}
+          <div class="profile-centered">
+            <a
+              class="profile-cv"
+              {% if cv_page.cv_pdf contains '://' %}
+                href="{{ cv_page.cv_pdf }}"
+              {% else %}
+                href="{{ cv_page.cv_pdf | prepend: 'assets/pdf/' | relative_url }}"
+              {% endif %}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <i class="fa-regular fa-file-lines"></i> Curriculum Vitae
+            </a>
+          </div>
         {% endif %}
       </div>
     {% endif %}

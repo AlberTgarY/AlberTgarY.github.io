@@ -205,6 +205,32 @@ ul.task-list input[type="checkbox"] {
       margin: 0;
     }
   }
+
+  .profile-centered {
+    text-align: center;
+  }
+
+  .profile-cv {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.35rem;
+    padding: 0.3rem 0.9rem;
+    border: 1px solid var(--global-theme-color);
+    border-radius: 999px;
+    color: var(--global-theme-color);
+    font-size: 0.85rem;
+    letter-spacing: 0.02em;
+    transition:
+      background 0.2s ease,
+      color 0.2s ease;
+
+    &:hover {
+      background: var(--global-theme-color);
+      color: var(--global-bg-color);
+      text-decoration: none;
+    }
+  }
 }
 
 .profile.float-right {
