@@ -18,6 +18,9 @@ const progressBar = $("#progress");
 window.onload = function () {
   setTimeout(progressBarSetup, 50);
 };
+// A page of the site shown in place of another (swap.js): the top bar above it (with the name or not) and the
+// length to scroll are its own.
+document.addEventListener("swap:placed", () => ("max" in document.createElement("progress") ? initializeProgressElement() : resizeProgressBar()));
 /*
  * We set up the bar according to the browser.
  * If the browser supports the progress element we use that.
@@ -46,7 +49,9 @@ function getCurrentScrollPosition() {
 }
 
 function initializeProgressElement() {
-  let navbarHeight = $("#navbar").outerHeight(true);
+  // (the top bar without its menu, which a phone opens over the page, and which closes as a page is switched to)
+  const menu = $("#navbarNav.show, #navbarNav.collapsing");
+  let navbarHeight = $("#navbar").outerHeight(true) - (menu.length ? menu.outerHeight(true) : 0);
   $("body").css({ "padding-top": navbarHeight });
   $("progress-container").css({ "padding-top": navbarHeight });
   progressBar.css({ top: navbarHeight });

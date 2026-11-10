@@ -2,16 +2,18 @@
  * Going between the pages in the top bar without loading the whole site again.
  *
  * Only the page's own content (the .swap-panel in the main container) changes:
- * the new one slides in from the side its tab lies on while the old one slides
- * out the other way, and a line under the tabs slides along to the new tab.
- * Every page seen stays in the document, hidden (display: none, so nothing of
- * it is drawn), and coming back to one finds it as it was left: the playground
- * living on, the music playing, the scroll where it was.
+ * the old one slides out, then the new one slides in from the side its tab
+ * lies on, at the top of the page, and a line under the tabs slides along to
+ * the new tab. Every page seen stays in the document, hidden (display: none,
+ * so nothing of it is drawn), and coming back to one finds it as it was left:
+ * the playground living on, the music playing.
  *
  * A page shown for the first time has its scripts run once it is in place;
  * then a `swap:content` event on its panel lets the site's scripts (common.js,
- * zoom.js) set up in it what they set up on a page load. Each arrival ends
- * with `swap:shown` on the panel. Anything else (another site, a new tab, a
+ * zoom.js) set up in it what they set up on a page load. `swap:placed` on a
+ * panel says it has just taken the old one's place (progress-bar.js fits the
+ * page's top to the top bar, taller with the name on a phone), and each
+ * arrival ends with `swap:shown`. Anything else (another site, a new tab, a
  * page not in the top bar, a link to a #part of a page) loads as before.
  ******************************************************************************/
 (() => {
@@ -20,8 +22,10 @@
   const nav = document.querySelector("#navbar .navbar-nav");
   if (!first || !nav || !window.fetch || !first.animate) return;
 
-  const SLIDE_MS = 420;
-  const EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
+  const OUT_MS = 180; // the old page sliding out, speeding up
+  const IN_MS = 320; // the new one sliding in, slowing down
+  const EASE_OUT = "cubic-bezier(0.4, 0, 1, 1)";
+  const EASE_IN = "cubic-bezier(0.22, 0.61, 0.36, 1)";
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const pathOf = (url) => new URL(url, location.href).pathname.replace(/index\.html$/, "");
   const tabs = [...nav.querySelectorAll(".nav-item > a.nav-link[href]")].filter((a) => a.origin === location.origin && !a.dataset.toggle);
@@ -31,7 +35,6 @@
   // path -> { panel, title, brand (whether the page has the name top left), ran (its scripts) }
   const pages = new Map([[pathOf(location.href), { panel: first, title: document.title, brand: !!document.querySelector(BRAND), ran: true }]]);
   const fetching = new Map(); // path -> the page's document, parsed, on its way
-  const scrolls = new Map(); // path -> where it was scrolled to when left
   let here = pathOf(location.href);
   let latest = 0; // the latest move; an earlier one still loading gives way to it
   let settle = null; // ends the slide under way at once
@@ -147,74 +150,60 @@
       if (brand && !document.querySelector(BRAND)) document.querySelector("#navbar .navbar-toggler").before(document.importNode(brand, true));
     }
     const from = pages.get(here);
-    scrolls.set(here, window.scrollY);
     const dir = order.indexOf(path) < order.indexOf(here) ? -1 : 1;
     here = path;
     document.title = page.title;
     const brand = document.querySelector(BRAND);
     if (brand) brand.hidden = !page.brand;
-    await slide(from.panel, page.panel, dir, scrolls.get(path) || 0);
-    if (here === path) arrive(path, page);
+    slide(from.panel, page.panel, dir, () => here === path && arrive(path, page));
   }
 
-  // The old panel is pinned where it is on the screen and slides out; the new one, in the flow of the page at
-  // its own scroll, slides in. Only transform and opacity change, which the compositor animates on its own.
-  function slide(from, to, dir, scroll) {
+  // The old panel slides out where it is; once it is gone, the new one takes its place at the top of the page
+  // and slides in. One panel in the flow of the page at a time, nothing pinned, so the page is never other than
+  // the one in view, at the top. Only transform and opacity change, which the compositor animates on its own.
+  function slide(from, to, dir, arrived) {
     settle?.();
-    const lead = from.firstElementChild;
-    const r = from.getBoundingClientRect();
-    const top = lead?.getBoundingClientRect().top;
-    // Pinned and the new one shown in one go, so the page is never without content (its scroll would drop to
-    // the top in between, and a phone's address bar come back).
-    Object.assign(from.style, {
-      position: "fixed",
-      top: `${r.top}px`,
-      left: `${r.left}px`,
-      width: `${r.width}px`,
-      margin: "0",
-      pointerEvents: "none",
-    });
-    to.hidden = false;
-    window.scrollTo(0, scroll);
-    if (lead) from.style.top = `${r.top + top - lead.getBoundingClientRect().top}px`; // (its content's top margin no longer runs past it)
-    const end = () => {
-      settle = null;
-      anims.forEach((a) => a.cancel());
+    const swap = () => {
       from.hidden = true;
-      from.removeAttribute("style");
+      to.hidden = false;
+      to.dispatchEvent(new CustomEvent("swap:placed", { bubbles: true }));
+      window.scrollTo(0, 0);
     };
-    let anims = [];
-    if (!reducedMotion.matches) {
-      const d = Math.min(120, window.innerWidth * 0.12) * dir;
-      const opts = { duration: SLIDE_MS, easing: EASE };
-      anims = [
-        from.animate(
-          [
-            { transform: "none", opacity: 1 },
-            { opacity: 0, offset: 0.6 },
-            { transform: `translateX(${-d}px)`, opacity: 0 },
-          ],
-          opts
-        ),
-        to.animate(
-          [
-            { transform: `translateX(${d}px)`, opacity: 0 },
-            { opacity: 0, offset: 0.2 },
-            { transform: "none", opacity: 1 },
-          ],
-          opts
-        ),
-      ];
+    if (reducedMotion.matches) {
+      swap();
+      return arrived();
     }
-    settle = end;
-    if (!anims.length) {
-      end();
-      return Promise.resolve();
-    }
-    return anims[1].finished.then(
-      () => settle === end && end(),
-      () => {} // (cancelled by the next move, which ended it)
+    const d = Math.min(120, window.innerWidth * 0.12) * dir;
+    let anim = from.animate(
+      [
+        { transform: "none", opacity: 1 },
+        { transform: `translateX(${-d}px)`, opacity: 0 },
+      ],
+      { duration: OUT_MS, easing: EASE_OUT }
     );
+    settle = () => {
+      anim.cancel();
+      swap();
+      settle = null;
+    };
+    anim.onfinish = () => {
+      swap();
+      anim = to.animate(
+        [
+          { transform: `translateX(${d}px)`, opacity: 0 },
+          { transform: "none", opacity: 1 },
+        ],
+        { duration: IN_MS, easing: EASE_IN }
+      );
+      settle = () => {
+        anim.cancel();
+        settle = null;
+      };
+      anim.onfinish = () => {
+        settle = null;
+        arrived();
+      };
+    };
   }
 
   const ours = (a) => {
