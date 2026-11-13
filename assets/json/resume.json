@@ -147,6 +147,7 @@
       "name": "Hologram Representation via Quadratic Phase Gaussian Splatting",
       "publisher": "ACM SIGGRAPH ASIA 2026 Tech Comm.",
       "releaseDate": "2026",
+      "releaseMonth": "12",
       "url": "https://gsmark36.github.io/complex-valued-quadratic-phase-gaussian/",
       "summary": "Haolong Wang, Yicheng Zhan, Kaan Akşit, and Simeng Qiu",
       "status": ""
@@ -157,6 +158,7 @@
       "name": "Clustered Codebook Quantization for 2D Gaussian-based Image Compression",
       "publisher": "ACM SIGGRAPH 2026 Posters",
       "releaseDate": "2026",
+      "releaseMonth": "07",
       "url": "https://complightlab.com/publications/clustercodebook2DGS/",
       "summary": "Runze Cheng, Yicheng Zhan, Josef Spjut, and Kaan Akşit",
       "status": "Invited to Technical Paper Talk Panel"
@@ -167,6 +169,7 @@
       "name": "Compressing Double-Phase Holograms using 2D Gaussians",
       "publisher": "Eurographics 2026 Posters",
       "releaseDate": "2026",
+      "releaseMonth": "05",
       "url": "https://complightlab.com/publications/compressing_double_phase_gs/",
       "summary": "Xiaoyue Fan, Yicheng Zhan, Amrita Mazumdar, and Kaan Akşit",
       "status": ""
@@ -177,16 +180,18 @@
       "name": "Enhancing Binary Encoded Crime Linkage Analysis Using Siamese Network",
       "publisher": "AAAI 2026",
       "releaseDate": "2026",
+      "releaseMonth": "01",
       "url": "https://ojs.aaai.org/index.php/AAAI/article/view/41309",
       "summary": "Yicheng Zhan, Fahim Ahmed, Amy Burrell, Matthew J. Tonkin, Sarah Galambos, Jessica Woodhams, and Dalal Alrajeh",
       "status": ""
     },
     {
-      "firstAuthor": "Yicheng Zhan*",
-      "otherAuthors": "Xiangjun Gao*, Long Quan, and Kaan Akşit (*Equal Contribution)",
+      "firstAuthor": "Yicheng Zhan",
+      "otherAuthors": "Xiangjun Gao, Long Quan, and Kaan Akşit",
       "name": "Complex-Valued 2D Gaussian Representation for Computer-Generated Holography",
       "publisher": "ECCV 2026",
       "releaseDate": "2026",
+      "releaseMonth": "09",
       "url": "https://complightlab.com/publications/complex_valued_2d_gaussians/",
       "summary": "Yicheng Zhan, Xiangjun Gao, Long Quan, and Kaan Akşit",
       "status": ""
@@ -217,6 +222,7 @@
       "name": "Configurable Holography: Towards Display and Scene Adaptation",
       "publisher": "ArXiv Preprint 2024",
       "releaseDate": "2024",
+      "releaseMonth": "05",
       "url": "https://arxiv.org/abs/2405.01558",
       "summary": "Yicheng Zhan, Liang Shi, Wojciech Matusik, Qi Sun, and Kaan Akşit",
       "status": "In preparation"
@@ -227,6 +233,7 @@
       "name": "AutoColor: Learned Light Power Control for Multi-Color Holograms",
       "publisher": "SPIE VR/AR/MR 2024",
       "releaseDate": "2024",
+      "releaseMonth": "01",
       "url": "https://complightlab.com/autocolor_/",
       "summary": "Yicheng Zhan, Koray Kavaklı, Hakan Urey, Qi Sun, and Kaan Akşit",
       "status": ""
