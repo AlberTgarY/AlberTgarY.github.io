@@ -3,6 +3,7 @@ import subprocess
 import sys
 import os
 import re
+from collections import Counter
 
 def escape_latex(text):
     """Escape special LaTeX characters"""
@@ -51,6 +52,20 @@ def two_column_list(rows):
         + " \\\\[2pt]\n".join(lines)
         + "\n\\end{tabular*}\n"
     )
+
+def sort_publications(publications, owner):
+    """PDF order: papers where `owner` is first author come first, then the rest, each newest first.
+    releaseDate holds only the year (the website shows it), so releaseMonth (PDF only) orders
+    papers of the same group and year. It is required whenever such a tie exists."""
+    def group_year(pub):
+        return (not pub.get('firstAuthor', '').startswith(owner), -int(pub['releaseDate'][:4]))
+
+    counts = Counter(group_year(p) for p in publications)
+    missing = [p['name'] for p in publications if counts[group_year(p)] > 1 and 'releaseMonth' not in p]
+    if missing:
+        sys.exit("Add \"releaseMonth\" to resume.json for these publications (same year as another one):\n  "
+                 + "\n  ".join(missing))
+    return sorted(publications, key=lambda p: group_year(p) + (-int(p.get('releaseMonth', '0')),))
 
 def generate_latex(json_data):
     """Generate LaTeX document from JSON data"""
@@ -198,7 +213,7 @@ def generate_latex(json_data):
     user_name_clean = re.sub(r'\s*\([^)]*\)\s*', ' ', name).strip()
     escaped_user_name = escape_latex(user_name_clean)
 
-    for pub in publications:
+    for pub in sort_publications(publications, user_name_clean):
         first_author = escape_latex(pub.get('firstAuthor', ''))
         other_authors = escape_latex(pub.get('otherAuthors', ''))
         title = escape_latex(pub.get('name', ''))
