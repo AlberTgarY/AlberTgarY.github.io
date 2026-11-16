@@ -467,23 +467,39 @@ async function start() {
   // About 60 frames a second at most: on a faster screen (120 Hz, say), every other one. A device that
   // cannot keep up (under about 45 a second over 3 s, while the page's own work takes well under the time
   // between frames: the drawing holds it up, a phone's GPU say) draws fewer pixels (view.js lower()).
-  // Out of sight (scrolled away, or another page of the site shown: swap.js), life goes on undrawn, in steps of
-  // a tenth of a second, so coming back finds it moved on; in a hidden browser tab it waits.
+  // Out of sight (scrolled away, another page of the site shown: swap.js, or the browser hidden), life goes on
+  // undrawn, in steps of a tenth of a second at most, so coming back finds it moved on.
   let last = performance.now();
   let unseen = 0;
   const pace = { frames: 0, between: 0, busy: 0 };
+  function goOn(secs) {
+    const n = Math.ceil(secs / 0.1);
+    for (let i = 0; i < n; i++) {
+      world.step(secs / n, false);
+      if (shop) (inShop() ? room : shop).step(secs / n, false, world.hour());
+    }
+  }
+  // A hidden browser tab (a window minimised or covered over counts as hidden too) gets no frames, and its own
+  // timers are slowed to one a second or a minute: a worker's timer is not, and moves life on by the time gone
+  // since (at most a minute at once: after the computer slept, say). Nobody is hovered meanwhile.
+  const ticker = new Worker(URL.createObjectURL(new Blob(["setInterval(() => postMessage(0), 100)"], { type: "text/javascript" })));
+  ticker.onmessage = () => {
+    if (!document.hidden) return;
+    const now = performance.now();
+    if (now > last) goOn(Math.min(60, (now - last) / 1000));
+    last = now;
+  };
+  document.addEventListener("visibilitychange", () => document.hidden && [room, shop].forEach((w) => w && (w.pointer.mouse = false)));
   function frame(now) {
     requestAnimationFrame(frame);
-    if (now - last < 11) return;
+    if (document.hidden || now - last < 11) return; // (hidden: the ticker's)
     const between = now - last;
     const dt = Math.min(0.1, between / 1000);
     last = now;
-    if (document.hidden) return;
     if (!onScreen) {
       unseen += dt;
       if (unseen < 0.1) return;
-      world.step(unseen, false);
-      if (shop) (inShop() ? room : shop).step(unseen, false, world.hour());
+      goOn(unseen);
       unseen = 0;
       return;
     }
