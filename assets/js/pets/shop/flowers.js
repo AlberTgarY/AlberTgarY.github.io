@@ -662,8 +662,8 @@ export const FLOWERS = {
 // high, as at the market: a few sleeved bunches, each of one colour (in turn from `colors`), one in the
 // middle standing tallest and the rest round it leaning out over the rim, a little lower; each a dome of
 // blooms packed `size` apart. Returned as the bunches ({ x, z, r, top: where its dome is, base: where its
-// stems gather at the rim }) and the blooms in three parts: the whole bucket thinned out by one, then by
-// two, picks (pick()) leaves only the first, then the first two.
+// stems gather at the rim, `third`: which of the three lots it is in) and the blooms in three parts, a lot of
+// bunches each: bought down (pick()), the bucket keeps the first two lots, then the first (the middle one).
 function bucketParts(kind, colors, R, H, seed) {
   const f = FLOWERS[kind];
   const rand = rng(seed);
@@ -678,6 +678,8 @@ function bucketParts(kind, colors, R, H, seed) {
     const [x, z] = [Math.cos(a) * d, Math.sin(a) * d];
     bunches.push({ x, z, r: R * (n > 3 ? 0.48 : 0.56), top: H * (0.84 + 0.1 * rand()), base: [x * 0.35, z * 0.35] });
   }
+  // The lots, in the order of the bunches: the first one (the middle one, if any) on its own, the rest halved.
+  bunches.forEach((b, k) => (b.third = k === 0 ? 0 : 1 + Math.floor(((k - 1) * 2) / (n - 1))));
   // The blooms: in each bunch's dome, as far apart as the kind needs (a few tries each), the outer ones lower.
   const spots = [];
   bunches.forEach((b, k) => {
@@ -686,12 +688,12 @@ function bucketParts(kind, colors, R, H, seed) {
       const [a, d] = [rand() * Math.PI * 2, Math.sqrt(rand()) * b.r];
       const [x, z] = [Math.round(b.x + Math.cos(a) * d), Math.round(b.z + Math.sin(a) * d)];
       if (spots.some(([sx, sz]) => Math.hypot(sx - x, sz - z) < f.size)) continue;
-      spots.push([x, z, Math.round(b.top - 0.45 * b.r * (d / b.r) ** 2 + (rand() - 0.5) * 2), col]);
+      spots.push([x, z, Math.round(b.top - 0.45 * b.r * (d / b.r) ** 2 + (rand() - 0.5) * 2), col, b.third]);
       got++;
     }
   });
-  spots.forEach(([x, z, top, col], i) => {
-    const p = parts[i % 3]; // (a third of them each: bought down to two thirds, then a third, it shows)
+  spots.forEach(([x, z, top, col, third]) => {
+    const p = parts[third];
     const base = top - f.head;
     if (kind === "lily" && rand() < 0.35) lilyBud(p, x, base - 1, z, rand, col);
     else f.bloom(p, x, base, z, rand, col);
@@ -730,9 +732,10 @@ function leavesGeometry(bunches, head, rand) {
 }
 
 // The cellophane round each bunch: a sleeve from where its stems gather, a little under the rim, flaring up
-// round the blooms to the edge of their dome, its top edge crinkled; one geometry for the bucket.
+// round the blooms to the edge of their dome, its top edge crinkled; one geometry for the bucket, each lot of
+// bunches a run of it in turn (`userData.ends`: where each lot ends in the index).
 function sleevesGeometry(bunches, head, rand) {
-  const [position, index] = [[], []];
+  const [position, index, ends] = [[], [], []];
   const SIDES = 12;
   for (const b of bunches) {
     const first = position.length / 3;
@@ -753,6 +756,7 @@ function sleevesGeometry(bunches, head, rand) {
         const [p, q] = [first + j * SIDES + s, first + j * SIDES + ((s + 1) % SIDES)];
         index.push(p, q, q + SIDES, p, q + SIDES, p + SIDES);
       }
+    ends[b.third] = index.length;
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
@@ -760,6 +764,7 @@ function sleevesGeometry(bunches, head, rand) {
   g.computeVertexNormals();
   g.addGroup(0, index.length, 0); // its back, then its front (sleeveMaterials)
   g.addGroup(0, index.length, 1);
+  g.userData.ends = ends;
   return g;
 }
 // Drawn as three.js draws a see-through two-sided material, its back faces and then its front ones, but by
@@ -771,16 +776,23 @@ const sleeveMaterials = [THREE.BackSide, THREE.FrontSide].map(
 
 // A bucketful of `kind` (display.js): a mesh with its base at the rim, `R` voxels across the top (the
 // bunches flaring out over the rim) and `H` voxels high, in `colors`, the bunches' leaves in it and their
-// cellophane a mesh of its own on it. `level(n)` shows it full (3) or thinned out by picking (2, then 1).
+// cellophane a mesh of its own on it. `level(n)` shows it full (3) or bought down by a lot of bunches (2, then
+// 1): their blooms, leaves and cellophane gone with them (the first n lots drawn, a run of each geometry).
 export function bucketBlooms(kind, colors, R, H, seed) {
   const { parts, bunches, head } = bucketParts(kind, colors, Math.round(R / FINE), Math.round(H / FINE), seed);
   const rand = rng(seed + 1);
-  const { geometry, ends } = joined([leavesGeometry(bunches, head, rand), ...parts.map((p) => seenFaces(meshOf(p).geometry))]);
+  const lot = (k) => bunches.filter((b) => b.third === k);
+  const { geometry, ends } = joined([0, 1, 2].flatMap((k) => [leavesGeometry(lot(k), head, rand), seenFaces(meshOf(parts[k]).geometry)]));
   const mesh = new THREE.Mesh(geometry, seenMaterial);
   mesh.scale.setScalar(FINE);
   mesh.castShadow = mesh.receiveShadow = true;
-  mesh.add(new THREE.Mesh(sleevesGeometry(bunches, head, rand), sleeveMaterials));
-  mesh.userData.level = (n) => geometry.setDrawRange(0, ends[Math.max(1, Math.min(3, n))]);
+  const sleeves = sleevesGeometry(bunches, head, rand);
+  mesh.add(new THREE.Mesh(sleeves, sleeveMaterials));
+  mesh.userData.level = (n) => {
+    const k = Math.max(1, Math.min(3, n));
+    geometry.setDrawRange(0, ends[2 * k - 1]);
+    sleeves.setDrawRange(0, sleeves.userData.ends[k - 1]);
+  };
   return mesh;
 }
 
