@@ -92,7 +92,8 @@ export function stepSpring(s, target, dt) {
 
 // A lap is an ellipse on the ground seen from slightly above: its near side runs along the bottom of the
 // photo and its far side behind the photo's top edge. All in px within .profile.
-export const world = { nearY: 0, minX: 0, maxX: 0, cx: 0, rx: 0, ry: 0, lapOk: false };
+// `skyY`: the highest a pet can be lifted, its head no higher than a tenth of the photo's height below its top.
+export const world = { nearY: 0, minX: 0, maxX: 0, cx: 0, rx: 0, ry: 0, lapOk: false, skyY: 0 };
 
 export function measure(profile, photo) {
   const p = profile.getBoundingClientRect();
@@ -103,6 +104,7 @@ export function measure(profile, photo) {
   world.cx = (r.left + r.right) / 2 - p.left;
   world.rx = r.width / 2 + LAP_MARGIN;
   world.ry = (world.nearY - (r.top - p.top + FAR_INSET)) / 2;
+  world.skyY = r.top - p.top + 0.1 * r.height;
   // Laps need room beside the photo, which phones do not have.
   const room = LAP_MARGIN + 30;
   world.lapOk = window.innerWidth >= 576 && r.left - room > 0 && r.right + room < document.documentElement.clientWidth && world.ry > 40;

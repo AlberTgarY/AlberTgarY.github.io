@@ -66,6 +66,32 @@
   stroke: #ec6f9c;
 }
 
+// What a pet is picked up by (pets/pet.js): its hit outline, where a finger never scrolls the page.
+.pet-handle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+
+// A picked-up pet's shadow, left on the ground under it (placed by the script).
+.pet-ground {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2; // over the photo, under the pets (it comes before them)
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+  overflow: visible;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); // as on the canvas it is drawn in otherwise
+
+  ellipse {
+    fill: #000;
+  }
+}
+
 html.pet-hover,
 html.pet-hover * {
   cursor: pointer !important;

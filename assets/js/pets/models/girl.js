@@ -14,6 +14,7 @@ import { part, ellipsoid, box, pivotGroup, surfaceOf, paintEyes, approach, smoot
 import { limbs, poseLimbs } from "./chibi.js";
 import { PROP_COLORS, cucumber, foodBag, riceBowl, teaCup, garden, sofaCorner, bed, FLOWERS } from "./girl-props.js";
 import { freshPicker, evenly } from "../choose.js";
+import { angelWings } from "./airborne.js";
 
 export function buildGirl() {
   const palette = {
@@ -265,6 +266,73 @@ export function buildGirl() {
   // Ease a pose in or out (`on`), or towards how far in it should be (a number from 0 to 1).
   const ease = (name, on, rate, dt) => (amount[name] = approach(amount[name] || 0, typeof on === "number" ? on : on ? 1 : 0, rate, dt));
   const phase = { wave: 0, munch: 0, clap: 0, pat: 0 };
+
+  // Picked up (pets/pet.js has how), she dangles from the back of her collar, laughing, kicking her feet and
+  // holding her arms out, her legs, arms and hair trailing behind each swing; shaken hard, she gets dizzy. Let
+  // go, little wings pop out of her back and she floats down on them, beating them slowly, arms out like a
+  // dancer and her feet tucked up behind her; she lands lightly, her knees giving, and the wings fold away.
+  let wings = null; // built the first time she floats down on them
+  let aired = false; // her hips have been turned to the side, to set straight once she is down
+  let kick = 0;
+  function flyPose(a, dt) {
+    const { legs, arms } = body;
+    const wingsOut = ease("wings", a && (a.phase === "fall" ? a.open : a.phase === "land" ? 1 - smoothstep(0.2, 0.7, a.t) : 0), 9, dt);
+    if (wingsOut > 0.001 && !wings) wings = angelWings(pose, [3, 17, -11]);
+    wings?.update(wingsOut, a ? a.beat : 0);
+    if (!a) {
+      if (aired) legs.forEach(({ hip }) => (hip.outer.rotation.z = 0));
+      aired = false;
+      return;
+    }
+    aired = true;
+    const { phase: kind, t, w, swing, lag, flop, beat, crouch, across } = a;
+    const held = kind === "held";
+    // How far into floating on her wings (easing back out as she lands), and how dizzy.
+    const float = kind === "fall" ? a.open : kind === "land" ? 1 - smoothstep(0, 0.35, t) : 0;
+    const giddy = ease("giddy", held && a.shake > 2.6 ? 1 : 0, held && a.shake > 2.6 ? 3 : 1, dt);
+    const lively = (1 - float) * (1 - giddy) * (kind === "land" ? 1 - smoothstep(0, 0.2, t) : 1);
+    kick += Math.PI * 2 * 2.3 * dt;
+    amount.sofa = approach(amount.sofa || 0, 0, 14, dt); // (the sofa and the bed are put away at once)
+    amount.bed = approach(amount.bed || 0, 0, 14, dt);
+    const mix = (r, axis, v) => (r[axis] += (v - r[axis]) * w);
+    // A turn about the screen's axis, which is about x and z in the model, as her limbs trail behind.
+    const trail = (r, k) => {
+      r.x += across[0] * k * w;
+      r.z += across[1] * k * w;
+    };
+    legs.forEach(({ hip, knee }, i) => {
+      const step = kick + i * Math.PI;
+      mix(
+        hip.outer.rotation,
+        "x",
+        lively * (-0.25 + 0.5 * Math.sin(step)) + float * (0.05 + 0.08 * Math.sin(beat * 0.5 + i * Math.PI)) - 0.75 * crouch
+      );
+      mix(knee.outer.rotation, "x", lively * (0.45 + 0.45 * Math.max(0, Math.sin(step + 1))) + float * (i ? 0.5 : 1.1) + 0.3 * giddy + 1.4 * crouch);
+      hip.outer.rotation.z = 0;
+      trail(hip.outer.rotation, -0.5 * swing + 1.1 * lag);
+    });
+    arms.forEach(({ shoulder, elbow }, i) => {
+      const side = i ? 1 : -1;
+      const out = lively * (0.85 + 0.2 * Math.sin(kick * 0.6 + i)) + float * (1.05 + 0.18 * Math.sin(beat + Math.PI)) + giddy * 0.35 + 0.5 * crouch;
+      mix(shoulder.outer.rotation, "x", -0.3 * lively - 0.15 * float);
+      mix(shoulder.outer.rotation, "y", 0);
+      mix(shoulder.outer.rotation, "z", side * out);
+      mix(elbow.outer.rotation, "x", -0.35 * lively);
+      mix(elbow.outer.rotation, "z", side * (0.35 * float + 0.3 * lively));
+      trail(shoulder.outer.rotation, -0.4 * swing + 1.3 * lag);
+    });
+    pose.position.y -= 2 * crouch;
+    // Her face: laughing as she swings, dizzy when shaken, eyes shut in bliss as she floats.
+    const dizzyNow = giddy > 0.5;
+    dizzyEyes.visible = dizzyNow;
+    happyEyes.visible = !dizzyNow;
+    angryEyes.visible = brows.visible = frown.visible = false;
+    open.visible = dizzyNow || (float < 0.5 && kind !== "land");
+    smile.visible = !open.visible;
+    const r = head.outer.rotation;
+    r.z += w * (-0.3 * swing + giddy * 0.2 * Math.sin(kick * 1.2));
+    backHair.outer.rotation.z += w * (-0.6 * swing - 0.9 * (flop - lag));
+  }
   return {
     label: "Voxel girl in a grey sweater, click to say hi",
     hint: "say hi",
@@ -283,6 +351,9 @@ export function buildGirl() {
     speed: 28,
     gaitHz: 2.2,
     lane: 14,
+    // Picked up and let go (pets/pet.js): she floats down on little wings, beating them slowly.
+    heft: [15, 7],
+    drop: { open: 0.1, terminal: 48, beat: 1.4, sway: [0.09, 0.45], hangFrom: 40, settle: 1.2, give: 8 },
     sleepAt: [bedding.feet[0] - 33, bedding.feet[1], 9], // her face, tucked up in bed
     // Weights for the choice (pets/pet.js), set so that with repeats held back she laps 1/6 of the time,
     // strolls 15%, naps about 18% and does a trick half the time.
@@ -306,7 +377,7 @@ export function buildGirl() {
     // (chibi.js) and `talk` moves her mouth, for what she does there.
     animate(
       dt,
-      { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress, leash, stroke, company, seated, hold, legHold, talk }
+      { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress, leash, stroke, company, seated, hold, legHold, talk, aloft }
     ) {
       const doing = (name) => state === "trick" && trick === name;
       const snacking = state === "trick" && progress < 0.88;
@@ -414,6 +485,7 @@ export function buildGirl() {
       // The long hair keeps hanging when the head nods, half follows it when it turns, and swings back as
       // she walks.
       backHair.outer.rotation.set(-r.x + 0.12 * stride, -0.5 * r.y, -0.6 * r.z + 0.05 * stride * Math.sin(gait), "YXZ");
+      if (aloft || aired || wings) flyPose(aloft, dt);
     },
   };
 }

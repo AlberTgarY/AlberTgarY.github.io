@@ -17,7 +17,10 @@ import {
   nightcap,
   CAP_COLORS,
   harness,
+  approach,
+  smoothstep,
 } from "./voxels.js";
+import { parachute } from "./airborne.js";
 
 export function buildCollie() {
   const palette = {
@@ -171,6 +174,71 @@ export function buildCollie() {
   let wagAmp = 0.25;
   let chow = 0; // 0 head up, 1 head in the bowl
   const lieDrop = 8;
+
+  // Picked up (pets/pet.js has how), she paddles the air with her front paws, her hind legs hanging and her
+  // tail wagging, legs, ears and tail flopping behind each swing. Let go, she drops for a moment with her legs
+  // splayed, until a parachute bursts out of a pack on her harness and blooms open over her; she drifts down
+  // under it, paddling slowly, her ears lifted by the air, swinging from it. Down, her legs give, the canopy
+  // flops over to one side and is gone, and she shakes herself off.
+  let chute = null; // built the first time she comes down under it
+  let chuteOut = 0; // how far it is out, 0 to 1
+  let aired = false; // her legs and tail have been turned to the side, to set straight once she is down
+  let paddle = 0;
+  let breath = 0;
+  const lean = [0, 0];
+  function flyPose(a, dt) {
+    const kind = a ? a.phase : "";
+    chuteOut = approach(chuteOut, kind === "fall" ? a.open : kind === "land" ? 1 : 0, kind === "fall" ? 30 : 12, dt);
+    if (chuteOut > 0.001 && !chute) chute = parachute(pose, [clip.position.x, clip.position.y - 1, clip.position.z]);
+    breath += Math.PI * 2 * 1.1 * dt;
+    lean[0] = a ? -0.6 * a.swing * a.across[0] : 0; // the canopy stays more upright than she does
+    lean[1] = a ? -0.6 * a.swing * a.across[1] : 0;
+    chute?.update(chuteOut, kind === "land" ? smoothstep(0.15, 1, a.t) : a ? 0 : 1, breath, lean);
+    if (chuteOut > 0.01) harnessMesh.visible = true;
+    if (!a) {
+      if (aired) {
+        legs.forEach((leg) => (leg.outer.rotation.z = 0));
+        tailPivot.outer.rotation.z = 0;
+      }
+      aired = false;
+      return;
+    }
+    aired = true;
+    const { t, w, swing, lag, flop, crouch, across } = a;
+    const float = kind === "fall" ? a.open : kind === "land" ? 1 - smoothstep(0, 0.3, t) : 0;
+    const startled = kind === "fall" && a.height > 16 ? 1 - a.open : 0; // in free fall, before it opens
+    const lively = (1 - float) * (1 - startled) * (kind === "land" ? 1 - smoothstep(0, 0.2, t) : 1);
+    paddle += Math.PI * 2 * (1.2 + 1.4 * lively) * dt;
+    const loose = -0.5 * swing + 1.1 * lag; // a leg's turn as it trails behind the body
+    legs.forEach((leg, i) => {
+      const front = i < 2;
+      const step = paddle + i * Math.PI;
+      const r = leg.outer.rotation;
+      const target =
+        lively * (front ? -0.35 + 0.55 * Math.sin(step) : 0.2 + 0.12 * Math.sin(step + 1)) +
+        float * (front ? -0.25 + 0.2 * Math.sin(step * 0.5) : 0.3 + 0.1 * Math.sin(step * 0.5 + 1)) +
+        startled * (front ? -0.9 : 0.9);
+      r.x += (target - r.x) * w + across[0] * loose * w;
+      r.z = w * (startled * (i % 2 ? 0.35 : -0.35) + across[1] * loose);
+      leg.outer.scale.y *= 1 - 0.3 * crouch;
+    });
+    pose.position.y -= 3 * crouch;
+    // Ears flared in the fall and fluttering in the air under the canopy, trailing behind each swing.
+    ears.forEach((ear, i) => {
+      const out = 0.55 * startled + float * (0.25 + 0.12 * Math.sin(t * 17 + i * 2));
+      ear.outer.rotation.z += w * ((i ? -1 : 1) * out - 0.9 * (flop - lag) * across[1]);
+    });
+    tailPivot.outer.rotation.x += w * (-0.5 * lively + 0.6 * startled + 0.3 * float - 0.8 * (flop - lag) * across[0]);
+    tailPivot.outer.rotation.y += w * -1.2 * (flop - lag) * across[1];
+    head.outer.rotation.z += w * -0.3 * swing;
+    // Down, a good shake from nose to tail.
+    if (kind === "land") {
+      const k = smoothstep(0.7, 0.85, t) * (1 - smoothstep(1.3, 1.55, t));
+      pose.rotation.z += 0.3 * k * Math.sin(t * 44);
+      head.outer.rotation.z += 0.25 * k * Math.sin(t * 44 - 0.8);
+      ears.forEach((ear, i) => (ear.outer.rotation.z += (i ? -1 : 1) * 0.5 * k * Math.sin(t * 44 - 1.6)));
+    }
+  }
   return {
     label: "Voxel border collie, click to pet",
     hint: "pet me",
@@ -192,6 +260,9 @@ export function buildCollie() {
     hit: [24, 22, 27],
     shadow: [13, 19],
     speed: 40,
+    // Picked up and let go (pets/pet.js): she drifts down under a parachute, swinging from it.
+    heft: [17, 9],
+    drop: { open: 0.3, terminal: 58, sway: [0.13, 0.4], hangFrom: 64, settle: 1.7, give: 9 },
     gaitHz: 2.4,
     eats: true,
     // Weights for the choice (pets/pet.js), set so that with repeats held back she laps 25% of the time,
@@ -211,6 +282,7 @@ export function buildCollie() {
       wagPhase += Math.PI * 2 * (sleeping ? 0.4 : happy ? 3 : walking ? 2 : 1.1) * dt;
       tailPivot.outer.rotation.y = wagAmp * Math.sin(wagPhase);
       tailPivot.outer.rotation.x = -0.7 * lying + 0.9 * (s.sit || 0); // sitting, it lies along the ground
+      if (s.aloft || aired || chute) flyPose(s.aloft, dt);
     },
   };
 }

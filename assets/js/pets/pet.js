@@ -29,12 +29,21 @@
  *   liesWhenPetted, purrs    whether it lies down to be petted, and purrs (shows notes) when it is
  *   seats                    [x, y, z] where pets sit beside it on its sofa (its trick "sofa")
  *   label, hint              accessible name and tooltip
+ *   heft                     [height of the centre of mass, radius of gyration] in voxels, for how it
+ *                            swings when picked up
+ *   drop                     how it comes down when let go: { open: s before its wings or parachute
+ *                            catch the air, terminal: px/s it then floats down at, beat: wingbeats per
+ *                            s, sway: [rad, Hz] it sways by on the way down, hangFrom: voxel height it
+ *                            hangs from as it sways (a parachute's), settle: s it takes to land, give: how
+ *                            quickly its legs take the landing (rad/s), spin: whether it turns right round
+ *                            on the way down, glide: px it steps on as it lands, then: { trick: s } after }
  *   animate(dt, { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress,
- *                 leash, stroke, company })
+ *                 leash, stroke, company, aloft })
  *                            poses the limbs, tail and face; `elapsed` is the seconds spent in
  *                            `state`, `progress` the fraction done of a timed one, `trick` the trick,
  *                            mischief or mood, `leash` and `stroke` the index of the hand holding leads
- *                            or petting (-1 for none) and `company` whether each seat is taken
+ *                            or petting (-1 for none), `company` whether each seat is taken and `aloft`,
+ *                            while it is picked up, coming down or landing, how (makePet's `air`)
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -67,9 +76,43 @@ import {
 } from "./stage.js";
 import { freshPicker, evenly } from "./choose.js";
 
+// Picked up and let go (see makePet). A point of the scene in px within the canvas, as the camera draws it
+// now that it is cropped to W x H (stage.js's toPx is for the whole W x W view); from it, px per voxel up the
+// model's axis, and the contact shadow's centre on the ground (y = -0.45) and px across and down the canvas for
+// a voxel along the scene's x and z there, for drawing the shadow on the page exactly as the canvas would.
+const canvasPx = (x, y, z) => {
+  const v = new THREE.Vector3(x, y, z).project(camera);
+  return [((v.x + 1) / 2) * W, ((1 - v.y) / 2) * H];
+};
+const PX_UP = canvasPx(0, 0, 0)[1] - canvasPx(0, 1, 0)[1];
+const SHADOW_AT = canvasPx(0, -0.45, 0);
+const SHADOW_X = canvasPx(1, -0.45, 0).map((v, i) => v - SHADOW_AT[i]);
+const SHADOW_Z = canvasPx(0, -0.45, 1).map((v, i) => v - SHADOW_AT[i]);
+// The axis through the screen towards the viewer, which a pet swings about, and the depth of the model's
+// middle in normalised device coordinates, for finding the point under the pointer.
+const VIEW = camera.getWorldDirection(new THREE.Vector3()).negate();
+const MIDDLE_Z = new THREE.Vector3().project(camera).z;
+const GRAVITY = 980; // px/s²: a pet some 50 px tall is about half a metre tall
+const MAX_SWING = 1; // rad either way, so it stays inside its canvas
+const STEP = 1 / 240; // s: the longest step the swing is worked out in, so it stays steady at any frame rate
+const POP = 6; // px a pet is lifted by as it is picked up, before the pointer even moves
+const LOW = 16; // px: let go below this, it just drops back down
+const smooth = (a, b, v) => {
+  const p = clamp((v - a) / (b - a), 0, 1);
+  return p * p * (3 - 2 * p);
+};
+// A damped spring `s` ({ x, v }) one step `h` towards `target`, at angular frequency `omega` and damping
+// ratio `zeta` (below 1 it overshoots and swings back).
+function wobble(s, target, omega, zeta, h) {
+  s.v += (omega * omega * (target - s.x) - 2 * zeta * omega * s.v) * h;
+  s.x += s.v * h;
+}
+
 // States: idle | walk | lap | sleep | trick | feed | serve | eat | ready (lined up for a walk) | wait (to be
-// petted) | stroke | petted | mischief | messy (waiting to be found out) | react (to the mess).
-export function makePet(el, rig, spread, { pets, pointer, together }) {
+// petted) | stroke | petted | mischief | messy (waiting to be found out) | react (to the mess) | held
+// (picked up by the pointer) | fall (let go) | land. `canCarry`: whether it can be picked up at all (not
+// with reduced motion).
+export function makePet(el, rig, spread, { pets, pointer, together, canCarry }) {
   let renderer;
   try {
     renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
@@ -109,6 +152,15 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
   el.title = rig.hint;
   el.replaceChildren(canvas);
   const render = () => renderer.render(scene, camera);
+  // The outline it is picked up by (pets.js), over the canvas, which is click-through: the hit ellipse
+  // (over()), where a finger never scrolls the page.
+  const handle = canCarry ? document.createElement("span") : null;
+  if (handle) {
+    const [hy, rx, ry] = rig.hit.map((v) => v * VOX);
+    handle.className = "pet-handle";
+    Object.assign(handle.style, { left: `${W / 2 - rx}px`, top: `${FOOT_PX - hy - ry}px`, width: `${2 * rx}px`, height: `${2 * ry}px` });
+    el.append(handle);
+  }
 
   // Placement within .profile, in px.
   const lane = rig.lane || 0; // px further back than the front path
@@ -116,9 +168,12 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
   let y = 0; // how far the paws are raised above the lane (further back is higher)
   let depthScale = 1; // smaller further back
   let behind = false; // drawn behind the photo
+  let lift = 0; // how far it is lifted off the ground, picked up or coming down
+  let swayX = 0; // px it swings out to the side by under its parachute, on the way down
 
   function place() {
-    el.style.transform = `translate(${(x - W / 2).toFixed(2)}px, ${y.toFixed(2)}px) scale(${depthScale.toFixed(4)})`;
+    el.style.transform = `translate(${(x - W / 2 + swayX).toFixed(2)}px, ${(y - lift).toFixed(2)}px) scale(${depthScale.toFixed(4)})`;
+    if (handle && handle.hidden !== behind) handle.hidden = behind; // (no picking it up behind the photo)
   }
 
   // Screen position of a point on the model, and of the face, as px within the canvas, for looking,
@@ -146,7 +201,7 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
   let trip = null; // { party, ahead }: the walking party this pet is in, and px it walks ahead of the girl
   let pace = null; // px/s the party walks at, the same for all of it
   let leash = -1; // the hand holding the leads, for the girl
-  let perch = null; // { host, seat, at, up, down }: on the girl's sofa, hopping up at `at` (or down)
+  let perch = null; // { host, seat, at, up, down, from }: on the girl's sofa, hopping up at `at` (or down, from `from` if she is picked up)
   const toPet = []; // pets the girl will pet next
   let trick = null; // the trick being done, or the mischief being made, or the girl's mood at it
   let hungry = false;
@@ -329,7 +384,7 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
 
   // Hopping up onto the seat, or down, in an arc; once down, back to normal.
   function updatePerch(t) {
-    const [sx, sy] = perch.host.seatAt(perch.seat);
+    const [sx, sy] = perch.from || perch.host.seatAt(perch.seat);
     const k = clamp((t - perch.at) / HOP_TIME, 0, 1);
     const seated = sy - (world.nearY - lane);
     x = sx;
@@ -531,6 +586,300 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
     }
   });
 
+  /* ----- picked up, carried about and let go ----- */
+
+  // Picked up ("held"), it hangs from the point it was picked up by and swings from there as it is carried
+  // about, like a pendulum: it lags behind the hand, overshoots and swings back, and its legs, ears and tail
+  // trail a little behind the body. Let go ("fall"), it comes down the way its model says (rig.drop): the
+  // girl on little wings, the collie under a parachute, the cat just dropping. Once down ("land") it finds its
+  // feet and goes back to its own life. In px within .profile, y down; it swings in the screen's plane.
+  // What its model is told (animate's `aloft`): the phase (the state) and the seconds `t` into it; `w` how far
+  // into its aloft pose it is (easing in as it is picked up, and out as it lands); `swing` the body's turn
+  // from upright (towards the viewer, so above 0 its feet swing to the right); `lag` and `flop` how far its
+  // legs, and its ears and tail, trail behind that (rad, relative to the body); `shake` how hard it is being
+  // shaken (rad/s); `open` how far its wings or parachute are out; `beat` the wingbeat's phase; `crouch` how
+  // far its legs give as it lands (0 to 1); `speed` px/s it is coming down at; `lift` px it is up; `height`
+  // px it was let go at; and `across` [x, z] the screen's axis in the model, for turning a part about it.
+  const air = {
+    phase: "",
+    t: 0,
+    w: 0,
+    swing: 0,
+    lag: 0,
+    flop: 0,
+    shake: 0,
+    open: 0,
+    beat: 0,
+    crouch: 0,
+    speed: 0,
+    lift: 0,
+    height: 0,
+    across: [0, 0],
+  };
+  const grip = { x: 0, y: 0, dx: 0, dl: 0 }; // the pointer (client px), and the pet's offset from it
+  const bob = { x: 0, y: 0, vx: 0, vy: 0, length: 1, rest: 0 }; // its centre of mass, swinging from the grip
+  const pivot = new THREE.Vector3(); // the point it hangs from, in the scene
+  const swing = { x: 0, v: 0 }; // the body's turn about the pivot, rad
+  const lag = { x: 0, v: 0 }; // the legs' turn, following the body's a little behind
+  const flop = { x: 0, v: 0 }; // the ears' and tail's, further behind
+  const stretch = { x: 0, v: 0 }; // stretched by a quick lift, squashed by a quick drop
+  let vx = 0; // the grip's velocity, px/s
+  let vl = 0; // and how fast it is lifting
+  let speed = 0; // px/s it is coming down at
+  let drift = 0; // px/s sideways, thrown
+  let opensAt = Infinity; // s after it is let go that its wings or parachute catch the air
+  let impact = 0; // px/s it touched down at
+  let landX = 0;
+  let glideDir = 0;
+  let hang = null; // on the first pick-up, the model hangs in this, turned about `pivot`
+  let offset = null; // (and this, inside it)
+  let ground = null; // its shadow on the ground below it while it is up
+  const airborne = () => state === "held" || state === "fall" || state === "land";
+
+  // Picked up at the pointer (client px): whatever it was doing stops, and anyone doing something with it
+  // stops too. A walk round the photo that has not set off yet breaks up; one that has goes on without it
+  // (so off the lead). On a lap or a seat, its height there is what it is lifted by.
+  function grab(cx, cy) {
+    if (behind || x === null) return false;
+    if (trip) {
+      if (trip.party.going) trip = pace = null;
+      else trip.party.members.forEach((p) => p.trip && p.leave());
+    }
+    others().forEach((p) => p.standDown(self));
+    mood?.remove();
+    mood = null;
+    perch = null;
+    partner = null;
+    if (!airborne()) air.w = air.shake = 0;
+    lift -= y;
+    y = 0;
+    if (!hang) {
+      hang = new THREE.Group();
+      offset = new THREE.Group();
+      hang.add(offset);
+      offset.add(rig.group);
+      scene.add(hang);
+      ground = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      ground.setAttribute("class", "pet-ground");
+      ground.innerHTML = '<ellipse rx="1" ry="1" shape-rendering="crispEdges" />';
+      el.parentElement.insertBefore(ground, el.parentElement.querySelector(".pet")); // under all the pets
+    }
+    // It hangs from the point under the pointer, on the plane through its middle facing the viewer, but never
+    // from below its centre of mass (it would turn upside down) nor too far out to one side of it.
+    const r = canvas.getBoundingClientRect();
+    const k = W / r.width;
+    const com = canvasPx(0, rig.heft[0], 0)[1];
+    const py = Math.min((cy - r.top) * k, com - 3 * PX_UP);
+    const px = W / 2 + clamp((cx - r.left) * k - W / 2, -0.45 * (com - py), 0.45 * (com - py));
+    pivot.set((px / W) * 2 - 1, 1 - (py / H) * 2, MIDDLE_Z).unproject(camera);
+    // Its centre of mass swings from there like a pendulum as long as a body that size swinging, starting
+    // where it is (caught on the way down, still swinging as it was), and carried on by its walk.
+    const [dx, dy] = [W / 2 - px, com - py];
+    const d = Math.hypot(dx, dy) / VOX;
+    bob.length = (d + rig.heft[1] ** 2 / d) * VOX;
+    bob.rest = Math.atan2(dx, dy);
+    const a = bob.rest + swing.x;
+    bob.x = x + bob.length * Math.sin(a);
+    bob.y = -lift + bob.length * Math.cos(a);
+    bob.vx = swing.v * bob.length * Math.cos(a) + (state === "walk" ? Math.sign(walkTo - x) * (pace ?? rig.speed) : 0);
+    bob.vy = -swing.v * bob.length * Math.sin(a);
+    const o = el.offsetParent.getBoundingClientRect();
+    grip.x = cx;
+    grip.y = cy;
+    grip.dx = x - (cx - o.left);
+    grip.dl = lift + POP + (cy - o.top);
+    vx = vl = 0;
+    stretch.v = 1.2; // a little boing as it comes up
+    setState("held");
+    return true;
+  }
+
+  // Let go: it falls, at first as it was thrown (flung up, it rises first), until its wings or parachute
+  // catch the air, unless it is only just off the ground. The cat turns right round on the way down, the others
+  // to face the viewer.
+  function letGo() {
+    if (state !== "held") return;
+    air.height = lift;
+    speed = clamp(-vl, -600, 600);
+    drift = clamp(vx, -600, 600);
+    opensAt = lift > LOW ? rig.drop.open : Infinity;
+    air.open = air.beat = 0;
+    if (rig.drop.spin && lift > 40) yawTarget = nearestTurn(0) + Math.PI * 2 * (Math.sign(drift || swing.v) || 1);
+    else if (opensAt < Infinity) yawTarget = nearestTurn(CAM_YAW); // facing the viewer, its wings or parachute in full view
+    setState("fall");
+  }
+
+  // Down: its legs take it, as it steps on in the way it faces (the cat).
+  function touchDown() {
+    impact = speed;
+    lift = speed = drift = 0;
+    landX = x;
+    glideDir = Math.sign(Math.sin(yawTarget - CAM_YAW));
+    setState("land", rig.drop.settle);
+  }
+
+  // Steady on its feet: hung straight in the scene again, and back to its own life (stepping off a pet it
+  // came down on, or doing what it does once down), as pleased as anything.
+  function landed() {
+    lift = swayX = 0;
+    for (const s of [swing, lag, flop, stretch]) s.x = s.v = 0;
+    air.w = air.shake = air.open = air.crouch = 0;
+    hang.position.set(0, 0, 0);
+    hang.quaternion.identity();
+    hang.scale.set(1, 1, 1);
+    offset.position.set(0, 0, 0);
+    ground.style.display = "none";
+    wake();
+    const [then] = Object.entries(rig.drop.then || {});
+    const on = sameLane().find((p) => !p.aloft && Math.abs(p.x - x) < GAP / 2);
+    if (on) {
+      const side = x < on.x ? -1 : 1;
+      const to = on.x + side * GAP;
+      walk(to >= world.minX && to <= world.maxX ? to : clamp(on.x - side * GAP, world.minX, world.maxX));
+    } else if (then) {
+      trick = then[0];
+      yawTarget = nearestTurn(CAM_YAW);
+      setState("trick", then[1]);
+    } else happyUntil = now() + 1.5;
+    place();
+  }
+
+  // `p` has been picked up: stop feeding it, petting it or taking in its mess, or waiting to be petted by it
+  // (either may come back to it later); off its sofa, hopping down from where the seat was.
+  function standDown(p) {
+    if (perch?.host === p) perch.from = p.seatAt(perch.seat);
+    if (partner !== p) return;
+    const busy =
+      ["feed", "stroke", "react", "wait"].includes(state) ||
+      (state === "petted" && !perch) ||
+      (state === "walk" && ["feed", "stroke", "scold"].includes(afterWalk));
+    if (!busy) return;
+    mood?.remove();
+    mood = null;
+    wake();
+  }
+
+  // Picked up, coming down or landing: where it is, and how it swings, this frame.
+  function fly(dt, t) {
+    if (!dt) return;
+    const drop = rig.drop;
+    const e = t - stateStart;
+    const top = Math.max(0, world.nearY - lane - world.skyY - (rig.hit[0] + rig.hit[2]) * VOX); // the most it can be lifted
+    const x0 = x;
+    const lift0 = lift;
+    depthScale = approach(depthScale, 1, 10, dt);
+    if (state === "held") {
+      // Following the pointer closely, smoothing its jitter, within reach of the path.
+      const o = el.offsetParent.getBoundingClientRect();
+      x = approach(x, clamp(grip.x - o.left + grip.dx, world.minX, world.maxX), 30, dt);
+      lift = approach(lift, clamp(grip.dl - (grip.y - o.top), 0, top), 30, dt);
+      air.w = approach(air.w, 1, 10, dt);
+    } else if (state === "fall") {
+      // Falling, then floating down, a little slower on each downstroke of the wings.
+      const float = drop.terminal * (drop.beat ? 1 + 0.4 * Math.cos(air.beat) : 1);
+      speed = e < opensAt ? speed + GRAVITY * dt : approach(speed, float, 5, dt);
+      lift -= speed * dt;
+      if (lift > top) {
+        lift = top;
+        speed = Math.max(speed, 0);
+      }
+      drift *= Math.exp(-(e < opensAt ? 0.5 : 4) * dt);
+      x += drift * dt;
+      if (x < world.minX || x > world.maxX) {
+        x = clamp(x, world.minX, world.maxX);
+        drift = 0;
+      }
+      air.open = opensAt < Infinity ? smooth(opensAt, opensAt + 0.35, e) : 0;
+      air.beat += Math.PI * 2 * (drop.beat || 0) * dt;
+      if (lift <= 0) touchDown();
+    } else {
+      // Landing: the legs give, the harder it came down the more, and spring back.
+      const g = drop.give * e;
+      air.crouch = clamp(impact / 250, 0.3, 1) * g * Math.exp(1 - g);
+      air.w = 1 - smooth(0.5 * drop.settle, drop.settle, e);
+      x = clamp(landX + (drop.glide || 0) * glideDir * smooth(0, 0.6, e), world.minX, world.maxX);
+    }
+
+    // The swing, in short steps. Held, the centre of mass swings from the grip, slowed a little by the air;
+    // coming down, the body sways (once its wings or parachute are out) and rights itself.
+    const n = Math.ceil(dt / STEP);
+    const h = dt / n;
+    const damp = Math.exp(-1.8 * h);
+    const sway = state === "fall" && drop.sway ? drop.sway[0] * air.open * Math.sin(Math.PI * 2 * drop.sway[1] * e) : 0;
+    for (let i = 1; i <= n; i++) {
+      if (state === "held") {
+        const ax = x0 + ((x - x0) * i) / n;
+        const ay = -(lift0 + ((lift - lift0) * i) / n);
+        bob.vx *= damp;
+        bob.vy = bob.vy * damp + GRAVITY * h;
+        const a = clamp(Math.atan2(bob.x + bob.vx * h - ax, bob.y + bob.vy * h - ay), bob.rest - MAX_SWING, bob.rest + MAX_SWING);
+        const bx = ax + bob.length * Math.sin(a);
+        const by = ay + bob.length * Math.cos(a);
+        bob.vx = (bx - bob.x) / h;
+        bob.vy = (by - bob.y) / h;
+        bob.x = bx;
+        bob.y = by;
+        swing.x = a - bob.rest;
+      } else wobble(swing, sway, state === "fall" ? 4.5 : 6, 0.45, h);
+      wobble(lag, swing.x, 9, 0.2, h);
+      wobble(flop, swing.x, 6, 0.12, h);
+      wobble(stretch, 0, 15, 0.3, h);
+    }
+    const gx = (x - x0) / dt;
+    const gl = (lift - lift0) / dt;
+    if (state === "held") {
+      const a = swing.x + bob.rest;
+      swing.v = ((bob.vx - gx) * Math.cos(a) - (bob.vy + gl) * Math.sin(a)) / bob.length;
+      stretch.v += (approach(vl, gl, 20, dt) - vl) * 0.006; // lifted quickly, it stretches; brought down quickly, it squashes
+      stretch.x = clamp(stretch.x, -0.12, 0.16);
+    }
+    vx = approach(vx, gx, 20, dt);
+    vl = approach(vl, gl, 20, dt);
+    // Under its parachute it swings from the canopy, not from its back: the same turn, moved out to the side.
+    const hangFrom = state !== "held" && drop.hangFrom ? (drop.hangFrom - pivot.y) * PX_UP * Math.sin(swing.x) * air.open : 0;
+    swayX = approach(swayX, hangFrom, 12, dt);
+
+    air.phase = state;
+    air.t = t - stateStart;
+    air.swing = swing.x;
+    air.lag = lag.x - swing.x;
+    air.flop = flop.x - swing.x;
+    air.shake = approach(air.shake, Math.abs(swing.v), 3, dt);
+    air.speed = state === "fall" ? speed : 0;
+    air.lift = lift;
+    air.across[0] = VIEW.x * Math.cos(yaw) - VIEW.z * Math.sin(yaw);
+    air.across[1] = VIEW.x * Math.sin(yaw) + VIEW.z * Math.cos(yaw);
+    if (state === "land" && t > stateUntil) landed();
+    else place();
+  }
+
+  // The model turned and stretched about the pivot. Its contact shadow stays on the ground, right under it:
+  // drawn on the page instead of in its canvas, which goes up with it, exactly where and as the canvas draws it
+  // (the same ellipse, its size and darkness as this frame set them), then smaller and fainter the higher it is.
+  function poseHang() {
+    hang.position.copy(pivot);
+    offset.position.copy(pivot).negate();
+    hang.quaternion.setFromAxisAngle(VIEW, swing.x);
+    hang.scale.set(1 - stretch.x / 2, 1 + stretch.x, 1 - stretch.x / 2);
+    const k = depthScale / (1 + lift / 120);
+    const [a, b] = [shadow.scale.x * k, shadow.scale.y * k]; // its radii along the model's x and z
+    const [c, s] = [Math.cos(yaw), Math.sin(yaw)];
+    // The ellipse is the unit circle taken by the model's x axis (scene (c, 0, -s)) and z axis (scene (s, 0, c)).
+    const m = [
+      a * (c * SHADOW_X[0] - s * SHADOW_Z[0]),
+      a * (c * SHADOW_X[1] - s * SHADOW_Z[1]),
+      b * (s * SHADOW_X[0] + c * SHADOW_Z[0]),
+      b * (s * SHADOW_X[1] + c * SHADOW_Z[1]),
+    ].map((v) => v.toFixed(2));
+    ground.firstChild.setAttribute("transform", `matrix(${m.join(" ")} 0 0)`);
+    ground.style.display = "";
+    const gx = x + swayX + (SHADOW_AT[0] - W / 2) * depthScale;
+    const gy = world.nearY - lane + (SHADOW_AT[1] - FOOT_PX) * depthScale;
+    ground.style.transform = `translate(${gx.toFixed(2)}px, ${gy.toFixed(2)}px)`;
+    ground.style.opacity = (shadow.material.opacity * (0.3 + 0.7 / (1 + lift / 60))).toFixed(3);
+    shadow.material.opacity = 0; // (not in the canvas, which goes up with it)
+  }
+
   /* ----- what to do now ----- */
 
   // Hands the timers, the walks and the others' calls on to whatever comes next.
@@ -542,8 +891,8 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
       nextActionAt = Math.min(nextActionAt, t + rnd(1, 2.5));
     }
     // A feeder goes to a hungry pet as soon as it is free (waking if asleep); then to any mess the cat has
-    // made, then it pets anyone waiting for it.
-    const hungryPet = rig.feeds && (state === "idle" || sleeping) ? pets.find((p) => p.hungry) : null;
+    // made, then it pets anyone waiting for it (one that is picked up once it is down again).
+    const hungryPet = rig.feeds && (state === "idle" || sleeping) ? pets.find((p) => p.hungry && !p.aloft) : null;
     if (hungryPet) goFeed(hungryPet);
     const mess = rig.leads && state === "idle" ? pets.find((p) => p.state === "messy" && !p.found) : null;
     if (mess) goScold(mess);
@@ -651,12 +1000,14 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
     const t = now();
     decide(t);
     move(dt);
+    if (airborne()) fly(dt, t);
+    const aloft = airborne();
     const sleeping = state === "sleep";
     const walking = state === "walk" || state === "lap";
     const r = el.getBoundingClientRect();
     // Found out and scolded, the cat lays her ears back; till then she is rather pleased with herself.
     const scolded = state === "messy" && partner?.state === "react";
-    const happy = hovering || t < happyUntil || ["eat", "wait", "petted"].includes(state) || (state === "messy" && !scolded);
+    const happy = hovering || t < happyUntil || ["eat", "wait", "petted"].includes(state) || (state === "messy" && !scolded) || aloft;
     if (!happy) happyTilt = 0;
     else if (happyTilt === 0) happyTilt = look.x >= 0 ? 0.14 : -0.14;
     yaw = stepSpring(turn, yawTarget, dt);
@@ -758,7 +1109,23 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
     leash = rig.leads && trip?.party.leashed && trip.party.goAt < Infinity ? nearerHand() : -1;
     const stroking = state === "stroke" ? nearerHand() : -1;
     const company = rig.seats?.map((_, i) => pets.some((p) => p.seatedOn(self, i)));
-    rig.animate(dt, { happy, walking, lying, sleeping, stride, gait, state, trick, elapsed, progress, leash, stroke: stroking, company });
+    rig.animate(dt, {
+      happy,
+      walking,
+      lying,
+      sleeping,
+      stride,
+      gait,
+      state,
+      trick,
+      elapsed,
+      progress,
+      leash,
+      stroke: stroking,
+      company,
+      aloft: aloft ? air : undefined,
+    });
+    if (aloft) poseHang();
     // The food bubble and the mood ride over the head.
     const [fx, fy] = facePx();
     for (const [over, dx, dy] of [
@@ -780,6 +1147,18 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
     render,
     place,
     dress,
+    // Picked up and let go (pets.js).
+    handle,
+    grab,
+    carry(cx, cy) {
+      grip.x = cx;
+      grip.y = cy;
+    },
+    letGo,
+    standDown,
+    get aloft() {
+      return airborne();
+    },
     // The face on screen, for other pets to look at.
     center() {
       const r = el.getBoundingClientRect();
@@ -863,6 +1242,7 @@ export function makePet(el, rig, spread, { pets, pointer, together }) {
     },
     // How far up the screen the feet are, for drawing nearer pets (lower down) in front.
     get depth() {
+      if (state === "held" || state === "fall") return 1e6; // up in front of everything
       if (perch && now() >= perch.at) return perch.host.depth + 0.5 + 0.1 * perch.seat; // on the sofa, in front of it
       return behind ? -Infinity : y - lane;
     },

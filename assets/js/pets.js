@@ -35,7 +35,12 @@ function start() {
   const together = makeTogether(pets, profile);
   // Spread out along the path from the right: the first pet at the right end, the last at the left.
   elements.forEach((el, i) => {
-    const pet = makePet(el, MODELS[el.dataset.pet](), elements.length > 1 ? i / (elements.length - 1) : 0.5, { pets, pointer, together });
+    const pet = makePet(el, MODELS[el.dataset.pet](), elements.length > 1 ? i / (elements.length - 1) : 0.5, {
+      pets,
+      pointer,
+      together,
+      canCarry: !reducedMotion,
+    });
     if (pet) pets.push(pet);
   });
   if (!pets.length) return;
@@ -54,8 +59,50 @@ function start() {
     pets.forEach((p) => p.nudge(e.clientX, e.clientY));
   });
   window.addEventListener("click", (e) => {
+    if (carried) return void (carried = false); // the end of carrying a pet about, not a pat
     const hit = pets.find((p) => p.over(e.clientX, e.clientY));
     if (hit) hit.pet();
+  });
+
+  // Picking a pet up: a press on one that moves, or stays down a moment, lifts it, and it is carried about
+  // until let go; a press that does neither is a click, and pets it as ever. A finger pressed on a pet never
+  // scrolls the page (its handle has touch-action: none); pressed anywhere else, it still does.
+  const LONG_PRESS = 0.3; // s
+  let press = null; // { pet, id, x0, y0, x, y, at, lifted }: the press on a pet, if any
+  let carried = false; // the press just let go of carried a pet about
+  function pickUp() {
+    if (!press.pet.grab(press.x0, press.y0)) return;
+    press.lifted = true;
+    press.pet.carry(press.x, press.y);
+    document.documentElement.classList.add("pet-grab");
+  }
+  function release() {
+    if (press.lifted) {
+      press.pet.letGo();
+      carried = true;
+      document.documentElement.classList.remove("pet-grab");
+    }
+    press = null;
+  }
+  pets.forEach((p) => {
+    const { handle } = p;
+    if (!handle) return;
+    handle.addEventListener("pointerdown", (e) => {
+      if (press || !e.isPrimary || e.button !== 0) return;
+      handle.setPointerCapture(e.pointerId);
+      press = { pet: p, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, at: now(), lifted: false };
+      carried = false;
+    });
+    handle.addEventListener("pointermove", (e) => {
+      if (press?.id !== e.pointerId) return;
+      press.x = e.clientX;
+      press.y = e.clientY;
+      if (press.lifted) press.pet.carry(press.x, press.y);
+      else if (Math.hypot(press.x - press.x0, press.y - press.y0) > 5) pickUp();
+    });
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"])
+      handle.addEventListener(type, (e) => press?.id === e.pointerId && release());
+    handle.addEventListener("contextmenu", (e) => press && e.preventDefault()); // (a long press of a finger)
   });
 
   const onScreen = new Map(pets.map((p) => [p.el, true]));
@@ -66,6 +113,7 @@ function start() {
     // Only the frontmost pet under a resting mouse is hovered; re-tested every frame, as pets move under it.
     const hovered = pointer.mouse ? pets.find((p) => p.over(pointer.x, pointer.y)) : null;
     document.documentElement.classList.toggle("pet-hover", !!hovered);
+    if (press && !press.lifted && now() - press.at > LONG_PRESS) pickUp();
     together.updateHunger(now());
     together.updateParty(now());
     pets.forEach((p) => onScreen.get(p.el) && p.update(dt, p === hovered));

@@ -23,6 +23,7 @@ import {
   nightcap,
   CAP_COLORS,
   harness,
+  smoothstep,
 } from "./voxels.js";
 
 export function buildCat({ tabby = false } = {}) {
@@ -232,6 +233,55 @@ export function buildCat({ tabby = false } = {}) {
   let lift = 0;
   let chow = 0;
   const lieDrop = 6;
+
+  // Picked up by the scruff (pets/pet.js has how), she hangs limp and patient, eyes half shut, front paws
+  // together, hind legs tucked up and her tail curled under, all of it swaying behind each swing. Let go, she
+  // turns right round in the air as if it were nothing, her tail drawing a slow curl; the paws reach down as
+  // the ground comes up, she touches down without a sound and sinks low to take it, and rises again.
+  let aired = false; // her legs, body and tail have been turned to the side, to set straight once she is down
+  let curl = 0;
+  function flyPose(a, dt) {
+    if (!a) {
+      legs.forEach((leg) => (leg.outer.rotation.z = 0));
+      pose.rotation.z = 0;
+      tailSegs.forEach((seg, i) => i && (seg.outer.rotation.y = 0));
+      aired = false;
+      return;
+    }
+    aired = true;
+    const { phase: kind, t, w, swing, lag, flop, crouch, across } = a;
+    const held = kind === "held" ? 1 : 0;
+    const flying = kind === "fall" ? smoothstep(0, 0.15, t) : kind === "land" ? 1 - smoothstep(0, 0.3, t) : 0;
+    const reach = kind === "fall" ? 1 - smoothstep(8, 45, a.lift) : kind === "land" ? 1 : 0; // paws down for the ground
+    curl += Math.PI * 2 * 1.3 * dt;
+    const loose = -0.5 * swing + 1.1 * lag;
+    legs.forEach((leg, i) => {
+      const front = i < 2;
+      const r = leg.outer.rotation;
+      const leap = front ? -0.75 : 0.65; // stretched out fore and aft, high up
+      const down = front ? -0.15 : 0.1;
+      const target = (1 - flying) * (front ? -0.15 : -0.6) + flying * (leap + (down - leap) * reach);
+      r.x += (target - r.x) * w + across[0] * loose * w;
+      r.z = w * across[1] * loose;
+      leg.outer.scale.y *= (1 + 0.08 * flying * reach) * (1 - 0.4 * crouch);
+    });
+    pose.rotation.z = w * 0.15 * held * Math.sin(curl * 0.5); // swaying a little, like a cat hung on a hook
+    pose.rotation.x += w * flying * -0.15 * (1 - reach); // nose up as she leaps, level for the landing
+    pose.position.y -= 3.5 * crouch;
+    head.outer.rotation.x += 0.35 * crouch;
+    head.outer.rotation.z += w * -0.35 * swing;
+    ears.forEach((ear, i) => (ear.outer.rotation.z += w * ((i ? -1 : 1) * 0.25 * held - 0.6 * (flop - lag) * across[1])));
+    // Her tail: hanging down and curled under her while she is held; drawing a slow curl in the air on the way
+    // down; rising in an S as she lands.
+    const HANG = [-2.6, 0.45, 0.45, 0.5];
+    const RISE = [-0.3, 0.35, 0.3, 0.3];
+    tailSegs.forEach((seg, i) => {
+      const r = seg.outer.rotation;
+      const target = held * HANG[i] + (1 - held) * r.x + crouch * RISE[i];
+      r.x += (target - r.x) * w + across[0] * (1 + 0.3 * i) * (flop - lag) * w;
+      r.z += w * (flying * 0.4 * Math.sin(curl - i * 0.9) + across[1] * (1 + 0.3 * i) * (-0.4 * swing + 1.2 * (flop - lag)));
+    });
+  }
   return {
     label: "Voxel tortoiseshell cat, click to pet",
     hint: "pet me",
@@ -252,6 +302,10 @@ export function buildCat({ tabby = false } = {}) {
     hit: [19, 16, 21],
     shadow: [9, 14],
     speed: 34,
+    // Picked up and let go (pets/pet.js): she just drops, turning right round, lands without a sound and
+    // grooms a paw as if nothing had happened.
+    heft: [12, 7],
+    drop: { open: 0.25, terminal: 320, settle: 0.8, give: 6, spin: true, glide: 8, then: { groom: 1.8 } },
     gaitHz: 2.1,
     eats: true,
     homebody: true, // never goes round the photo on her own, nor tags along after the girl
@@ -302,6 +356,7 @@ export function buildCat({ tabby = false } = {}) {
       const r = head.outer.rotation;
       r.x = r.x * (1 - 0.8 * lying) + 0.05 * lying;
       chow = chowPose(head, 7, chow, CHOW, dt, s);
+      if (s.aloft || aired) flyPose(s.aloft, dt);
     },
   };
 }
