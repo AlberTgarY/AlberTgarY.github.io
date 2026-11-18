@@ -182,9 +182,10 @@ function trail(p, x, top, z, s, len, stem, bead) {
 }
 
 /* ---------------------------------------------------------------------------------------------------------- */
-/* The plants: each (p, x, y, z, seed, options), options.pot to put it in another kind of pot. */
+/* The plants: each (p, x, y, z, seed, options), options.pot to put it in another kind of pot, options.r a
+   smaller or bigger one (the succulents), options.k how big it has grown (PLANTS gives each its own). */
 
-export const PLANTS = {
+const KINDS = {
   // Peace lily: dark lance leaves arching out, white spathes on tall stalks.
   lily(p, x, y, z, s, o) {
     pot(p, x, y, z, 6, 8, o.pot ?? "ceramic");
@@ -284,18 +285,20 @@ export const PLANTS = {
     const r = o.r ?? 5;
     pot(p, x, y, z, r, r + 2, o.pot ?? "ceramic");
     around(11, s, 0.7, 0.2).forEach((d, i) =>
-      leaf(p, [x, y + r + 2, z], d, 8 + (i % 3), 1.3, (q, k) => (k === 0 ? "fernDark" : (q + Math.abs(k)) % 2 ? "fern" : "fernLight"))
+      leaf(p, [x, y + r + 2, z], d, Math.round((8 + (i % 3)) * o.k), 1.3, (q, k) =>
+        k === 0 ? "fernDark" : (q + Math.abs(k)) % 2 ? "fern" : "fernLight"
+      )
     );
   },
   // Monstera adansonii: bright heart leaves with holes along the midrib.
   monstera(p, x, y, z, s, o) {
     pot(p, x, y, z, 4, 6, o.pot ?? "nursery");
-    around(6, s, 0.75).forEach((d, i) =>
+    around(5 + Math.floor(hash(s, 9, 4) * 3), s, 0.75).forEach((d, i) =>
       leaf(
         p,
         [x, y + 5, z],
         d,
-        6,
+        Math.round(6 * o.k),
         2.2,
         (_, k) => (k === 0 ? "monsteraRib" : "monstera"),
         (q, k) => q >= 2 && q <= 5 && Math.abs(k) === 1 && (q + i) % 2 === 0
@@ -305,13 +308,15 @@ export const PLANTS = {
   // Calathea: upright ovals, feathered pale and dark.
   calathea(p, x, y, z, s, o) {
     pot(p, x, y, z, 4, 6, o.pot ?? "nursery");
-    around(6, s, 0.4).forEach((d) => leaf(p, [x, y + 5, z], d, 8, 1.8, (q, k) => (q % 3 === 1 && k !== 0 ? "calLight" : "calDark")));
+    around(5 + Math.floor(hash(s, 9, 2) * 3), s, 0.32 + hash(s, 9, 3) * 0.18).forEach((d) =>
+      leaf(p, [x, y + 5, z], d, Math.round(8 * o.k), 1.8, (q, k) => (q % 3 === 1 && k !== 0 ? "calLight" : "calDark"))
+    );
   },
   // Peperomia: a low rosette of round leaves, striped silver and green (or the dark red-edged kind).
   peperomia(p, x, y, z, s, o) {
     pot(p, x, y, z, 4, 6, o.pot ?? "nursery");
-    around(8, s, 0.8).forEach((d) =>
-      leaf(p, [x, y + 6, z], d, 4, 1.3, (q, k) =>
+    around(6 + Math.floor(hash(s, 9, 1) * 4), s, 0.8).forEach((d) =>
+      leaf(p, [x, y + 6, z], d, Math.round(4 * o.k), 1.3, (q, k) =>
         o.rosso ? (Math.abs(k) >= 1 && q > 1 ? "rossoEdge" : "rosso") : k === 0 ? "silverVein" : q % 2 ? "silver" : "peperGreen"
       )
     );
@@ -334,8 +339,8 @@ export const PLANTS = {
   // ZZ plant: stiff stalks of paired glossy leaflets.
   zz(p, x, y, z, s, o) {
     pot(p, x, y, z, 4, 6, o.pot ?? "nursery");
-    around(5, s, 0.3).forEach(([dx, dy, dz], i) => {
-      const n = 9 + (i % 3) * 2;
+    around(4 + Math.floor(hash(s, 9, 5) * 3), s, 0.3).forEach(([dx, dy, dz], i) => {
+      const n = Math.round((9 + (i % 3) * 2) * o.k);
       for (let k = 0; k <= n; k++) {
         const [px, py, pz] = [x + Math.round(dx * k), y + 5 + Math.round(dy * k), z + Math.round(dz * k)];
         p.add(px, py, pz, "zz");
@@ -355,36 +360,49 @@ export const PLANTS = {
   // The cacti and succulents, in small terracotta pots (r 4) on white pebbles.
   // A column cactus, ribbed, with an arm; or an old man cactus in white hair.
   column(p, x, y, z, s, o) {
-    pot(p, x, y, z, 4, 6, o.pot ?? "terracotta", "pebble");
-    const h = 14 + (s % 3) * 3;
-    ellipsoid(p, [x, y + 5 + h / 2, z], [2.6, h / 2, 2.6], (vx, vy, vz) =>
+    pot(p, x, y, z, o.r ?? 4, 6, o.pot ?? "terracotta", "pebble");
+    const h = Math.round((12 + hash(s, 1, 1) * 9) * o.k);
+    const r = 2.2 + hash(s, 1, 2) * 0.7;
+    ellipsoid(p, [x, y + 5 + h / 2, z], [r, h / 2, r], (vx, vy, vz) =>
       o.hairy ? (hash(vx >> 1, vy >> 1, vz) < 0.75 ? "spine" : "cactus") : hash(vx, vy, vz) < 0.08 ? "spine" : rib(vx - x, vz - z)
     );
-    if (!o.hairy && s % 2) ellipsoid(p, [x + 2.5, y + 7 + h / 3, z], [1.4, 2.6, 1.4], "cactus"); // (an arm)
+    // No arm, one or two, each at a height of its own (an arm curving up off the side).
+    const arms = o.hairy ? 0 : Math.floor(hash(s, 1, 3) * 3);
+    for (let i = 0; i < arms; i++) {
+      const side = (i === 0) === hash(s, 1, 4) < 0.5 ? 1 : -1;
+      const at = y + 6 + Math.round(h * (0.25 + 0.3 * hash(s, i, 5)));
+      ellipsoid(p, [x + side * (r + 0.6), at, z], [1.3, 1, 1.3], "cactus");
+      ellipsoid(p, [x + side * (r + 1.2), at + 2.5, z], [1.3, 2.4 + hash(s, i, 6) * 1.5, 1.3], (vx, vy, vz) =>
+        hash(vx, vy, vz) < 0.08 ? "spine" : "cactusDark"
+      );
+    }
   },
   // A ball cactus in a pink pot, spined, some in flower.
   ball(p, x, y, z, s, o) {
     pot(p, x, y, z, 4, 6, o.pot ?? "pink", "pebble");
-    ellipsoid(p, [x, y + 9, z], [3.5, 3.7, 3.5], (vx, vy, vz) => (hash(vx, vy, vz) < 0.1 ? "spine" : rib(vx - x, vz - z)));
-    if (s % 3 !== 0)
-      for (const [dx, dz] of [
-        [0, 0],
-        [2, 1],
-        [-1, -2],
-      ])
-        p.add(x + dx, y + 13, z + dz, "cactusBloom");
+    const r = 3.6 * o.k;
+    ellipsoid(p, [x, y + 5 + r, z], [r, r * 1.05, r], (vx, vy, vz) => (hash(vx, vy, vz) < 0.1 ? "spine" : rib(vx - x, vz - z)));
+    const bloom = ["cactusBloom", "#f4c84a", "#f6efe6"][Math.floor(hash(s, 2, 1) * 3)];
+    const blooms = Math.floor(hash(s, 2, 2) * 4); // (none to three)
+    for (const [dx, dz] of [
+      [0, 0],
+      [2, 1],
+      [-1, -2],
+    ].slice(0, blooms))
+      p.add(x + dx, y + 5 + Math.round(r * 2.05), z + dz, bloom);
   },
   // A golden barrel: a squat ball, its ribs thick with yellow spines, a woolly crown.
   barrel(p, x, y, z, s, o) {
-    pot(p, x, y, z, 4, 5, o.pot ?? "terracotta", "pebble");
-    ellipsoid(p, [x, y + 8, z], [3.8, 3.4, 3.8], (vx, vy, vz) =>
+    pot(p, x, y, z, o.r ?? 4, 5, o.pot ?? "terracotta", "pebble");
+    const [r, ry] = [3.8 * o.k, 3.4 * o.k];
+    ellipsoid(p, [x, y + 4.6 + ry, z], [r, ry, r], (vx, vy, vz) =>
       rib(vx - x, vz - z) === "cactus" && hash(vx, vy, vz) < 0.45 ? "goldSpine" : rib(vx - x, vz - z)
     );
-    ellipsoid(p, [x, y + 11, z], [1.2, 0.6, 1.2], "goldSpine");
+    ellipsoid(p, [x, y + 4.6 + ry * 1.9, z], [1.2, 0.6, 1.2], "goldSpine");
   },
   // Bunny ears: a flat pad with two smaller ones up on it, dotted with tufts.
   opuntia(p, x, y, z, s, o) {
-    pot(p, x, y, z, 4, 6, o.pot ?? "terracotta", "pebble");
+    pot(p, x, y, z, o.r ?? 4, 6, o.pot ?? "terracotta", "pebble");
     const pad = (cx, cy, rx, ry, tilt) => {
       const [c, sn] = [Math.cos(tilt), Math.sin(tilt)];
       for (let dx = -5; dx <= 5; dx++)
@@ -396,25 +414,32 @@ export const PLANTS = {
             p.add(cx + dx, cy + dy, z + dz, hash(cx + dx, cy + dy, dz + s) < 0.12 ? "glochid" : e > 0.6 ? "opuntiaDark" : "opuntia");
         }
     };
-    pad(x, y + 10, 2.6, 4.2, 0);
-    pad(x - 2, y + 16, 1.8, 2.8, 0.5);
-    pad(x + 2, y + 16, 1.8, 2.8, -0.5);
+    const lean = (hash(s, 3, 1) - 0.5) * 0.5;
+    pad(x, y + 10, 2.6 * o.k, 4.2 * o.k, lean);
+    const ears = 1 + Math.floor(hash(s, 3, 2) * 3);
+    const top = y + 10 + Math.round(4.2 * o.k) + 2;
+    for (let i = 0; i < ears; i++) {
+      const side = ears === 1 ? (hash(s, 3, 3) < 0.5 ? -1 : 1) : [-1, 1, 0][i];
+      const tilt = -side * (0.35 + hash(s, i, 4) * 0.3) - lean;
+      pad(x + side * 2 - Math.round(lean * 4), top + (side === 0 ? 2 : 0), 1.6 + hash(s, i, 5) * 0.5, 2.5 + hash(s, i, 6) * 0.7, tilt);
+    }
   },
   // A moon cactus: a ball of red, yellow or pink grafted on a short green column.
   moon(p, x, y, z, s, o) {
-    pot(p, x, y, z, 4, 5, o.pot ?? "terracotta", "pebble");
+    pot(p, x, y, z, o.r ?? 4, 5, o.pot ?? "terracotta", "pebble");
     ellipsoid(p, [x, y + 7, z], [1.3, 2.5, 1.3], (vx, vy, vz) => rib(vx - x, vz - z));
     const top = ["moonRed", "moonYellow", "moonPink"][s % 3];
-    ellipsoid(p, [x, y + 11, z], [2.6, 2.2, 2.6], (vx, vy, vz) => (rib(vx - x, vz - z) === "cactus" ? top : `${top}Dark`));
+    ellipsoid(p, [x, y + 11, z], [2.6 * o.k, 2.2 * o.k, 2.6 * o.k], (vx, vy, vz) => (rib(vx - x, vz - z) === "cactus" ? top : `${top}Dark`));
   },
   // Echeveria: a tight rosette of fleshy leaves, blue-green with pink tips (or peach, tipped plum).
   echeveria(p, x, y, z, s, o) {
-    pot(p, x, y, z, 4, 5, o.pot ?? "terracotta", "pebble");
+    pot(p, x, y, z, o.r ?? 4, 5, o.pot ?? "terracotta", "pebble");
     const [body, light, tip] = o.peach ? ["peachEchev", "peachLight", "peachTip"] : ["echeveria", "echevLight", "echevTip"];
-    for (let ring = 0; ring < 3; ring++) {
-      const n = 9 - ring * 2;
+    const rings = hash(s, 4, 1) < 0.3 ? 2 : 3;
+    for (let ring = 0; ring < rings; ring++) {
+      const n = 9 - ring * 2 + (hash(s, ring, 2) < 0.4 ? 1 : 0);
       const out = 0.85 - ring * 0.25;
-      const len = 4 - ring;
+      const len = Math.max(1, Math.round((4 - ring) * o.k));
       for (let i = 0; i < n; i++) {
         const a = (i / n) * Math.PI * 2 + ring * 0.5 + s;
         leaf(p, [x, y + 5 + ring, z], [Math.cos(a) * out, 1 - out * 0.7, Math.sin(a) * out], len, 1.1, (q, k) =>
@@ -422,30 +447,46 @@ export const PLANTS = {
         );
       }
     }
-    p.add(x, y + 8, z, light);
+    p.add(x, y + 5 + rings, z, light);
+    // A pup: a little rosette come up at the rim.
+    if (hash(s, 4, 3) < 0.35) {
+      const a = hash(s, 4, 4) * Math.PI * 2;
+      const [px, pz] = [x + Math.round(Math.cos(a) * 3), z + Math.round(Math.sin(a) * 3)];
+      for (let i = 0; i < 5; i++) {
+        const b = a + i * 1.26;
+        leaf(p, [px, y + 5, pz], [Math.cos(b) * 0.8, 0.45, Math.sin(b) * 0.8], 1, 0.6, (q) => (q >= 1 ? tip : body));
+      }
+      p.add(px, y + 6, pz, light);
+    }
   },
   // Haworthia: a small rosette of pointed dark leaves banded white.
   haworthia(p, x, y, z, s, o) {
-    pot(p, x, y, z, 4, 5, o.pot ?? "terracotta", "pebble");
-    around(10, s, 0.3).forEach((d) => leaf(p, [x, y + 5, z], d, 6, 0.7, (q) => (q % 2 ? "hawStripe" : "haworthia")));
+    pot(p, x, y, z, o.r ?? 4, 5, o.pot ?? "terracotta", "pebble");
+    const n = 8 + Math.floor(hash(s, 5, 1) * 5);
+    around(n, s, 0.2 + hash(s, 5, 2) * 0.2).forEach((d) =>
+      leaf(p, [x, y + 5, z], d, Math.round(6 * o.k), 0.7, (q) => (q % 2 ? "hawStripe" : "haworthia"))
+    );
   },
   // Aloe: fleshy spears fanning up, flecked pale.
   aloe(p, x, y, z, s, o) {
-    pot(p, x, y, z, 4, 6, o.pot ?? "terracotta", "pebble");
-    around(7, s, 0.4, 0.15).forEach((d, i) =>
-      leaf(p, [x, y + 6, z], d, 8 + (i % 3), 1.1, (q, k) => (hash(q, k, i + s) < 0.18 ? "aloeSpot" : k === 0 ? "aloeLight" : "aloe"))
+    pot(p, x, y, z, o.r ?? 4, 6, o.pot ?? "terracotta", "pebble");
+    const n = 5 + Math.floor(hash(s, 6, 1) * 4);
+    around(n, s, 0.32 + hash(s, 6, 2) * 0.18, 0.15).forEach((d, i) =>
+      leaf(p, [x, y + 6, z], d, Math.round((8 + (i % 3)) * o.k), 1.1, (q, k) =>
+        hash(q, k, i + s) < 0.18 ? "aloeSpot" : k === 0 ? "aloeLight" : "aloe"
+      )
     );
   },
   // Jade: a little woody tree, clusters of fat leaves edged red at its branch tips.
   jade(p, x, y, z, s, o) {
     pot(p, x, y, z, 4, 6, o.pot ?? "terracotta");
     const top = y + 6;
-    const tips = [
-      [0, 7, 0],
-      [-3, 5, 1],
-      [3, 6, -1],
-      [1, 5, 3],
-    ].map(([dx, dy, dz]) => [x + dx, top + dy, z + dz]);
+    const n = 3 + Math.floor(hash(s, 7, 5) * 3);
+    const tips = Array.from({ length: n }, (_, i) => {
+      const a = (i / n) * Math.PI * 2 + hash(s, i, 6) * 1.2;
+      const out = i === 0 ? 0.4 : (2 + hash(s, i, 7) * 1.6) * o.k;
+      return [x + Math.round(Math.cos(a) * out), top + Math.round((4.5 + hash(s, i, 8) * 3) * o.k), z + Math.round(Math.sin(a) * out)];
+    });
     for (const tip of tips) stalk(p, [x, top, z], tip, "jadeTrunk");
     for (const [tx, ty, tz] of tips)
       for (let i = 0; i < 5; i++) {
@@ -458,8 +499,9 @@ export const PLANTS = {
   kalanchoe(p, x, y, z, s, o) {
     pot(p, x, y, z, 4, 5, o.pot ?? "terracotta");
     const bloom = o.bloom ?? "kalRed";
-    ellipsoid(p, [x, y + 7, z], [3.6, 2.6, 3.6], (vx, vy, vz) =>
-      vy >= y + 8 && hash(vx, vy, vz) < 0.55 ? bloom : hash(vx, vy, vz) < 0.3 ? "kalLeafLight" : "kalLeaf"
+    const flowering = 0.35 + hash(s, 8, 1) * 0.35;
+    ellipsoid(p, [x, y + 7, z], [3.6 * o.k, 2.6 * o.k, 3.6 * o.k], (vx, vy, vz) =>
+      vy >= y + 8 && hash(vx, vy, vz) < flowering ? bloom : hash(vx, vy, vz) < 0.3 ? "kalLeafLight" : "kalLeaf"
     );
     for (let i = 0; i < 6; i++) {
       const a = i * 1.05 + s;
@@ -467,6 +509,55 @@ export const PLANTS = {
     }
   },
 };
+
+// Every plant a little its own: grown a size up or down (o.k, which the kinds above go by: 0.85 to 1.15), its
+// colours a shade lighter or darker, warmer or cooler than the next of its kind (in a few steps, all within
+// the kind's own look), its terracotta pot newer or more weathered; on a saucer if planted() says so. Each
+// from its seed, the same every time.
+const POT_PARTS = new Set([
+  "terracotta",
+  "terracottaRim",
+  "potInside",
+  "ceramic",
+  "ceramicRim",
+  "potBlack",
+  "potRim",
+  "potPink",
+  "pinkRim",
+  "pebble",
+  "soil",
+]);
+const shades = new Map();
+function shaded(name, light, warm) {
+  const key = `${name}|${light}|${warm}`;
+  if (!shades.has(key)) {
+    const hex = PLANT_COLORS[name] ?? name;
+    if (!/^#[0-9a-f]{6}$/i.test(hex)) return name; // (a colour of the shop's own palette: as it is)
+    const v = parseInt(hex.slice(1), 16);
+    const rgb = [v >> 16, (v >> 8) & 255, v & 255].map((c, i) => Math.min(255, Math.round(c * light * (1 + warm * [1, 0.25, -1][i]))));
+    shades.set(key, `#${rgb.map((c) => c.toString(16).padStart(2, "0")).join("")}`);
+  }
+  return shades.get(key);
+}
+export const PLANTS = Object.fromEntries(
+  Object.entries(KINDS).map(([kind, grow]) => [
+    kind,
+    (p, x, y, z, s, o = {}) => {
+      const [light, warm] = [0.9 + 0.05 * Math.floor(hash(s, 7, 1) * 5), 0.04 * (Math.floor(hash(s, 7, 2) * 5) - 2)];
+      const clay = 0.92 + 0.04 * Math.floor(hash(s, 7, 3) * 4);
+      const own = {
+        add: (vx, vy, vz, c) => p.add(vx, vy, vz, POT_PARTS.has(c) ? (c.startsWith("terracotta") ? shaded(c, clay, 0) : c) : shaded(c, light, warm)),
+      };
+      if (o.saucer) {
+        const r = (o.r ?? 4) + 1;
+        for (let dx = -r; dx <= r; dx++)
+          for (let dz = -r; dz <= r; dz++) if (dx * dx + dz * dz <= r * r + 0.6) own.add(x + dx, y, z + dz, "terracottaRim");
+        y += 1;
+      }
+      grow(own, x, y, z, s, { k: 0.85 + 0.3 * hash(s, 7, 4), ...o });
+    },
+  ])
+);
 
 // Empty terracotta pots nested in a stack: the bottom one whole, then each one's lip over the one below.
 export function potStack(p, cx, cy, cz, r, n) {
@@ -497,7 +588,8 @@ const TRAY_POTS = [-5, 0, 5].flatMap((x) => [-4.5, 0, 4.5].map((z) => [x, z]));
 
 // Every plant as [kind, x, y, z, seed, options], in three groups (on the rack, on the plinth, in the trays:
 // none reaching into another), and every card as [name, price, x, y, z] (its middle, on a front facing the
-// street).
+// street). A plant in every place: which places have a pot in them on a given day, and when each of those is
+// sold, is the day's stock (stock.js).
 export function planted() {
   const [rack, plinth, trays] = [[], [], []];
   const cards = [];
@@ -511,7 +603,14 @@ export function planted() {
   ]) {
     const step = (RACK.x1 - RACK.x0) / kinds.length;
     kinds.forEach((kind, i) =>
-      rack.push([kind, RACK.x0 + step * (i + 0.5), row.y + 1, (row.z0 + row.z1) / 2, 50 + i * 7 + row.y, { trail, pink: i % 2 === 0 }])
+      rack.push([
+        kind,
+        RACK.x0 + step * (i + 0.5) + nudge(i, row.y, 1),
+        row.y + 1,
+        (row.z0 + row.z1) / 2 + nudge(i, row.y, 2) * 0.5,
+        50 + i * 7 + row.y,
+        { trail, pink: i % 2 === 0 },
+      ])
     );
   }
   // On the plinth in front, a block of each succulent two pots wide and three deep, the tall kinds between
@@ -529,9 +628,12 @@ export function planted() {
   const BLOOMS = ["kalRed", "kalOrange", "kalYellow"];
   BLOCKS.forEach(([kind, name, price, o = {}], b) => {
     for (let c = 0; c < 2; c++)
-      [-86, -81, -76].forEach((z, r) =>
-        plinth.push([kind, PLINTH.x0 + 2 + col * (b * 2 + c + 0.5), PLINTH.h, z, b * 31 + c * 7 + r, { ...o, bloom: BLOOMS[r] }])
-      );
+      [-86, -81, -76].forEach((z, r) => {
+        const seed = b * 31 + c * 7 + r;
+        const own = hash(seed, 1, 22);
+        const how = own < 0.12 ? { saucer: true } : own < 0.24 ? { r: 3 } : {};
+        plinth.push([kind, PLINTH.x0 + 2 + col * (b * 2 + c + 0.5), PLINTH.h, z + nudge(seed, 3, 3), seed, { ...o, ...how, bloom: BLOOMS[r] }]);
+      });
     cards.push([name, price, PLINTH.x0 + 2 + col * (b * 2 + 1), PLINTH.h - 4.5, PLINTH.z1]);
   });
   // A tray of each of the rest, three by three; its card on the tray's front.
@@ -544,11 +646,16 @@ export function planted() {
   TRAY_KINDS.forEach(([kind, name, price, o = {}], t) => {
     const x = trayX(t) + TRAY_W / 2;
     const z = (TRAYS.z0 + TRAYS.z1) / 2;
-    TRAY_POTS.forEach(([dx, dz], k) => trays.push([kind, x + dx, 2, z + dz, t * 17 + k, { pot: "nursery", ...o }]));
+    TRAY_POTS.forEach(([dx, dz], k) => {
+      const seed = t * 17 + k;
+      trays.push([kind, x + dx + nudge(seed, 4, 1), 2, z + dz + nudge(seed, 4, 2), seed, { pot: "nursery", ...o }]);
+    });
     cards.push([name, price, x, 3.2, TRAYS.z1]);
   });
   return { groups: [rack, plinth, trays], cards };
 }
+// A pot's way out of line: half a voxel either way, or none.
+const nudge = (a, b, c) => (Math.floor(hash(a, b, c + 40) * 3) - 1) * 0.5;
 // The left edge of tray `t`.
 export const trayX = (t) => TRAYS.x0 + t * ((TRAYS.x1 - TRAYS.x0 - TRAY_W) / (TRAY_COUNT - 1));
 

@@ -10,7 +10,7 @@
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
-import { part, meshOf, seenFaces, seenMaterial } from "./kit.js";
+import { part, meshOf, seenFaces, seenMaterial, joined } from "./kit.js";
 
 const FINE = 0.5; // a bloom's voxels, in voxels
 
@@ -380,6 +380,203 @@ function freesia(p, x, y, z, rand, col) {
   }
 }
 
+/* ----- kinds with a shape of their own over the bucket: big heads, bare stems, spikes, plumes, foliage ----- */
+
+// A bare stem `n` long up from (x, y, z), in `col`.
+function stemUp(p, x, y, z, n, col = STEM) {
+  for (let k = 0; k < n; k++) p.add(x, y + k, z, col);
+}
+// A heading round (x, z) from a turn: [cos, sin].
+const heading = (rand) => {
+  const a = rand() * Math.PI * 2;
+  return [Math.cos(a), Math.sin(a)];
+};
+
+// A hydrangea: a big mophead, a flattened ball of little four-petalled florets in three shades, its rim
+// resting on a few broad leaves.
+function hydrangea(p, x, y, z, rand, col) {
+  const shades = [col, tint(col, 0.28), tone(col, 0.85)];
+  for (let dx = -4; dx <= 4; dx++)
+    for (let dz = -4; dz <= 4; dz++)
+      for (let dy = 0; dy <= 4; dy++) {
+        const e = (dx * dx + dz * dz) / 14 + ((dy - 1.4) * (dy - 1.4)) / 7;
+        if (e > 1 || e < 0.45) continue; // (only its shell)
+        const eye = (dx + 2 * dz + 3 * dy) % 5 === 0;
+        p.add(x + dx, y + dy, z + dz, eye ? tint(col, 0.55) : shades[Math.floor(rand() * 3)]);
+      }
+  for (const [lx, lz] of [
+    [-4, 1],
+    [3, -3],
+    [2, 4],
+  ])
+    for (const [ex, ez] of [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+    ])
+      p.add(x + lx + ex, y - 1, z + lz + ez, GREEN[3]);
+}
+
+// An allium: a purple sphere of tiny starry florets on a tall bare stem, high over the rest of the bucket.
+function allium(p, x, y, z, rand, col) {
+  stemUp(p, x, y, z, 8, "#6f8f45");
+  const cy = y + 10;
+  for (let dx = -3; dx <= 3; dx++)
+    for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -3; dy <= 3; dy++) {
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 > 7.5 || d2 < 3) continue;
+        p.add(x + dx, cy + dy, z + dz, rand() < 0.22 ? tint(col, 0.4) : (dx + dy + dz) & 1 ? col : tone(col, 0.86));
+      }
+}
+
+// Craspedia (billy buttons): a small golden ball, nubbly, on a long thin stem.
+function craspedia(p, x, y, z, rand, col) {
+  stemUp(p, x, y, z, 9, "#7a9a48");
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dz = -1; dz <= 1; dz++)
+      for (let dy = 0; dy <= 2; dy++) {
+        if (Math.abs(dx) + Math.abs(dz) + Math.abs(dy - 1) > 2) continue;
+        p.add(x + dx, y + 9 + dy, z + dz, (dx + dz + dy) & 1 ? col : tone(col, 0.84));
+      }
+}
+
+// A calla lily: a smooth trumpet on a long stem, its lip swept up and back to a point, a gold spadix inside.
+function calla(p, x, y, z, rand, col) {
+  stemUp(p, x, y, z, 5, "#5f8a3c");
+  const [hx, hz] = heading(rand); // (the way its mouth opens)
+  const inside = tone(col, 0.88);
+  for (let h = 0; h < 5; h++) {
+    const r = 0.7 + h * 0.42;
+    for (let dx = -3; dx <= 3; dx++)
+      for (let dz = -3; dz <= 3; dz++) {
+        const d = Math.hypot(dx, dz);
+        if (Math.abs(d - r) > 0.62) continue;
+        const front = (dx * hx + dz * hz) / (d || 1); // (1 where the mouth opens)
+        if (h >= 3 && front > 0.55) continue; // (the mouth cut down at the front)
+        p.add(x + dx, y + 5 + h, z + dz, front > 0 ? col : inside);
+      }
+  }
+  // The lip at the back, up to a point; the spadix.
+  p.add(Math.round(x - hx * 2), y + 10, Math.round(z - hz * 2), col);
+  p.add(Math.round(x - hx * 2.4), y + 11, Math.round(z - hz * 2.4), col);
+  for (let k = 0; k < 3; k++) p.add(x, y + 6 + k, z, k === 2 ? "#f6d65a" : "#e9b92a");
+}
+
+// An anthurium: a glossy heart-shaped spathe held out flat and a little tilted, its tip pointing away, the
+// lobes up at the stem; a pale spadix curving up out of its middle.
+function anthurium(p, x, y, z, rand, col) {
+  const [hx, hz] = heading(rand);
+  const shine = tint(col, 0.45);
+  for (let u = -3; u <= 3; u++)
+    for (let v = -3; v <= 4; v++) {
+      const lobe = Math.hypot(u + 1.25, v + 1) < 1.9 || Math.hypot(u - 1.25, v + 1) < 1.9;
+      const body = v >= -1 && v <= 4 && Math.abs(u) <= (3.2 * (4 - v)) / 5;
+      if (!lobe && !body) continue;
+      const [dx, dz] = [Math.round(u * -hz + v * hx), Math.round(u * hx + v * hz)];
+      p.add(x + dx, y + (v < 0 ? 1 : 0), z + dz, u < 0 && v < 1 && (u + v) % 2 === 0 ? shine : (u + v) % 3 ? col : tone(col, 0.9));
+    }
+  p.add(x, y + 1, z, "#f2e6b0");
+  p.add(Math.round(x + hx), y + 2, Math.round(z + hz), "#f2e6b0");
+  p.add(Math.round(x + hx), y + 3, Math.round(z + hz), "#e9d27a");
+}
+
+// A delphinium: a tall, loose spike of starry florets with a white bee in some, buds at the narrowing top.
+function delphinium(p, x, y, z, rand, col) {
+  const [light, dark] = [tint(col, 0.3), tone(col, 0.82)];
+  for (let h = 0; h < 12; h++) {
+    p.add(x, y + h, z, h > 9 ? "#9ab563" : dark);
+    if (h > 9) continue;
+    const reach = h < 6 ? 2 : 1;
+    for (const [sx, sz] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      if ((h + sx + 2 * sz + 4) % 2 && rand() < 0.5) continue;
+      for (let k = 1; k <= reach; k++) p.add(x + sx * k, y + h, z + sz * k, k === reach ? light : col);
+      if (reach === 2 && rand() < 0.3) p.add(x + sx * 2, y + h, z + sz * 2, "#f4f2ea"); // (the bee)
+    }
+  }
+}
+
+// Pampas grass: a tall feathery plume, arching a little, soft and uneven, on a bare stem.
+function pampas(p, x, y, z, rand, col) {
+  stemUp(p, x, y, z, 4, "#b7a77e");
+  const [hx, hz] = heading(rand);
+  const fluff = [col, tint(col, 0.3), tone(col, 0.9)];
+  for (let h = 0; h < 11; h++) {
+    const lean = (h * h) / 40;
+    const [cx, cz] = [x + hx * lean, z + hz * lean];
+    const r = h < 2 ? 1 : h < 8 ? 1.9 : 1.9 - (h - 7) * 0.45;
+    for (let dx = -2; dx <= 2; dx++)
+      for (let dz = -2; dz <= 2; dz++) {
+        if (dx * dx + dz * dz > r * r + 0.3 || rand() < 0.18) continue;
+        p.add(Math.round(cx + dx), y + 4 + h, Math.round(cz + dz), fluff[Math.floor(rand() * 3)]);
+      }
+  }
+}
+
+// Eucalyptus: a sprig of round silver-green leaves in pairs up a stem, each pair turned from the last.
+function eucalyptus(p, x, y, z, rand, col) {
+  const stalk = tone(col, 0.7);
+  for (let h = 0; h < 12; h++) {
+    p.add(x, y + h, z, stalk);
+    if (h % 3 !== 1) continue;
+    const [ax, az] = (h / 3) % 2 < 1 ? [1, 0] : [0, 1];
+    for (const side of [-1, 1])
+      for (const [ex, ez, ey] of [
+        [1, 0, 0],
+        [2, 0, 0],
+        [1, 1, 0],
+        [2, 1, 1],
+        [1, 0, 1],
+      ])
+        p.add(x + side * (ax * ex + az * ez), y + h + ey, z + side * (az * ex + ax * ez), (ex + ey) & 1 ? col : tint(col, 0.2));
+  }
+}
+
+// A bird of paradise: a long green beak held out level, an orange crest fanned up out of it and a blue tongue.
+function birdOfParadise(p, x, y, z, rand, col) {
+  stemUp(p, x, y, z, 6, "#4f7a32");
+  const [hx, hz] = heading(rand);
+  const at = (k, up) => [Math.round(x + hx * k), y + 6 + up, Math.round(z + hz * k)];
+  for (let k = -1; k <= 5; k++) {
+    p.add(...at(k, k > 3 ? 0 : 1), "#5f7a3a");
+    p.add(...at(k, 0), k < 4 ? "#7a3f5a" : "#5f7a3a"); // (its underside flushed purple)
+  }
+  for (const [k, n] of [
+    [0, 4],
+    [1, 3],
+    [2, 3],
+    [-1, 3],
+  ])
+    for (let u = 0; u < n; u++) {
+      const [cx, cy, cz] = at(k - u * 0.35, 2 + u);
+      p.add(cx, cy, cz, u === n - 1 ? tint(col, 0.25) : col);
+    }
+  p.add(...at(1.5, 2), "#3a5fd0");
+  p.add(...at(2.2, 3), "#3a5fd0");
+}
+
+// A dahlia: a big geometric ball of pointed petals, ring over ring, curling in to a tight middle.
+function dahlia(p, x, y, z, rand, col) {
+  const [light, dark] = [tint(col, 0.25), tone(col, 0.75)];
+  const turn = rand();
+  for (const [r0, r1, n, up] of [
+    [1.5, 3.6, 14, 0],
+    [1, 2.6, 10, 1],
+    [0.5, 1.6, 7, 2],
+  ])
+    for (let k = 0; k < n; k++) {
+      const a = ((k + turn) / n) * Math.PI * 2;
+      for (let r = r0; r <= r1; r += 0.5) p.add(Math.round(x + Math.cos(a) * r), y + up, Math.round(z + Math.sin(a) * r), r > r1 - 0.6 ? light : col);
+    }
+  p.add(x, y + 3, z, dark);
+  p.add(x, y + 2, z, dark);
+}
+
 // Every kind: its name, its colours, how tall its stems stand out of a bucket (voxels), how far apart its
 // blooms are packed and how tall each is (half voxels), whether it is a spike (painted up from its base),
 // and how to paint a bloom.
@@ -434,6 +631,31 @@ export const FLOWERS = {
   protea: { name: "Protea", colors: ["#d9707e", "#e88a9a"], tall: 12, size: 6.2, head: 3, bloom: protea },
   lisianthus: { name: "Lisianthus", colors: ["#f4f0f6", "#8e5bc0", "#f2b5cf"], tall: 11, size: 4.3, head: 2, bloom: lisianthus },
   freesia: { name: "Freesia", colors: ["#f6d23c", "#f7f2ea", "#b27ad6", "#f28aa0"], tall: 11, size: 5, head: 2, bloom: freesia },
+  hydrangea: {
+    name: "Hydrangea",
+    colors: ["#8fb3e8", "#f0a6c4", "#f4f1ea", "#b9d78a", "#b39ad8"],
+    tall: 10,
+    size: 8,
+    head: 5,
+    bloom: hydrangea,
+  },
+  allium: { name: "Allium", colors: ["#8e5bc0", "#b07ad8"], tall: 16, size: 6, head: 13, bloom: allium },
+  craspedia: { name: "Billy buttons", colors: ["#f2c014"], tall: 13, size: 4.4, head: 12, bloom: craspedia },
+  calla: { name: "Calla lilies", colors: ["#f6f3ea", "#5a1a3a", "#f2c84a", "#f2b0c0"], tall: 13, size: 4.6, head: 12, bloom: calla },
+  anthurium: { name: "Anthurium", colors: ["#d0122c", "#f07aa8", "#f6f1e8"], tall: 10, size: 6.6, head: 3, bloom: anthurium },
+  delphinium: {
+    name: "Delphinium",
+    colors: ["#3f63c8", "#8fb0f0", "#6a4fd0", "#f2f2fa"],
+    tall: 15,
+    size: 3.8,
+    head: 12,
+    spike: true,
+    bloom: delphinium,
+  },
+  pampas: { name: "Pampas grass", colors: ["#eadfc6", "#dcc7a2", "#e9cdc2"], tall: 17, size: 5.6, head: 15, bloom: pampas },
+  eucalyptus: { name: "Eucalyptus", colors: ["#9db7a6", "#8aa595"], tall: 12, size: 4.4, head: 12, bloom: eucalyptus },
+  birdOfParadise: { name: "Bird of paradise", colors: ["#f28a1e"], tall: 14, size: 6.4, head: 11, bloom: birdOfParadise },
+  dahlia: { name: "Dahlias", colors: ["#8b1a3a", "#f27a5e", "#f6e7d0", "#e05a9a", "#f4c430"], tall: 10, size: 6.2, head: 3, bloom: dahlia },
 };
 
 // The bunches of a bucketful (in half voxels, round (0, 0) with the rim at y = 0), `R` across the top and `H`
@@ -547,28 +769,6 @@ const sleeveMaterials = [THREE.BackSide, THREE.FrontSide].map(
   (side) => new THREE.MeshLambertMaterial({ color: 0xf2f8fa, emissive: 0x1c2224, transparent: true, opacity: 0.22, depthWrite: false, side })
 );
 
-// Geometries joined end to end (indexed, with normals and colours: solid() meshes' and the leaves'), and
-// where each ends in the joined index: drawing up to an end draws only those before it.
-function joined(geometries) {
-  const [position, normal, color, index] = [[], [], [], []];
-  const ends = [];
-  for (const g of geometries) {
-    const base = position.length / 3;
-    for (const v of g.attributes.position.array) position.push(v);
-    for (const v of g.attributes.normal.array) normal.push(v);
-    for (const v of g.attributes.color.array) color.push(v);
-    for (const i of g.index.array) index.push(base + i);
-    ends.push(index.length);
-    g.dispose();
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
-  g.setAttribute("normal", new THREE.Float32BufferAttribute(normal, 3));
-  g.setAttribute("color", new THREE.Float32BufferAttribute(color, 3));
-  g.setIndex(index);
-  return { geometry: g, ends };
-}
-
 // A bucketful of `kind` (display.js): a mesh with its base at the rim, `R` voxels across the top (the
 // bunches flaring out over the rim) and `H` voxels high, in `colors`, the bunches' leaves in it and their
 // cellophane a mesh of its own on it. `level(n)` shows it full (3) or thinned out by picking (2, then 1).
@@ -609,7 +809,8 @@ export function bunchMesh(kinds, seed, stems = 7) {
     const kind = kinds[i % kinds.length];
     const f = FLOWERS[kind];
     const col = f.colors[Math.floor(rand() * f.colors.length)];
-    const top = Math.round(27 - 0.12 * d * d + (rand() - 0.5) * 2);
+    const lift = Math.max(0, f.head - 8) * 0.6; // (a tall head on a bare stem, a plume or a spike: up out of the paper)
+    const top = Math.round(27 + lift - 0.12 * d * d + (rand() - 0.5) * 2);
     const base = Math.min(top - f.head, f.spike ? 19 : 24);
     line(p, [Math.round(x * 0.15), 0, Math.round(z * 0.15)], [x, base - 1, z], STEM);
     if (rand() < 0.6) p.add(x + (x > 0 ? 1 : -1), Math.round(base * 0.6), z, GREEN[2]);

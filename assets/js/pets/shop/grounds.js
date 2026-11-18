@@ -3,7 +3,8 @@
  * the painted hoarding along the back (big daisies, sunflowers and pink
  * dahlias on deep green, a market banner and a speech bubble), the house
  * plants on their concrete plinth and wire rack with trays in front
- * (plants.js), the cacti on their trolley (rolled aside for the wonton stall
+ * (plants.js; each pot out or not, sold or not, as the day's stock says:
+ * stock.js), the cacti on their trolley (rolled aside for the wonton stall
  * of an afternoon), the plane tree in its iron grate, the empty
  * buckets stacked by the left, the chalkboard A-frame, the tap on the kiosk's
  * wall with the watering can by it, the dog's water bowl, petals and leaves
@@ -19,8 +20,8 @@ import { hash, ellipsoid } from "../models/voxels.js";
 import { pixelTexture } from "../room/house/kit.js";
 import { makeWater } from "../room/water.js";
 import { VIEW_YAW } from "../room/view.js";
-import { rnd, pick } from "../stage.js";
-import { part, box, meshOf, voxels, paletteOf, seenFaces, seenMaterial, swinging, knock } from "./kit.js";
+import { rnd, pick, clamp } from "../stage.js";
+import { part, box, meshOf, voxels, paletteOf, hideable, swinging, knock } from "./kit.js";
 import { PLANTS, PLANT_COLORS, RACK, TRAY_W, TRAY_D, TRAY_COUNT, planted, trayX, trolleyPlanted } from "./plants.js";
 import { GROUND, MURAL, KIOSK, FLOOR, PLINTH, TRAYS, TREE, TROLLEY, TAP, BUCKET_STACKS, SIGN, BOWL, MIDDLE, RIGHT, LEFT, DOOR } from "./layout.js";
 
@@ -491,19 +492,31 @@ export function* buildingGrounds(shared) {
   /* ----- in half voxels: the plants, the stacked buckets, the tap, the bowl ----- */
   const H = (v) => Math.round(v / HALF);
   yield;
-  // The house plants, a mesh for each group of them (the work spread out). Only the faces that can face the
+  // The house plants, a mesh for each group of them (the work spread out), each pot in it a run of its own
+  // that can be put out of sight (sold, or not put out today: stock.js). Only the faces that can face the
   // camera.
   const { groups, cards } = planted();
   const plantMeshes = [];
-  for (const plants of groups) {
-    const fine = part();
-    for (const [kind, x, y, z, seed, o] of plants) PLANTS[kind](fine, H(x), H(y), H(z), seed, o);
+  const pots = []; // (every pot: potsOf())
+  const potSets = [];
+  for (const [g, plants] of groups.entries()) {
+    const set = hideable(plants.map(grown), HALF, PALETTE, true);
     yield;
-    const mesh = shadowy(meshOf(fine, HALF, PALETTE));
-    seenFaces(mesh.geometry);
-    mesh.material = seenMaterial;
-    plantMeshes.push(mesh);
-    group.add(mesh);
+    potSets.push(set);
+    plantMeshes.push(shadowy(set.mesh));
+    group.add(set.mesh);
+    // (taken from the pavement in front of the trays, where she stands to mist them; not under the tarp)
+    const stand = ([x]) => ({ at: [clamp(x, 40, 88), -47], yaw: Math.PI });
+    pots.push(
+      ...potsOf(
+        ["rack", "plinth", "trays"][g],
+        set,
+        plants,
+        (p) => p,
+        stand,
+        () => tarp.k === 0
+      )
+    );
     yield;
   }
 
@@ -761,6 +774,17 @@ export function* buildingGrounds(shared) {
     PALETTE
   );
   group.add(shadowy(bundleMesh));
+  // A nursery tray of fresh pots from the lock-up, carried round in the morning to put the day's house plants
+  // out (hours.js): black plastic, two rows of three.
+  const crateGroup = new THREE.Group();
+  const crate = part();
+  box(crate, [-7, 6], [0, 1], [-5, 4], (x, y, z) => (y === 1 && x > -7 && x < 6 && z > -5 && z < 4 ? "potBlack" : "tray"));
+  const fresh = part();
+  [-9, 0, 9].forEach((x, i) =>
+    [-4.5, 4.5].forEach((z, j) => PLANTS[["peperomia", "echeveria", "calathea"][i]](fresh, x, 2, z, 200 + i * 2 + j, { pot: "nursery" }))
+  );
+  crateGroup.add(shadowy(meshOf(crate, 1, PALETTE)), shadowy(meshOf(fresh, HALF, PALETTE)));
+  group.add(crateGroup);
 
   // What is carried in at night and out in the morning (life.js), as the buckets are (display.js): the A-frame,
   // the stacks of empty buckets, the watering can, the dog's bowl and the folded tarp. Each moved from
@@ -796,8 +820,10 @@ export function* buildingGrounds(shared) {
     can: movable("can", [can], [...CAN_AT], 18, 6),
     bowl: movable("bowl", [bowlMesh, water], [BOWL.x, 0, BOWL.z], 3, 4),
     bundle: movable("bundle", [bundleMesh], [0, 0, 0], 4, 8),
+    crate: movable("crate", [crateGroup], [0, 0, 0], 12, 8),
   };
   things.bundle.place(0, 0, 0, false); // (by day, in the lock-up)
+  things.crate.place(0, 0, 0, false); // (likewise, but for the house plants put out of a morning)
 
   yield;
   /* ----- the contract ----- */
@@ -894,6 +920,7 @@ export function* buildingGrounds(shared) {
       afternoon: [trolley.box(TROLLEY.afternoon)],
     },
     trolley,
+    pots: [...pots, ...trolley.pots],
     hides: [crownMesh, trunkMesh, wholeMesh, ...plantMeshes, ...stackMeshes, ...trolley.meshes],
     clickables,
     spots,
@@ -951,8 +978,45 @@ export function* buildingGrounds(shared) {
       crownGroup.rotation.set(crownSwing.x, 0, crownSwing.z);
       petals.update(t, dt);
       birds.update(t, dt, home);
+      // The pots sold or put out (stock.js) gone from their meshes, or back; their shadows with them.
+      if (potSets.reduce((any, s) => s.update() || any, trolley.update())) moved = true;
     },
   };
+}
+
+/* ---------------------------------------------------------------------------------------------------------- */
+/* The house plants' pots, each a place on the display for the day's stock (stock.js). */
+
+// A plant of planted() or trolleyPlanted() ([kind, x, y, z, seed, options]) as a part of its own, in half voxels.
+function grown([kind, x, y, z, seed, o]) {
+  const p = part();
+  PLANTS[kind](p, Math.round(x / HALF), Math.round(y / HALF), Math.round(z / HALF), seed, o);
+  return p;
+}
+// The pots of `set` (hideable(): one each of `plants`): its `region` (the pots set out together of a morning,
+// hours.js); whether it is `shown` (`show(on)`); `where()` its foot just now (`at` turns a plant's own place into
+// the world's); `stand()` where a customer stands to take it ({ at, yaw }: `stand` gets its foot and its own
+// place); `reachable()`, whether it can be taken just now; `piece()`, a pot of it to carry off (the hand at its
+// middle).
+function potsOf(region, set, plants, at, stand, reachable) {
+  return plants.map(([kind, x, y, z, seed, o], k) => ({
+    region,
+    kind,
+    get shown() {
+      return set.shown(k);
+    },
+    show: (on) => set.show(k, on),
+    where: () => at([x, y, z]),
+    stand: () => stand(at([x, y, z]), [x, y, z]),
+    reachable,
+    piece() {
+      const p = part();
+      PLANTS[kind](p, 0, 0, 0, seed, o);
+      const mesh = Object.assign(meshOf(p, HALF, PALETTE), { castShadow: true });
+      mesh.position.y = -3;
+      return new THREE.Group().add(mesh);
+    },
+  }));
 }
 
 /* ---------------------------------------------------------------------------------------------------------- */
@@ -969,7 +1033,6 @@ const DECK = [
 const GRIP = [-TROLLEY.length / 2 - 2, 18, 0];
 
 function buildTrolley(parent, onMove) {
-  const H = (v) => Math.round(v / HALF);
   const shadowy = (m) => Object.assign(m, { castShadow: true, receiveShadow: true });
   const [hl, hd] = [TROLLEY.length / 2, TROLLEY.depth / 2];
   const g = new THREE.Group();
@@ -996,15 +1059,22 @@ function buildTrolley(parent, onMove) {
   const frameMesh = shadowy(meshOf(frame, 1, PALETTE));
 
   const { shelf, cards, trays } = trolleyPlanted();
-  const fine = part();
-  for (const [kind, x, y, z, seed, o] of shelf) PLANTS[kind](fine, H(x), H(y), H(z), seed, o);
-  const plantMesh = shadowy(meshOf(fine, HALF, PALETTE));
+  const shelfSet = hideable(shelf.map(grown), HALF, PALETTE);
+  const plantMesh = shadowy(shelfSet.mesh);
   g.add(frameMesh, plantMesh, cardsMesh(cards));
+  const sets = [shelfSet];
+  const t = {};
+  const still = () => t.pose !== "moving";
+  // (where a customer stands to take one off it: before its front, the shelves turned to them)
+  const before = ([x, , z], [lx]) => {
+    const at = t.toWorld([lx, 0, 24]);
+    return { at: [at[0], at[2]], yaw: Math.atan2(x - at[0], z - at[2]) };
+  };
+  const pots = potsOf("shelf", shelfSet, shelf, (p) => t.toWorld(p), before, still);
 
   // Its trays: each a tray of black plastic with its nine pots and its card, as a whole; on the deck (`aboard`,
   // the place there) going where the trolley goes, or carried (hours.js) and set down on the pavement.
   const meshes = [frameMesh, plantMesh];
-  const t = {};
   const onDeck = (k) => t.toWorld(DECK[k]);
   const trayThings = trays.map(({ plants, card }, k) => {
     const tg = new THREE.Group();
@@ -1012,12 +1082,21 @@ function buildTrolley(parent, onMove) {
     const tp = part();
     const [w, d] = [TRAY_W / 2, TRAY_D / 2];
     box(tp, [-w, w - 1], [0, 1], [-d, d - 1], (x, y, z) => (y === 1 && x > -w && x < w - 1 && z > -d && z < d - 1 ? "potBlack" : "tray"));
-    const pf = part();
-    for (const [kind, x, y, z, seed, o] of plants) PLANTS[kind](pf, H(x), H(y), H(z), seed, o);
-    const parts = [shadowy(meshOf(tp, 1, PALETTE)), shadowy(meshOf(pf, HALF, PALETTE))];
+    const potSet = hideable(plants.map(grown), HALF, PALETTE);
+    sets.push(potSet);
+    const parts = [shadowy(meshOf(tp, 1, PALETTE)), shadowy(potSet.mesh)];
     tg.add(...parts, cardsMesh([card]));
     meshes.push(...parts);
     const [hx, hz] = TROLLEY.trays[k];
+    // (its pots: where the tray is, turned as it is; taken from before it on the pavement, or off the deck)
+    const inTray = ([x, y, z]) => {
+      const [[wx, wy, wz], c, s] = [tray.where, Math.cos(tray.yaw), Math.sin(tray.yaw)];
+      return [wx + x * c + z * s, wy + y, wz - x * s + z * c];
+    };
+    const atTray = (foot, [lx]) =>
+      tray.aboard !== null ? before(foot, [DECK[k][0] + lx]) : { at: [foot[0], TROLLEY.trays[k][1] + 14], yaw: Math.PI };
+    const set = () => still() && (tray.aboard !== null || (tray.where[0] === hx && tray.where[2] === hz));
+    pots.push(...potsOf(`tray${k}`, potSet, plants, inTray, atTray, set));
     const tray = {
       name: `tray${k}`,
       home: [hx, 0, hz], // (out on the pavement, of a morning)
@@ -1060,6 +1139,9 @@ function buildTrolley(parent, onMove) {
     yaw: 0,
     meshes,
     trays: trayThings,
+    pots, // (its pots, on its shelves and in its trays: potsOf())
+    // Its pots put out of sight or back since the last time, their meshes made so; whether any were.
+    update: () => sets.reduce((any, s) => s.update() || any, false),
     // A point about its middle (its own frame) in the world.
     toWorld([x, y, z]) {
       const [cs, s] = [Math.cos(t.yaw), Math.sin(t.yaw)];

@@ -12,7 +12,9 @@
  * and its moths and the possum in the tree (night.js), a stray cat and the
  * street sweeper at first light (street.js), people passing (customers.js).
  * From two till eleven the wonton stall stands in the corner under the tree
- * (stall.js, stall-life.js), its customers at its table (customers.js).
+ * (stall.js, stall-life.js), its customers at its table (customers.js). What
+ * is out on its display is the day's stock (stock.js): its pots and bunches
+ * bought as the day goes, restocked each morning as they set out.
  * The page (playground.js) swaps it for the house and
  * back: it has the house's ways (`step`, `hit`, `thingAt`, `greet`, `dress`,
  * `hour`, `layout`), its own view (view.js) sized as the house's.
@@ -43,6 +45,8 @@ import { makeShopLife } from "./life.js";
 import { buildingCustomers } from "./customers.js";
 import { buildingStreet } from "./street.js";
 import { makeStallLife, stallOpenAt } from "./stall-life.js";
+import { makeStock } from "./stock.js";
+import { dayAt } from "./hours.js";
 
 // The three of them, where each starts the day, and how big (the collie as in the house).
 const CAST = [
@@ -91,7 +95,9 @@ export function* buildingShop(stage) {
 
   const clock = { t: 0, dt: 0 };
   const pointer = { x: 0, y: 0, seen: false, mouse: false, movedAt: -Infinity };
-  const day = { hour: DAWN + 3, litAt: -Infinity, L: lightAt(DAWN + 3) };
+  // The time of day, and which day it is (`n`: on by one at each midnight passed, back by one going back past
+  // one; the day's stock goes by it, stock.js), a day of its own at each page.
+  const day = { hour: DAWN + 3, n: Math.floor(Math.random() * 1e4), litAt: -Infinity, L: lightAt(DAWN + 3) };
   const shared = { scene, clock, night: false, hour: () => day.hour, view };
 
   // A builder's parts (`count` of them), a yield after each, as `what`.
@@ -214,6 +220,7 @@ export function* buildingShop(stage) {
     }
   })());
   const stallLife = (home.stallLife = makeStallLife(home));
+  const stock = (home.stock = makeStock(home));
   // The floor plan for the corner as it is (each frame).
   const trolley = grounds.trolley;
   const cornerNow = () =>
@@ -248,15 +255,20 @@ export function* buildingShop(stage) {
   daylight(true);
   life.hours.settle(day.hour);
   stallLife.settle(day.hour);
+  stock.settle(day.n, day.hour);
   cornerIs(cornerNow());
   let shadowsDirty = true;
 
+  const pace = () => (life.hours.busy() || stallLife.busy() ? WORK_CLOCK : 1);
+
   // The time put on to `hour` at a jump (the clock clicked, the shop seen again): everything put where it
   // would be by then, unless the shop is as it should be already (open by day, shut by night), or the jump
-  // is only a moment.
-  function jumpTo(hour) {
+  // is only a moment (unless `sure`: fast-forwarded to a time to skip to, it is left as a jump there leaves it).
+  // `onward` (a time button: skipping on to the time): an earlier time of day than now is the next day's.
+  function jumpTo(hour, sure = false, onward = false) {
     const was = day.hour;
     day.hour = ((hour % 24) + 24) % 24;
+    if (onward && day.hour < was - 0.05) day.n++;
     if (isNightAt(day.hour) !== home.night) nightfall(!home.night);
     daylight(true);
     const s = life.hours.state;
@@ -268,7 +280,7 @@ export function* buildingShop(stage) {
     const cornerRight = trolley.pose === (out && h < HOURS.clear + 0.5 ? "morning" : "afternoon");
     const stallRight = (stallOpenAt(h) && h - STALL.open >= 0.5) === ["setting", "open"].includes(stallLife.phase);
     const moment = Math.abs(((day.hour - was + 36) % 24) - 12) < 0.05; // (within 3 minutes, either way)
-    if (!(settled && cornerRight && stallRight) && !moment) {
+    if (!(settled && cornerRight && stallRight) && (sure || !moment)) {
       life.hours.settle(day.hour);
       customers.clear();
       street.clear();
@@ -276,6 +288,9 @@ export function* buildingShop(stage) {
       stallLife.settle(day.hour);
       cornerIs(cornerNow());
     }
+    // (the display as it is then, whatever the rest: what is sold by then gone, the rest back; restocked, or not
+    // yet, as it is that time of day: stock.js; the day the same, or the next one on to an earlier time)
+    if (sure || !moment) stock.settle(day.n, day.hour);
     shadowsDirty = true;
   }
 
@@ -386,6 +401,10 @@ export function* buildingShop(stage) {
     },
     hour: () => day.hour,
     timeTo: jumpTo,
+    // How fast the clock goes just now, of its usual speed: slower while they close up or set out, or the
+    // stall packs up (an hour's work, done at a walk). The page keeps the house's clock to it too
+    // (playground.js tick()), so the two worlds' time goes alike, whichever is in view.
+    pace,
     // Ready to be drawn without a hitch, a frame's work at a time: the shaders compiled a builder's things a
     // frame, in the background where the browser can (three.js's compileAsync waits for ever without that,
     // and it is given a few seconds at most anyway); drawn (out of sight) a builder more a frame, so that the
@@ -431,8 +450,16 @@ export function* buildingShop(stage) {
     step(dt, draw = true, hour = null) {
       clock.dt = dt;
       clock.t += dt;
-      // (The clock goes slower while they close up or set out: it is an hour's work, done at a walk.)
-      day.hour = hour ?? (day.hour + ((dt * 24) / DAY_SECS) * (life.hours.busy() || stallLife.busy() ? WORK_CLOCK : 1)) % 24;
+      const was = day.hour;
+      day.hour = hour ?? (day.hour + ((dt * 24) / DAY_SECS) * pace()) % 24;
+      const moved = ((day.hour - was + 36) % 24) - 12; // (the clock's move, either way)
+      if (was + moved >= 24) day.n++;
+      else if (was + moved < 0) day.n--;
+      // The clock run back to before they began closing up (or before they came in to set out): the shop as
+      // it was then, at once (a jump there), rather than the work they were at finished first. (Not where a
+      // jump leaves it as it is: the half hour after ten at night, or in the morning, hours.js setOutAt().)
+      const up = ["open", "opening"].includes(life.hours.state);
+      if (moved < 0 && up !== dayAt(day.hour) && up !== life.hours.setOutAt(day.hour)) jumpTo(day.hour, true);
       if (isNightAt(day.hour) !== home.night) nightfall(!home.night);
       daylight();
       cornerIs(cornerNow());
@@ -440,6 +467,7 @@ export function* buildingShop(stage) {
       customers.step();
       street.step();
       stallLife.step();
+      stock.step(day.n, day.hour);
       giveWay(dt);
       builders.forEach((b) => b.update?.(clock.t, dt, home));
       const hovered = pointer.mouse ? hit(pointer.x, pointer.y) : null;

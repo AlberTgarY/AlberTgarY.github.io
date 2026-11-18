@@ -811,11 +811,15 @@ export function* buildingStall(shared) {
   // and back); the used bowls he takes back, upside down on a cloth on the ground beside it.
   const crate = (() => {
     const p = part();
-    box(p, [-6, 6], [0, 7], [-6, 6], (x, y, z) => {
-      const side = Math.abs(x) === 6 || Math.abs(z) === 6;
-      if (!side && y > 0) return null;
-      return y === 7 || y === 0 ? "crateDark" : y % 3 === 1 && (x + z) % 3 !== 0 ? null : "crate";
-    });
+    // (Hollow above the floor, with slots along the sides: no voxel there.)
+    for (let x = -6; x <= 6; x++)
+      for (let y = 0; y <= 7; y++)
+        for (let z = -6; z <= 6; z++) {
+          const side = Math.abs(x) === 6 || Math.abs(z) === 6;
+          const rim = y === 0 || y === 7;
+          if ((!side && y > 0) || (!rim && y % 3 === 1 && (x + z) % 3 !== 0)) continue;
+          p.add(x, y, z, rim ? "crateDark" : "crate");
+        }
     for (let k = 0; k < 3; k++)
       for (let dx = -5; dx <= 5; dx++)
         for (let dz = -5; dz <= 5; dz++) {

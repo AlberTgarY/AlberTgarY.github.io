@@ -28,7 +28,7 @@
 import { rnd, pick, clamp } from "../stage.js";
 import { freshPicker } from "../choose.js";
 import { LOFT, BASE_Y } from "./house.js";
-import { DAY_SECS } from "./daytime.js";
+import { BEDTIME, DAWN, DAY_SECS } from "./daytime.js";
 
 // How much each of them likes to do what (acts.js has what each one is). Night (dark mode) changes some;
 // going to bed is only for the night. The gym goes by taste and mood alone, whatever the hour or the weather.
@@ -418,7 +418,10 @@ export function makeLife(home) {
     if (!a.job) return;
     let broken = false;
     try {
-      if (a.jobName !== "sleep" && t() - a.jobStart > LONGEST) {
+      // (A night's sleep runs till the morning. But the clock run back to before bedtime finds them up: still
+      // on the way to bed (or out of it already), that is cut short at once; asleep, they wake (acts/living.js).)
+      const sleepless = home.hour() >= DAWN + 1 && home.hour() < BEDTIME;
+      if (a.jobName === "sleep" ? sleepless && !a.abed : t() - a.jobStart > LONGEST) {
         a.job.return();
         broken = true;
       } else if (!a.job.next().done) return;

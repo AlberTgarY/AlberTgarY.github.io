@@ -9,7 +9,7 @@ import { rnd, pick, clamp } from "../../stage.js";
 import { smoothstep } from "../../models/voxels.js";
 import { HOLDS, MOVES } from "../props.js";
 import { V, F, SAY, DOWNSTAIRS } from "./common.js";
-import { DAWN, DAY_SECS } from "../daytime.js";
+import { BEDTIME, DAWN, DAY_SECS } from "../daytime.js";
 
 const STROLL_BELOW = 0.3; // how often a wander (anyone's) goes down to the basement
 
@@ -281,10 +281,12 @@ export function livingActs(c) {
     if (cat && Math.random() < 0.5) invite(cat, act("snuggle", snuggle, a));
     a.asleep = true;
     // Asleep until the morning, each waking in the first three quarters of an hour after daybreak (sooner if
-    // the morning is brought on: daytime.js).
+    // the morning is brought on: daytime.js), or whenever the clock is put back to before bedtime (the day's
+    // bar run back to the evening: up again, as they would be then).
     const wake = DAWN + rnd(0, 0.75);
     const hoursTo = () => (wake - home.hour() + 24) % 24;
-    yield* linger(a, hoursTo() * (DAY_SECS / 24) + 1, { stop: () => !a.asleep || (!home.night && home.hour() >= wake) });
+    const up = () => home.hour() >= wake && home.hour() < BEDTIME;
+    yield* linger(a, hoursTo() * (DAY_SECS / 24) + 1, { stop: () => !a.asleep || up() });
     yield* wait(a, 1.2); // awake, a look about
     yield* outOfBed(a, seat);
     if (!a.interrupt) yield* moveMoth(a, "bed");

@@ -11,7 +11,11 @@
  * lights out, he hooks the roller shutter down with the pole and pulls it to
  * the pavement, she padlocks it, and the three of them go home up the street.
  * In the morning they come back and do it all the other way round, in time to
- * turn the sign to OPEN at ten.
+ * turn the sign to OPEN at ten; and, all out, they restock (the day's stock,
+ * stock.js): she fills up the buckets bought thin yesterday with fresh stems
+ * from the cool room (those kept in the lock-up overnight come out of it
+ * full), he carries a tray of fresh pots round the house plants and the cacti,
+ * making each group of them up to the day's.
  *
  * The corner by the tree is theirs till two (the cacti's trolley and its two
  * trays out there): at two they make it over to the wonton stall
@@ -342,6 +346,8 @@ export function makeShopHours(home, life) {
     if (load[0].store === "lockup")
       yield* intoLockup(a, function* () {
         load.forEach((e, i) => e.item.place(...shelf(e.item, sides[i])));
+        // (a bucket of flowers filled up afresh in there, the cool room it was kept in: the day's stock, stock.js)
+        load.forEach((e) => e.item.bucketKind && home.stock?.restock(e.item));
         yield* lift(
           a,
           load.map((e, i) => [e.item, sides[i]])
@@ -742,6 +748,87 @@ export function makeShopHours(home, life) {
     }
   }
 
+  /* ----- the day's stock out (stock.js), once all is set out ----- */
+
+  // Her round of the buckets bought thin yesterday, all of them out: an armful of fresh stems from the cool room
+  // at the back, a few into each (those kept in the lock-up overnight came out of it full: carryOut(); any not
+  // thinned are restocked as they stand).
+  function* freshen(a) {
+    const S = home.stock;
+    const due = D.buckets.filter((b) => !S.restocked(b));
+    due.filter((b) => b.level >= 3).forEach((b) => S.restock(b));
+    const thin = due.filter((b) => b.level < 3);
+    const cool = K.spots?.cool;
+    if (!thin.length || !cool) return thin.forEach((b) => S.restock(b));
+    a.cleanups.push(() => {
+      K.cool?.set(false);
+      a.shop.only();
+    });
+    yield* walk(a, cool.at, pace(a));
+    yield* turn(a, cool.yaw);
+    K.cool?.set(true);
+    yield* wait(a, 0.5);
+    a.hold = HOLDS.reach;
+    a.since = t();
+    yield* wait(a, 0.6);
+    a.shop.fill([...new Set(thin.map((b) => b.kind))].slice(0, 4), Math.floor(Math.random() * 1e6));
+    a.shop.only("bucket");
+    a.hold = HOLDS.tray;
+    yield* wait(a, 0.3);
+    K.cool?.set(false);
+    while (thin.length) {
+      // (the nearest next)
+      thin.sort((p, q) => Math.hypot(p.stand[0] - a.x, p.stand[1] - a.z) - Math.hypot(q.stand[0] - a.x, q.stand[1] - a.z));
+      const b = thin.shift();
+      yield* goTo(a, b.stand);
+      yield* turn(a, b.yaw);
+      a.lean = 0.25;
+      yield* wait(a, 0.5);
+      S.restock(b);
+      a.pop("room-pop room-pop-sparkle");
+      a.lean = 0;
+    }
+    a.shop.only();
+    a.hold = null;
+  }
+
+  // His round of the house plants: a tray of fresh pots out of the lock-up, carried along the trays, the
+  // plinth and the rack and over to the cacti's trolley, each group of them made up to the day's (stock.js) as
+  // he stoops to it; the tray back in.
+  const POT_STOPS = [
+    { regions: ["trays"], at: [82, -47] },
+    { regions: ["plinth"], at: [62, -47] },
+    { regions: ["rack"], at: [44, -47] },
+    { regions: ["shelf", "tray0", "tray1"], at: [TROLLEY.morning.x, TROLLEY.trays[0][1] + 14] },
+  ];
+  function* potsOut(a) {
+    const S = home.stock;
+    const stops = POT_STOPS.filter(({ regions }) => regions.some((r) => !S.restocked(r)));
+    if (!stops.length) return;
+    const crate = things.crate;
+    a.cleanups.push(() => {
+      if (carrying.get(a)?.some((c) => c.item === crate)) crate.place(...crate.home, false);
+      carrying.delete(a);
+    });
+    yield* intoLockup(a, function* () {
+      crate.place(...shelf(crate));
+      yield* lift(a, [[crate, 0]]);
+    });
+    for (const { regions, at } of stops) {
+      // (the trolley wherever it is: before its front)
+      const to = regions[0] === "shelf" && trolley.pose !== "morning" ? [trolley.x + 26, trolley.z] : at;
+      yield* goTo(a, home.nav.nearest(...to) ?? to);
+      yield* turn(a, regions[0] === "shelf" && trolley.pose !== "morning" ? -Math.PI / 2 : Math.PI);
+      a.lean = 0.35;
+      yield* wait(a, 0.9);
+      regions.forEach((r) => S.restock(r));
+      a.pop("room-pop room-pop-sparkle");
+      yield* wait(a, 0.3);
+      a.lean = 0;
+    }
+    yield* intoLockup(a, () => setDown(a, [[crate, shelf(crate)]], false));
+  }
+
   /* ----- what each has to do ----- */
 
   let state = "open";
@@ -858,6 +945,7 @@ export function makeShopHours(home, life) {
     }
     if (G.tarp.k > 0) yield* tarpOver(a, false);
     if (trolley.pose !== "morning" || trolley.trays.some((x) => x.aboard !== null)) yield* cornerOut(a);
+    yield* a === girl ? freshen(a) : potsOut(a); // (the day's stock out)
     if (a === boy && lockup.open) {
       yield* walk(a, lockup.at, pace(a));
       yield* turn(a, Math.PI);
@@ -929,6 +1017,7 @@ export function makeShopHours(home, life) {
       cleared.clear();
       trolley.set(day && h < HOURS.clear + CATCH ? "morning" : "afternoon");
       things.bundle.place(...things.bundle.home, false);
+      things.crate.place(...things.crate.home, false);
       lockup.set(false);
       lockup.k = 0;
       lockup.lock(!day);

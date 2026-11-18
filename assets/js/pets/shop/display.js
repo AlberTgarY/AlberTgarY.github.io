@@ -10,8 +10,9 @@
  * Drawn cheaply: the buckets of each kind are one instanced mesh, the
  * cellophane one more, the tags one (their words on one canvas), the timber
  * one; each bucketful of blooms is a mesh of its own, so that it can be
- * thinned out as she picks from it (pick()), sway in the breeze and shake when
- * clicked (and, while the shop is open, she makes up a bouquet of it).
+ * thinned out as its bunches are bought (fill(): the day's stock, stock.js),
+ * sway in the breeze and shake when clicked (and, while the shop is open, she
+ * makes up a bouquet of it).
  ******************************************************************************/
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
@@ -40,23 +41,23 @@ const PLAN = [
   ["bin", -109, -17, STEP_Y, "lily", ["#f3a9c4", "#f8f3ee"], "LILIUM $30"],
   // In front of it: bins, then black buckets.
   ["bin", -141, 3, 0, "gerbera", ["#e8245a", "#f06a9a", "#f6a3bd"], "GERBERA $30"],
-  ["bin", -125, 3, 0, "pompom", ["#e9a3c5", "#c9a0dc", "#b9d77a", "#f7f4ea"], null],
+  ["bin", -125, 3, 0, "hydrangea", ["#8fb3e8", "#f0a6c4", "#f4f1ea", "#b39ad8"], "HYDRANGEA $28"],
   ["bin", -109, 3, 0, "gerbera", ["#e8452c", "#f59a2a", "#e8245a"], null],
   ["black", -144, 25, 0, "stock", ["#d8a6e8", "#f2a7c8"], null],
-  ["black", -132, 25, 0, "carnation", ["#f6f2ec", "#f07aa8"], null],
+  ["black", -132, 25, 0, "anthurium", ["#d0122c", "#f07aa8"], "ANTHURIUM $24"],
   ["black", -120, 25, 0, "orchid", ["#3f6fd8", "#6a4fd0", "#2f8fc8"], "ORCHID $15"],
-  ["black", -108, 25, 0, "sprayCarnation", ["#f39ac0", "#d8346e", "#f7f0f2"], null],
+  ["black", -108, 25, 0, "craspedia", ["#f2c014"], "BILLY BUTTONS $12"],
   // Before the doorway: pails up on the riser, black buckets in front.
   ["pail", -86, 13, RISER, "stock", ["#f2a7c8", "#e877b0"], "STOCKS $18"],
-  ["pail", -73, 13, RISER, "stock", ["#9b59b6", "#d8a6e8"], null],
+  ["pail", -73, 13, RISER, "delphinium", ["#3f63c8", "#8fb0f0", "#f2f2fa"], "DELPHINIUM $20"],
   ["pail", -60, 13, RISER, "snapdragon", ["#f39ab5", "#f6c08a", "#f7e27a", "#f6f2ea"], "SNAP DRAGON $12"],
   ["pail", -47, 13, RISER, "alstroemeria", ["#f28aa0", "#f6a35b", "#f7d34a"], "ALSTROEMERIA $12"],
-  ["pail", -34, 13, RISER, "stock", ["#f6f0f5", "#f2a7c8"], null],
+  ["pail", -34, 13, RISER, "pampas", ["#eadfc6", "#dcc7a2", "#e9cdc2"], "PAMPAS $22"],
   ["black", -86, 37, 0, "sprayCarnation", ["#f39ac0", "#c9a0dc", "#d8346e"], "SPRAY CARNATION $15"],
-  ["black", -73, 37, 0, "carnation", ["#f07aa8", "#e53950"], null],
+  ["black", -73, 37, 0, "calla", ["#f6f3ea", "#5a1a3a"], "CALLA LILY $26"],
   ["black", -60, 37, 0, "orchid", ["#3f6fd8", "#6a4fd0"], null],
   ["black", -47, 37, 0, "alstroemeria", ["#f4e9e4", "#e05a7a", "#f28aa0"], null],
-  ["black", -34, 37, 0, "snapdragon", ["#d9467a", "#f6f2ea"], null],
+  ["black", -34, 37, 0, "allium", ["#8e5bc0", "#b07ad8"], "ALLIUM $16"],
   // Along to the right, a walkway through the middle: the back row up on the bench ...
   ["pail", 0, 0, BENCH, "gypsophila", ["#fbfaf4"], "GYPSOPHILA $16"],
   ["pail", 11.6, 0, BENCH, "statice", ["#7a4fb0", "#9b6fd0"], "STATICE $14"],
@@ -66,32 +67,32 @@ const PLAN = [
   ["pail", 58, 0, BENCH, "waxflower", ["#f3b6c8", "#f7eef2"], null],
   ["pail", 94, 0, BENCH, "freesia", ["#f6d23c", "#f7f2ea"], null],
   ["pail", 105.6, 0, BENCH, "iris", ["#4b3fa8", "#5b4fc0"], "IRIS $20"],
-  ["pail", 117.2, 0, BENCH, "gypsophila", ["#fbfaf4"], null],
+  ["pail", 117.2, 0, BENCH, "eucalyptus", ["#9db7a6", "#8aa595"], "EUCALYPTUS $14"],
   ["pail", 128.8, 0, BENCH, "lily", ["#f8f3ee", "#f3a9c4"], null],
-  ["pail", 140.4, 0, BENCH, "protea", ["#e88a9a"], null],
+  ["pail", 140.4, 0, BENCH, "birdOfParadise", ["#f28a1e"], "BIRD OF PARADISE $30"],
   // ... and, across the aisle, two rows on the pavement.
   ["black", 0, 33, 0, "rose", ["#c8102e"], "RED ROSES $45"],
   ["black", 11.2, 33, 0, "rose", ["#e8507a", "#e23a74"], null],
-  ["black", 22.4, 33, 0, "rose", ["#f5c542"], null],
+  ["black", 22.4, 33, 0, "dahlia", ["#8b1a3a", "#f27a5e", "#f6e7d0"], "DAHLIA $24"],
   ["black", 33.6, 33, 0, "rose", ["#f6ad84"], null],
   ["black", 44.8, 33, 0, "peony", ["#f39ab8", "#f7d7df"], "PEONY $35"],
-  ["black", 56, 33, 0, "peony", ["#f4746e", "#e2507a"], null],
+  ["black", 56, 33, 0, "hydrangea", ["#b39ad8", "#f4f1ea"], null],
   ["black", 94, 33, 0, "tulip", ["#e23a3a", "#f5c542", "#f39ab5"], "TULIPS $25"],
   ["black", 105.2, 33, 0, "carnation", ["#e53950", "#f07aa8"], "CARNATION $15"],
   ["black", 116.4, 33, 0, "lisianthus", ["#8e5bc0", "#f2b5cf"], null],
   ["black", 127.6, 33, 0, "gerbera", ["#f59a2a", "#e8452c"], "GERBERA $12"],
-  ["black", 138.8, 33, 0, "tulip", ["#8e4fb0", "#f6f2ea"], null],
-  ["black", 0, 45, 0, "rose", ["#f6f0e6"], null],
+  ["black", 138.8, 33, 0, "allium", ["#b07ad8", "#8e5bc0"], null],
+  ["black", 0, 45, 0, "calla", ["#f2c84a", "#f2b0c0"], null],
   ["black", 11.2, 45, 0, "tulip", ["#f39ab5", "#f6f2ea"], null],
   ["black", 22.4, 45, 0, "freesia", ["#b27ad6", "#f28aa0"], "FREESIA $18.00"],
   ["black", 33.6, 45, 0, "iris", ["#4b3fa8"], null],
-  ["black", 44.8, 45, 0, "sprayCarnation", ["#f7f0f2", "#c9a0dc"], null],
+  ["black", 44.8, 45, 0, "dahlia", ["#e05a9a", "#f4c430"], null],
   ["black", 56, 45, 0, "alstroemeria", ["#f6a35b", "#f7d34a"], null],
   ["black", 94, 45, 0, "waxflower", ["#e78fb0", "#f3b6c8"], null],
-  ["black", 105.2, 45, 0, "carnation", ["#f6b3a0", "#f6f2ec"], null],
+  ["black", 105.2, 45, 0, "anthurium", ["#f6f1e8", "#d0122c"], null],
   ["black", 116.4, 45, 0, "rose", ["#e23a74", "#e8507a"], "ROSES $40"],
-  ["black", 127.6, 45, 0, "pompom", ["#f6d23c", "#f7f4ea"], null],
-  ["black", 138.8, 45, 0, "stock", ["#f6f0f5", "#d8a6e8"], null],
+  ["black", 127.6, 45, 0, "eucalyptus", ["#8aa595"], null],
+  ["black", 138.8, 45, 0, "delphinium", ["#6a4fd0", "#8fb0f0"], null],
 ];
 
 // What stands on the pavement, as boxes [x0, x1, z0, z1]: the step and the left's buckets, the middle's, the
@@ -253,6 +254,16 @@ const PRICE = {
   protea: 14,
   lisianthus: 22,
   freesia: 18,
+  hydrangea: 28,
+  allium: 16,
+  craspedia: 12,
+  calla: 26,
+  anthurium: 24,
+  delphinium: 20,
+  pampas: 22,
+  eucalyptus: 14,
+  birdOfParadise: 30,
+  dahlia: 24,
 };
 function tagBoard() {
   const canvas = document.createElement("canvas");
@@ -381,7 +392,25 @@ export function* buildingDisplay(shared) {
     const blooms = bucketBlooms(flower, colors, k.spread, H, i * 977 + 31);
     blooms.position.set(x, rim - 0.5, z); // (unturned: only the faces turned to the viewer are in it)
     group.add(blooms);
-    if (["sunflower", "lily", "gypsophila", "protea", "orchid", "snapdragon", "gerbera", "stock"].includes(flower))
+    if (
+      [
+        "sunflower",
+        "lily",
+        "gypsophila",
+        "protea",
+        "orchid",
+        "snapdragon",
+        "gerbera",
+        "stock",
+        "allium",
+        "craspedia",
+        "calla",
+        "delphinium",
+        "pampas",
+        "eucalyptus",
+        "birdOfParadise",
+      ].includes(flower)
+    )
       swaying.push({ mesh: blooms, phase: rand() * 6, amp: 0.025 + 0.02 * rand() });
     // Its tag, stuck in among the front bunches (inside the rim, its stick down into the bucket), standing a
     // little over the blooms in front, where the viewer reads it.
@@ -418,14 +447,11 @@ export function* buildingDisplay(shared) {
       radius: k.r,
       // (each part's place when it is at home)
       parts: { blooms: blooms.position.clone(), stick: null, box: null },
-      // A few stems taken out (thinner, down to the last third); filled up again.
-      pick() {
-        bucket.level = Math.max(1, bucket.level - 1);
-        blooms.userData.level(bucket.level);
-      },
-      restock() {
-        bucket.level = 3;
-        blooms.userData.level(3);
+      // As full as `n` thirds of it (3, or thinned out to 2 and then 1 as bunches are bought from it: the day's
+      // stock, stock.js; which also says what pick(), a few stems taken out of it, does).
+      fill(n) {
+        bucket.level = n;
+        blooms.userData.level(n);
       },
     };
     buckets.push(bucket);

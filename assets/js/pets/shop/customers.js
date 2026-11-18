@@ -6,10 +6,7 @@
  * about. The first of a party looks round a few buckets (at each, a sniff,
  * a look at the price, a photo on their phone, or pointing it out to the
  * other), and then:
- * - picks a bunch out of a bucket themselves (as the A-frame says) and takes
- *   it into the kiosk to the till, where one of them wraps it in kraft paper,
- *   ties a ribbon round it, rings it up and hands it back;
- * - or asks her at the door for a bouquet of something they liked, and waits
+ * - asks her at the door for a bouquet of something they liked, and waits
  *   about outside (on their phone now and then) while she makes it up, till
  *   she brings it out;
  * - or takes one of the bouquets made up from the bucket by the door and pays
@@ -30,6 +27,13 @@
  * the cabinet, a stool, the bowl brought out and eaten), a couple of them at
  * a time at most. Each time someone goes off they are dressed anew (townsfolk.js
  * redress()).
+ * What the day's stock says is sold, as its hour comes (stock.js), someone
+ * comes to buy (buy(): one of them free just then, a couple at a time at most):
+ * straight up to it, a pot of house plants picked up off the trays, the plinth,
+ * the rack or the cacti's trolley, or a bunch out of a bucket (as the A-frame
+ * says), taken into the kiosk to the till (a bunch wrapped there in kraft
+ * paper), paid for, and off up the street with it; the clock run back past its
+ * hour, they go off without it (cancel()).
  * A customer is an actor like the others (room/actor.js) but goes by this
  * file, not life.js; the staff's side of it (serving at the till, the bouquet
  * made to order, the dog's hello) is in acts.js.
@@ -51,6 +55,7 @@ import { HOURS, STREET, GROUND, KIOSK, SHUTTER, AWNING } from "./layout.js";
 const CROWD = 12; // the people of the town who come by (two of them children; each looks anew at every page)
 const KIDS = 2;
 const AT_ONCE = 2; // parties about at once, at most (now and then one more)
+const BUYING = 2; // people come to buy something of the day's stock at once, at most (as well as the parties)
 const DINING = 2; // people at the wonton stall at once, at most (as well as the girl or the boy)
 const LAST_IN = HOURS.close - 0.3; // no one new comes after this
 const EDGE = GROUND.z1 - 8; // the pavement's front edge, where people step on and off it
@@ -311,27 +316,10 @@ function makeCustomers(home, people) {
     const last = seen.at(-1);
     const r = Math.random();
     const madeOne = D.made.count > 0 && !D.made.away;
-    if (last && r < 0.4 && life.claim(a, life.standOf(last))) {
-      // A bunch out of the bucket, to the till to be wrapped.
-      yield* walk(a, last.stand);
-      yield* turn(a, last.yaw);
-      a.lean = 0.25;
-      a.hold = last.top[1] > 26 ? HOLDS.reachUp : HOLDS.pick;
-      a.since = t();
-      yield* wait(a, 0.7);
-      last.pick?.();
-      const bq = makeBouquet([last.kind], Math.floor(Math.random() * 1e6));
-      bq.stems(4);
-      hold(a, bq);
-      life.release(a);
-      a.lean = 0;
-      a.hold = HOLDS.carry;
-      yield* wait(a, 0.4);
-      yield* atTill(a, bq, true);
-    } else if (last && r < 0.65 && life.canOrder()) {
+    if (last && r < 0.3 && life.canOrder()) {
       life.release(a);
       yield* order(a, last.kind);
-    } else if (madeOne && r < 0.85) {
+    } else if (madeOne && r < 0.6) {
       // A bouquet made up, out of the bucket by the door, to the till.
       life.release(a);
       yield* walk(a, D.made.at);
@@ -352,6 +340,45 @@ function makeCustomers(home, people) {
     a.hold = a.holding ? HOLDS.carry : null;
     yield* leave(a);
   }
+  // Someone come to buy `sale` (stock.js): up the street straight to it, it picked up (a pot, or a bunch out of
+  // a bucket: gone from the display), to the till with it (a bunch to be wrapped), paid for, and off.
+  function* buyer(a, sale) {
+    const S = home.stock;
+    a.cleanups.push(() => S.release(sale, a));
+    const pot = sale.pot >= 0 ? home.grounds.pots[sale.pot] : null;
+    const b = pot ? null : D.buckets[sale.bucket];
+    const from = rnd(-30, STREET.lane);
+    a.comeAt = from;
+    yield* comeIn(a, [from, STREET.z, EDGE], clock);
+    a.away = false;
+    yield* hello(a);
+    if (b) yield* until(() => life.claim(a, life.standOf(b)), 15); // (once no one else is at it)
+    const to = b ?? pot.stand();
+    yield* walk(a, b ? b.stand : home.nav.nearest(...to.at) ?? to.at);
+    yield* turn(a, to.yaw);
+    yield* until(() => (pot ? pot.reachable() : !b.away), 10);
+    const top = pot ? pot.where() : b.top;
+    a.look = top;
+    a.lean = 0.25;
+    a.hold = top[1] > (pot ? 20 : 26) ? HOLDS.reachUp : HOLDS.pick;
+    a.since = t();
+    yield* wait(a, 0.7);
+    a.lean = 0;
+    a.look = null;
+    a.hold = null;
+    if (!S.take(sale, a)) return yield* leave(a);
+    const thing = pot ? { group: pot.piece() } : makeBouquet([b.kind], Math.floor(Math.random() * 1e6));
+    thing.stems?.(4);
+    hold(a, thing);
+    life.release(a);
+    a.hold = HOLDS.carry;
+    yield* wait(a, 0.4);
+    yield* atTill(a, thing, !!b);
+    if (Math.random() < 0.25) yield* patDog(a);
+    a.hold = a.holding ? HOLDS.carry : null;
+    yield* leave(a);
+  }
+
   // The dog asked over (if it will come), and patted, kneeling.
   function* patDog(a) {
     if (!life.invite(dog, "greet", a)) return;
@@ -619,6 +646,7 @@ function makeCustomers(home, people) {
       comeAt: undefined,
       passing: false,
       dining: false,
+      buying: null,
     });
     a.cleanups.splice(0).forEach((fn) => fn());
     a.show("say", null);
@@ -710,6 +738,28 @@ function makeCustomers(home, people) {
           away(a);
         }
       }
+    },
+    // Someone to come and buy `sale` (stock.js), if anyone can just now (the shop open, it within reach, not too
+    // many at it already, someone free): who.
+    buy(sale) {
+      if (!hours.open() || home.hour() >= LAST_IN || people.filter((o) => o.buying).length >= BUYING) return null;
+      if (sale.pot >= 0 ? !home.grounds.pots[sale.pot].reachable() : D.buckets[sale.bucket].away) return null;
+      const a = pick(free((o) => !o.kid));
+      if (!a) return null;
+      Object.assign(a, { lead: null, buying: sale });
+      a.visit = buyer(a, sale);
+      return a;
+    },
+    // The clock gone back past the hour of what `a` came to buy (stock.js), or the time jumped past it: off at
+    // once, without it.
+    cancel(a) {
+      if (!a?.visit || a.goingHome) return;
+      a.cleanups.splice(0).forEach((fn) => fn());
+      life.release(a);
+      letGo(a);
+      Object.assign(a, { buying: null, hold: null, look: null, lean: 0, talk: false });
+      a.show("say", null);
+      a.visit = leave(a);
     },
     // Closing up (or the time jumped): anyone still about goes, at once (off the street, out of sight).
     clear() {

@@ -78,13 +78,121 @@
   }
 }
 
-// The time of day, in the top left corner: a pill with the clock (figures that keep their width) and, past a
-// rule, the times of day to skip to, the part of the day it is in filled in, as the worlds' buttons are.
-.playground-times {
+// The time of day, in the top left corner: the day's bar over the clock's pill, as wide as it.
+.playground-day {
   position: absolute;
   z-index: 3;
   top: 0.25rem;
   left: 0;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+
+  .playground-off &,
+  .playground:not(.loaded) & {
+    display: none;
+  }
+}
+
+// The day's bar, midnight to midnight, in the sky's colours through the day (daytime.js): what is to come
+// veiled, the times to skip to marked (the one headed for in the theme's colour), the thumb where the clock
+// is headed. Its press area reaches a little past it, for a finger.
+.playground-scrub {
+  position: relative;
+  height: 20px;
+  border: 1px solid var(--global-divider-color);
+  border-radius: 999px;
+  background: var(--global-card-bg-color);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -8px 0 -4px; // (not over the clock's pill under it)
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--global-theme-color);
+    outline-offset: 2px;
+  }
+}
+
+.playground-scrub-track {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  left: 10px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    #1d2546 0%,
+    #2b3a6e 20.8%,
+    #ffb98a 25%,
+    #8cc6ee 31.25%,
+    #7fc0ec 50%,
+    #8cc6ee 66.7%,
+    #ffd29a 72.9%,
+    #f29a7a 77.1%,
+    #2b3a6e 81.25%,
+    #1d2546 100%
+  );
+
+  i {
+    position: absolute;
+    z-index: 1;
+    top: -3px;
+    width: 2px;
+    height: 12px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--global-text-color);
+    opacity: 0.35;
+    transition: opacity 0.2s;
+
+    &.on {
+      background: var(--global-theme-color);
+      opacity: 1;
+    }
+  }
+}
+
+.playground-scrub-ahead {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 0 3px 3px 0;
+  background: var(--global-card-bg-color);
+  opacity: 0.6;
+}
+
+.playground-scrub-thumb {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid var(--global-theme-color);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s;
+
+  .playground-scrub:hover &,
+  .playground-scrub.held & {
+    transform: scale(1.2);
+  }
+}
+
+// A pill with the clock (figures that keep their width) and, past a rule, the times of day to skip to, the
+// part of the day it is in filled in, as the worlds' buttons are.
+.playground-times {
   display: inline-flex;
   align-items: center;
   padding: 2px;
@@ -93,11 +201,6 @@
   border-radius: 999px;
   background: var(--global-card-bg-color);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-
-  .playground-off &,
-  .playground:not(.loaded) & {
-    display: none;
-  }
 }
 
 .playground-clock {
@@ -109,6 +212,11 @@
   font-weight: 600;
   line-height: 1.5rem;
   font-variant-numeric: tabular-nums;
+  transition: color 0.2s;
+
+  .fast & {
+    color: var(--global-theme-color); // (fast-forwarding)
+  }
 }
 
 .playground-time {
@@ -135,6 +243,11 @@
   right: 0;
   display: flex;
   flex-direction: column;
+
+  // On a narrow screen the clock's pill reaches across under the turning button: below it.
+  @media (max-width: 560px) {
+    top: calc(2.6rem + 24px);
+  }
   overflow: hidden;
   border: 1px solid var(--global-divider-color);
   border-radius: 0.8rem;
@@ -198,7 +311,7 @@
 .playground-worlds {
   position: absolute;
   z-index: 3;
-  top: 2.6rem;
+  top: calc(2.6rem + 24px); // (under the day's bar and the clock)
   left: 0;
   display: inline-flex;
   padding: 2px;

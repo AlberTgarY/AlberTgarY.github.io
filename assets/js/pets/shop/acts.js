@@ -3,9 +3,8 @@
  * time). Hers: make up a bouquet (stems gathered from three buckets, trimmed
  * and wrapped on the bench, a ribbon tied, stood in the bucket of bouquets made
  * up), top up the buckets with the watering can filled at the tap, mist the
- * house plants, sweep up fallen petals, chalk a new price on a tag, fetch fresh
- * stock from the cool room for a bucket picked thin, count the till, put the
- * radio on (and dance a little), sit with a cup of tea (the dog comes to be
+ * house plants, sweep up fallen petals, chalk a new price on a tag, count the
+ * till, put the radio on (and dance a little), sit with a cup of tea (the dog comes to be
  * stroked), give the dog a treat, look out of the door, and of an afternoon
  * or evening go over for a bowl of wontons at the stall under the tree (him
  * too, now and then, the other minding the shop); and for customers
@@ -168,10 +167,9 @@ export function makeShopActs(home, life) {
     );
   }
 
-  // The buckets as they are: picked from (`taken` stems since restocked) and drunk from (`water`).
+  // The buckets as they are: drunk from (`water`); bought thin or not (`level`: the day's stock, stock.js).
   const buckets = D.buckets ?? [];
-  buckets.forEach((b) => (b.taken = 0));
-  const stocked = (b) => b.taken < 3;
+  const stocked = (b) => b.level > 1;
   // Petals now and then off the flowers, onto the pavement in front of them.
   let petalAt = rnd(6, 14);
 
@@ -210,7 +208,6 @@ export function makeShopActs(home, life) {
       a.look = b.top;
       yield* work(a, b.top[1] > 26 ? HOLDS.reachUp : HOLDS.pick, 0.7);
       b.pick?.();
-      b.taken++;
       stems += 2 + (Math.random() < 0.5 ? 1 : 0);
       bq.stems(stems);
       a.shop.hold(bq);
@@ -442,30 +439,6 @@ export function makeShopActs(home, life) {
     yield* wait(a, 0.4);
   }
 
-  // A bucket picked thin restocked from the cool room.
-  function* restock(a) {
-    const b = buckets.filter((b) => !stocked(b)).sort((p, q) => q.taken - p.taken)[0];
-    const cool = K.spots?.cool;
-    if (!b || !cool || !life.claim(a, "cool")) return;
-    yield* go(a, cool.at, cool.yaw);
-    K.cool?.set(true);
-    a.cleanups.push(() => K.cool?.set(false));
-    yield* wait(a, 0.7);
-    yield* work(a, HOLDS.reach, 0.8);
-    a.shop.fill([b.kind], Math.floor(Math.random() * 1e6));
-    a.shop.only("bucket");
-    a.hold = HOLDS.tray;
-    yield* wait(a, 0.4);
-    K.cool?.set(false);
-    yield* toBucket(a, b, 0.85);
-    yield* work(a, HOLDS.pick, 0.6);
-    a.shop.only();
-    b.restock?.();
-    b.taken = 0;
-    a.pop("room-pop room-pop-sparkle");
-    yield* work(a, null, 0.5);
-  }
-
   // The till counted at the register.
   function* till(a) {
     const spot = K.spots?.register;
@@ -686,7 +659,6 @@ export function makeShopActs(home, life) {
     mist: { who: "human", weight: () => (night() ? 1 : 4), run: mist },
     sweep: { who: "human", weight: () => ((G.petals?.count?.() ?? 0) >= 6 ? 7 : 0.5), run: sweep },
     chalk: { who: "human", weight: () => 3, run: chalk },
-    restock: { who: "human", weight: () => (buckets.some((b) => !stocked(b)) ? 9 : 0), run: restock },
     till: { who: "human", weight: () => (night() ? 5 : 3), run: till },
     radio: { who: "human", weight: () => 2, run: radio },
     tea: { who: "human", weight: () => (night() ? 6 : 4), run: tea },

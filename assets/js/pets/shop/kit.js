@@ -96,6 +96,70 @@ export function voxels(fill, scale = 1, palette = PALETTE, lit = true) {
 
 export { part, box, solidMaterial, glowing };
 
+// Geometries joined end to end (indexed, with normals and colours: solid() meshes' and the like), and where
+// each ends in the joined index: drawing up to an end draws only those before it.
+export function joined(geometries) {
+  const [position, normal, color, index] = [[], [], [], []];
+  const ends = [];
+  for (const g of geometries) {
+    const base = position.length / 3;
+    for (const v of g.attributes.position.array) position.push(v);
+    for (const v of g.attributes.normal.array) normal.push(v);
+    for (const v of g.attributes.color.array) color.push(v);
+    for (const i of g.index.array) index.push(base + i);
+    ends.push(index.length);
+    g.dispose();
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
+  g.setAttribute("normal", new THREE.Float32BufferAttribute(normal, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(color, 3));
+  g.setIndex(index);
+  return { geometry: g, ends };
+}
+
+// Things built one at a time and joined into one mesh (`parts`: voxels.js parts, `scale` voxels a voxel;
+// `seen`: only the faces that can face the camera, seenFaces()), any of which can be put out of sight and
+// back (a pot sold off a tray, say): `show(k, on)`, and at the next `update()` the index is put together
+// again from the runs of those shown, a copy within its own buffer, and the part of it in use sent to the
+// graphics card (no work at all while nothing changes).
+export function hideable(parts, scale, palette = PALETTE, seen = false) {
+  const meshes = parts.map((p) => meshOf(p, 1, palette));
+  const { geometry, ends } = joined(meshes.map((m) => (seen ? seenFaces(m.geometry) : m.geometry)));
+  const mesh = new THREE.Mesh(geometry, seen ? seenMaterial : solidMaterial);
+  mesh.scale.setScalar(scale);
+  const index = geometry.index;
+  const all = index.array.slice();
+  const shown = parts.map(() => true);
+  let changed = false;
+  return {
+    mesh,
+    shown: (k) => shown[k],
+    show(k, on) {
+      if (shown[k] === on) return;
+      shown[k] = on;
+      changed = true;
+    },
+    // Whether anything was put out of sight or back since the last time (its shadow to be drawn again).
+    update() {
+      if (!changed) return false;
+      changed = false;
+      let n = 0;
+      shown.forEach((on, k) => {
+        if (!on) return;
+        const i0 = k ? ends[k - 1] : 0;
+        index.array.set(all.subarray(i0, ends[k]), n);
+        n += ends[k] - i0;
+      });
+      geometry.setDrawRange(0, n);
+      index.clearUpdateRanges();
+      index.addUpdateRange(0, n);
+      index.needsUpdate = true;
+      return true;
+    },
+  };
+}
+
 // Something that swings when knocked (a chime, a bunch of flowers, a tree's crown): how far it is turned about
 // x and about z, each springing back to rest `hz` times a second and dying away at `damp` a second. A knock
 // adds to how fast it is turning (kick()), so that knocked again mid-swing it swings on from where it is; never

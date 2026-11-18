@@ -30,11 +30,11 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
 import { buildingRoom } from "./pets/room/room.js";
 import { buildingShop } from "./pets/shop/shop.js";
-import { isDark } from "./pets/stage.js";
+import { isDark, rnd, clamp } from "./pets/stage.js";
 import { buildGirl } from "./pets/models/girl.js";
 import { LOOKS, dressGirl } from "./pets/models/girl-outfits.js";
 import { CLIP_SHOWS, DRAMAS, drawClipThumb, drawPoster, POSTER } from "./pets/room/screens.js";
-import { hhmm } from "./pets/room/daytime.js";
+import { DAY_SECS, hhmm, isNightAt } from "./pets/room/daytime.js";
 
 // A quarter turn to the left, round an arrow (the button turning the view). (Above start(): it runs before
 // the constants below it are set.)
@@ -66,6 +66,24 @@ const HOME_ICON =
   '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2.5 7.5 8 3l5.5 4.5M4 6.5v6.5h3v-3.5h2V13h3V6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const SHOP_ICON =
   '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 9.5c-2.3 0-3.6-1.6-3.6-4V2.8L6 4.2 8 2.3l2 1.9 1.6-1.4v2.7c0 2.4-1.3 4-3.6 4Z" fill="currentColor"/><path d="M8 9.5V14M8 12.5c-1.8 0-3-1-3.4-2.4M8 12c1.6 0 2.7-.8 3.1-2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+// The page opens on a random time of day: in the morning in light mode, in the afternoon or the evening in
+// dark mode. Both worlds have lived the last LIVED_SECS up to it, undrawn behind the loading bar, so the visitor
+// comes in on them in the middle of whatever they are doing, the street outside the shop with people on it.
+const START_HOURS = { light: [7.5, 11.5], dark: [14, 22.5] };
+const LIVED_SECS = 150;
+// Fast-forwarding (the bar over the clock): the clock runs on, or back, to where it is dragged at up to
+// FF_FASTEST hours a second, slowing as it gets there (FF_SETTLE: the gap closed by this much a second) to
+// FF_SLOWEST at the last. It never runs ahead of their lives: both worlds live every moment it passes, in the
+// usual steps of a tenth of a second (forward, whichever way the clock goes), as many as fit in FF_BUDGET_MS
+// a frame (half that on a device not keeping up), and the clock moves on only as far as they have lived (at
+// the shop's pace: tick()). So whatever is due at a time (opening up, closing, the stall packing up, bedtime)
+// happens at that time, as it would have with the time going by. The marks for the times to skip to hold the thumb within FF_SNAP_PX.
+const FF_FASTEST = 6;
+const FF_SLOWEST = 0.05;
+const FF_SETTLE = 3;
+const FF_BUDGET_MS = 8;
+const FF_SNAP_PX = 9;
+const FF_STEP_H = (0.1 * 24) / DAY_SECS; // a step of their lives, in hours on the clock
 const SWITCH_SECS = 0.9; // from the one world to the other
 const SLICE_MS = 30; // of building between the loading bar's updates, about
 
@@ -197,8 +215,9 @@ async function start() {
     b.innerHTML = `${icon}<span>${text}</span>`;
     b.setAttribute("aria-label", `Skip to ${said}`);
     b.addEventListener("click", () => {
+      stopFast();
       room.timeTo(hour); // (both: the one out of view goes on at the same time)
-      shop?.timeTo(hour);
+      shop?.timeTo(hour, false, true); // (on to it: an earlier time, the next day's)
       showTime();
       if (reducedMotion) world.step(0);
     });
@@ -207,15 +226,137 @@ async function start() {
   times.append(clock, ...timeButtons);
   let clockWas = "";
   function showTime() {
-    const h = world.hour();
-    const now = hhmm(h);
+    showDay();
+    const m = Math.floor(world.hour() * 60); // (the minute shown: the time it is in the same as the clock's)
+    const now = hhmm((m + 0.5) / 60);
     if (now === clockWas) return;
     clockWas = now;
     clock.textContent = now;
-    const part = TIMES.findLastIndex(([from]) => h >= from); // (before six: the night before still)
+    const part = TIMES.findLastIndex(([from]) => m >= from * 60); // (before six: the night before still)
     timeButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(i === (part < 0 ? TIMES.length - 1 : part))));
   }
-  host.append(times);
+
+  // Over the clock, the day from midnight to midnight: what has gone of it lit, what is to come veiled, the
+  // times to skip to marked. Dragging the thumb (or pressing the bar) runs the clock there, like a film fast
+  // forward or back: the light and the clock running on or back, their lives going on all the while, only
+  // quicker; dragging it to the time it is stops it. Let go on a mark (they hold the thumb a little), the day
+  // comes out as that time's button would leave it.
+  const ff = { ahead: 0, v: 0, mark: null }; // hours to go (back: below 0), hours a second, the mark headed for
+  const day = Object.assign(document.createElement("div"), { className: "playground-day" });
+  const scrub = Object.assign(document.createElement("div"), { className: "playground-scrub", tabIndex: 0 });
+  scrub.setAttribute("role", "slider");
+  scrub.setAttribute("aria-label", "Time of day: fast forward or back");
+  scrub.setAttribute("aria-valuemin", "0");
+  scrub.setAttribute("aria-valuemax", "24");
+  const ticks = TIMES.map(([h]) => `<i style="left:${(h / 24) * 100}%"></i>`).join("");
+  scrub.innerHTML = `<span class="playground-scrub-track">${ticks}<span class="playground-scrub-ahead"></span><span class="playground-scrub-thumb"></span></span>`;
+  const track = scrub.firstChild;
+  const marks = [...track.querySelectorAll("i")];
+  const [veil, thumb] = [track.querySelector(".playground-scrub-ahead"), track.querySelector(".playground-scrub-thumb")];
+  // On or back to `to` (an hour on the bar, 0 to 24), headed for TIMES[mark] if it is held by one; at the
+  // time it is, stopped there.
+  function seek(to, mark = null) {
+    const ahead = to - world.hour();
+    if (Math.abs(ahead) <= 1e-4) return stopFast();
+    if (reducedMotion) {
+      room.timeTo(to); // (a jump, as by the buttons)
+      shop?.timeTo(to, mark !== null);
+      world.step(0);
+      showTime();
+      return;
+    }
+    if (ahead * ff.ahead < 0) ff.v = 0; // (turned round: from a standstill again)
+    Object.assign(ff, { ahead, mark });
+  }
+  const stopFast = () => Object.assign(ff, { ahead: 0, v: 0, mark: null });
+  // Where the pointer is on the bar, as an hour, held by a mark within FF_SNAP_PX of it.
+  function seekAt(e) {
+    const r = track.getBoundingClientRect();
+    const to = clamp(((e.clientX - r.left) / r.width) * 24, 0, 24);
+    const mark = TIMES.findIndex(([h]) => (Math.abs(h - to) * r.width) / 24 < FF_SNAP_PX);
+    seek(mark < 0 ? to : TIMES[mark][0], mark < 0 ? null : mark);
+  }
+  let scrubbing = null; // the pointer dragging the thumb
+  scrub.addEventListener("pointerdown", (e) => {
+    if (e.button > 0) return;
+    scrub.setPointerCapture(e.pointerId);
+    scrubbing = e.pointerId;
+    scrub.classList.add("held");
+    seekAt(e);
+  });
+  scrub.addEventListener("pointermove", (e) => e.pointerId === scrubbing && seekAt(e));
+  for (const type of ["pointerup", "pointercancel"])
+    scrub.addEventListener(type, (e) => {
+      if (e.pointerId !== scrubbing) return;
+      scrubbing = null;
+      scrub.classList.remove("held");
+    });
+  // The keys: on to the next mark (or midnight), back to the one before (or the midnight before), or stop.
+  scrub.addEventListener("keydown", (e) => {
+    const h = world.hour() + ff.ahead;
+    if (["ArrowRight", "ArrowUp", "PageUp"].includes(e.key)) {
+      const mark = TIMES.findIndex(([at]) => at > h + 1e-3);
+      seek(mark < 0 ? 24 : TIMES[mark][0], mark < 0 ? null : mark);
+    } else if (["ArrowLeft", "ArrowDown", "PageDown"].includes(e.key)) {
+      const mark = TIMES.findLastIndex(([at]) => at < h - 1e-3);
+      seek(mark < 0 ? 0 : TIMES[mark][0], mark < 0 ? null : mark);
+    } else if (e.key === "Home") seek(0);
+    else if (e.key === "End") seek(24);
+    else if (e.key === "Escape") stopFast();
+    else return;
+    e.preventDefault();
+    showDay();
+  });
+  // The bar as it is: lit up to the time in view, the thumb where it is headed (each frame: only what changed).
+  const shown = { veil: "", thumb: "", mark: -2 };
+  function showDay() {
+    const h = world.hour();
+    const to = h + ff.ahead;
+    const [v, t] = [`${((h / 24) * 100).toFixed(2)}%`, `${((to / 24) * 100).toFixed(2)}%`];
+    if (v !== shown.veil) veil.style.left = shown.veil = v;
+    if (t !== shown.thumb) {
+      thumb.style.left = shown.thumb = t;
+      scrub.setAttribute("aria-valuenow", to.toFixed(2));
+      scrub.setAttribute("aria-valuetext", hhmm(to));
+    }
+    const mark = ff.ahead ? ff.mark ?? -1 : -1;
+    if (mark !== shown.mark) {
+      marks.forEach((m, i) => m.classList.toggle("on", i === mark));
+      host.classList.toggle("fast", !!ff.ahead);
+      shown.mark = mark;
+    }
+  }
+  // A frame of fast-forwarding (or back) by `dt` seconds: the clock on (or back) as far as the speed takes it
+  // and their lives keep up with, both worlds a step at a time (the time each step's), as many as the budget
+  // allows (`slow`: the frames coming late, half of it); the last step of the world in view drawn. Got there
+  // on a mark, both worlds as its button leaves them. Returns who is hovered.
+  function fastForward(dt, slow) {
+    const gap = Math.abs(ff.ahead);
+    ff.v += (clamp(gap * FF_SETTLE, FF_SLOWEST, FF_FASTEST) - ff.v) * Math.min(1, dt * 5);
+    const [way, want] = [Math.sign(ff.ahead), Math.min(gap, ff.v * dt)];
+    const [t0, budget] = [performance.now(), FF_BUDGET_MS * (slow ? 0.5 : 1)];
+    let [gone, hovered] = [0, null];
+    for (;;) {
+      const step = FF_STEP_H * clockPace(); // (the clock's hours in a step of their lives just now)
+      const dh = Math.min(step, want - gone);
+      gone += dh;
+      const last = gone >= want - 1e-9 || performance.now() - t0 > budget;
+      hovered = tick((0.1 * dh) / step, last, way);
+      if (last) break;
+    }
+    ff.ahead -= way * gone;
+    if (Math.abs(ff.ahead) <= 1e-4) {
+      const { mark } = ff;
+      stopFast();
+      if (mark !== null) {
+        room.timeTo(TIMES[mark][0]);
+        shop?.timeTo(TIMES[mark][0], true);
+      }
+    }
+    return hovered;
+  }
+  day.append(scrub, times);
+  host.append(day);
 
   // Between the home and the flower shop, under the clock: the one in view pressed.
   const worlds = Object.assign(document.createElement("div"), { className: "playground-worlds", role: "group" });
@@ -272,9 +413,27 @@ async function start() {
     }
     shop.layout(view.W, view.H);
     wire(shop);
-    await shop.warm((part) => loading.show(0.9 + 0.1 * part, "Flower shop · shaders", part));
+    await shop.warm((part) => loading.show(0.9 + 0.06 * part, "Flower shop · shaders", part));
     shop.timeTo(room.hour());
     shop.step(0);
+  }
+
+  // Life moved on by `secs` undrawn, in steps of a tenth of a second at most (both worlds: the one out of view
+  // at the time in view); a fast-forward, out of sight, over where it has got to.
+  function goOn(secs) {
+    stopFast();
+    const n = Math.ceil(secs / 0.1);
+    for (let i = 0; i < n; i++) tick(secs / n, false);
+  }
+  // Both worlds on by `dt` seconds of their lives (the one in view drawn, if `draw`), at one time of day: the
+  // clock on by as much (or back, `way` -1), only slower while the shop's people are at an hour's work
+  // (shop.js pace()), whichever world is in view. Returns who is hovered.
+  const clockPace = () => (shop ? shop.pace() : 1);
+  function tick(dt, draw, way = 1) {
+    const hour = (world.hour() + way * ((dt * 24) / DAY_SECS) * clockPace() + 24) % 24;
+    const hovered = world.step(dt, draw, hour);
+    if (shop) (inShop() ? room : shop).step(dt, false, hour);
+    return hovered;
   }
 
   // The canvas spans the whole width of the window, out past the page's margins, and the house is fitted
@@ -442,13 +601,17 @@ async function start() {
   let onScreen = true;
   new IntersectionObserver(([entry]) => (onScreen = entry.isIntersecting)).observe(host);
   new MutationObserver(() => {
+    stopFast();
     [room, shop].forEach((w) => w?.dress(isDark()));
     if (reducedMotion) world.step(0);
   }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   window.addEventListener("resize", layout);
   document.addEventListener("swap:shown", (e) => e.target.contains(host) && layout());
 
-  room.dress(isDark());
+  const [from, to] = START_HOURS[isDark() ? "dark" : "light"];
+  const startAt = rnd(from, to) - (LIVED_SECS * 24) / DAY_SECS; // (on to the hour picked as their lives go on)
+  room.dress(isNightAt(startAt));
+  room.timeTo(startAt);
   showTime();
   layout();
   loading.show(0.55, "Home · shaders", 0); // built; the shaders next
@@ -460,6 +623,16 @@ async function start() {
   await painted();
   await buildShop();
   await painted();
+  // Their lives up to now, a slice of steps between the loading bar's updates.
+  for (let lived = 0; lived < LIVED_SECS; await painted()) {
+    const t0 = performance.now();
+    do goOn(0.1);
+    while ((lived += 0.1) < LIVED_SECS && performance.now() - t0 < SLICE_MS);
+    loading.show(0.96 + 0.04 * (lived / LIVED_SECS), "Life so far", lived / LIVED_SECS);
+  }
+  room.step(0); // (the first frame, as it is now)
+  showTime();
+  await painted();
   stage.classList.add("ready");
   host.classList.add("loaded");
   if (reducedMotion) return;
@@ -468,17 +641,10 @@ async function start() {
   // cannot keep up (under about 45 a second over 3 s, while the page's own work takes well under the time
   // between frames: the drawing holds it up, a phone's GPU say) draws fewer pixels (view.js lower()).
   // Out of sight (scrolled away, another page of the site shown: swap.js, or the browser hidden), life goes on
-  // undrawn, in steps of a tenth of a second at most, so coming back finds it moved on.
+  // undrawn (goOn()), so coming back finds it moved on.
   let last = performance.now();
   let unseen = 0;
   const pace = { frames: 0, between: 0, busy: 0 };
-  function goOn(secs) {
-    const n = Math.ceil(secs / 0.1);
-    for (let i = 0; i < n; i++) {
-      world.step(secs / n, false);
-      if (shop) (inShop() ? room : shop).step(secs / n, false, world.hour());
-    }
-  }
   // A hidden browser tab (a window minimised or covered over counts as hidden too) gets no frames, and its own
   // timers are slowed to one a second or a minute: a worker's timer is not, and moves life on by the time gone
   // since (at most a minute at once: after the computer slept, say). Nobody is hovered meanwhile.
@@ -510,14 +676,15 @@ async function start() {
       fade.k = fade.goal ? Math.min(1, fade.k + dt / SWITCH_SECS) : Math.max(0, fade.k - dt / SWITCH_SECS);
       showFade();
     }
-    const hovered = world.step(dt);
-    if (shop) (inShop() ? room : shop).step(dt, false, world.hour());
+    const fast = ff.ahead !== 0;
+    const hovered = fast ? fastForward(dt, between > 20) : tick(dt, true);
+    showDay();
     document.documentElement.classList.toggle("pet-hover", !!hovered || overThing);
     if (Math.floor(now / 500) !== Math.floor((now - between) / 500)) {
       showWho(); // (twice a second)
       showTime();
     }
-    if (between > 100) return; // (back from a hidden tab, or a hitch)
+    if (between > 100 || fast) return; // (back from a hidden tab, or a hitch; fast-forwarding, busy by choice)
     pace.frames++;
     pace.between += between;
     pace.busy += performance.now() - now;
