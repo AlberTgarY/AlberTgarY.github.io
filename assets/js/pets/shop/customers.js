@@ -55,7 +55,7 @@ import { HOURS, STREET, GROUND, KIOSK, SHUTTER, AWNING } from "./layout.js";
 const CROWD = 12; // the people of the town who come by (two of them children; each looks anew at every page)
 const KIDS = 2;
 const AT_ONCE = 2; // parties about at once, at most (now and then one more)
-const BUYING = 2; // people come to buy something of the day's stock at once, at most (as well as the parties)
+const BUYING = 3; // people come to buy something of the day's stock at once, at most (as well as the parties)
 const DINING = 2; // people at the wonton stall at once, at most (as well as the girl or the boy)
 const LAST_IN = HOURS.close - 0.3; // no one new comes after this
 const EDGE = GROUND.z1 - 8; // the pavement's front edge, where people step on and off it

@@ -30,9 +30,9 @@ import { rng } from "./flowers.js";
 import { HOURS } from "./layout.js";
 
 const SALES = [11, 21.5]; // the hours a sale may come at (the shop open, set out a while since)
-const FULL = [0.6, 1]; // how full a group of pots may be put out, of all its places (each day its own)
-const POT_SOLD = 0.2; // the chance that a pot put out is sold in the day
-const BOUGHT = [0.3, 0.3]; // the chances that a bucket is bought down to two thirds in the day, and then on to a third
+const FULL = [0.7, 1]; // how full a group of pots may be put out, of all its places (each day its own)
+const POT_SOLD = 0.5; // the chance that a pot put out is sold in the day
+const BOUGHT = [0.8, 0.6]; // the chances that a bucket is bought down to two thirds in the day, and then on to a third
 const WAIT = 0.3; // h after a sale's hour that someone may yet come for it (after that it just goes)
 const LONGEST = 0.6; // h after its hour that someone may still be on the way to it (then it goes anyway)
 

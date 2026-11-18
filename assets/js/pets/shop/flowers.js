@@ -691,7 +691,7 @@ function bucketParts(kind, colors, R, H, seed) {
     }
   });
   spots.forEach(([x, z, top, col], i) => {
-    const p = parts[i % 5 < 3 ? 0 : i % 5 === 3 ? 1 : 2];
+    const p = parts[i % 3]; // (a third of them each: bought down to two thirds, then a third, it shows)
     const base = top - f.head;
     if (kind === "lily" && rand() < 0.35) lilyBud(p, x, base - 1, z, rand, col);
     else f.bloom(p, x, base, z, rand, col);
