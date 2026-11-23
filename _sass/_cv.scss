@@ -61,6 +61,22 @@ span.location-inline {
   opacity: 0.8;
 }
 
+// a mentored student's role, on the name line
+span.mentee-role {
+  font-size: 0.95rem;
+  font-weight: 300;
+}
+
+// where a mentored student went next
+h6.mentee-next {
+  font-size: 0.85rem;
+  opacity: 0.85;
+
+  span {
+    font-weight: 600;
+  }
+}
+
 i.iconlocation {
   color: var(--global-theme-color);
   font-size: 0.8rem;

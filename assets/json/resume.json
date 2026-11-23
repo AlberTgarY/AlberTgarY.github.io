@@ -48,7 +48,7 @@
       "endDate": "2026-10-01",
       "location": "Redmond, United States",
       "supervisor": "Dr. Yijing Fu and Dr. Changwon Jang",
-      "description": "Fine-tuned a flow-matching JiT foundation model for novel light phenomena synthesis, with the Display Systems Research team."
+      "description": "Fine-tuned a flow-matching JiT foundation model for novel light phenomena synthesis, with the Display Systems Research."
     },
     {
       "name": "Huawei Technologies Research & Development (UK) Ltd",
@@ -58,7 +58,7 @@
       "endDate": "2025-09-01",
       "location": "London, United Kingdom",
       "supervisor": "Dr. Arthur Moreau",
-      "description": "Feed-forward 3D reconstruction with Gaussian splatting and VGGT."
+      "description": "Research on feed-forward 3D reconstruction with Gaussian splatting and VGGT, with the 3D Imaging Group."
     },
     {
       "name": "Imperial College London",
@@ -68,7 +68,7 @@
       "endDate": "2025-01-01",
       "location": "London, United Kingdom",
       "supervisor": "Assoc. Prof. Dalal Alrajeh",
-      "description": "Developed a Siamese network for serial crime linkage analysis; first-author paper published at AAAI 2026."
+      "description": "Developed a Siamese network for serial crime linkage analysis, first-author paper published at AAAI 2026."
     },
     {
       "name": "University of Leeds",
@@ -247,6 +247,29 @@
       "url": "https://complightlab.com/publications/focal_surface_light_transport/",
       "summary": "Chuanjun Zheng, Yicheng Zhan, Liang Shi, Ozan Cakmakci and Kaan Akşit",
       "status": ""
+    }
+  ],
+  "mentoring": [
+    {
+      "name": "Runze Cheng",
+      "url": "https://aidcheng.github.io/",
+      "role": "B.Sc. student at UCL",
+      "next": "M.Phil. student at the University of Cambridge",
+      "year": "2026"
+    },
+    {
+      "name": "Xiaoyue Fan",
+      "url": "https://merryxyfan.github.io/",
+      "role": "M.Sc. student at UCL",
+      "next": "Research Intern at UCL",
+      "year": "2025"
+    },
+    {
+      "name": "Zicong Peng",
+      "url": "https://scholar.google.com/citations?user=lpi8DvIAAAAJ",
+      "role": "M.Sc. student at UCL",
+      "next": "Ph.D. student at Koç University",
+      "year": "2025"
     }
   ],
   "skills": [
