@@ -5,6 +5,8 @@ import os
 import re
 from collections import Counter
 
+MUSIC_URL = 'https://albertgary.github.io/music/'
+
 def escape_latex(text):
     """Escape special LaTeX characters"""
     if not text:
@@ -37,21 +39,15 @@ def format_date(date_str):
     except:
         return date_str
 
-def two_column_list(rows):
-    """Lay out (label, keywords) rows two per line; a leftover row spans the full width.
-    Columns take their natural width, the left one flush left and the right one flush right."""
-    cells = [
-        f"\\textbf{{{escape_latex(label)}}}: {', '.join(escape_latex(k) for k in keywords)}."
-        for label, keywords in rows if keywords
-    ]
-    lines = [f"{cells[i]} & {cells[i + 1]}" for i in range(0, len(cells) - 1, 2)]
-    if len(cells) % 2:
-        lines.append(f"\\multicolumn{{2}}{{@{{}}l@{{}}}}{{{cells[-1]}}}")
-    return (
-        "\\begin{tabular*}{\\linewidth}{@{}l@{\\extracolsep{\\fill}\\hspace{1em}}l@{}}\n"
-        + " \\\\[2pt]\n".join(lines)
-        + "\n\\end{tabular*}\n"
-    )
+def linked_supervisor(entry):
+    """Escaped supervisor text, each name in supervisorUrls (PDF only) turned into a link."""
+    text = escape_latex(entry.get('supervisor', ''))
+    for person, url in entry.get('supervisorUrls', {}).items():
+        person = escape_latex(person)
+        if person not in text:
+            sys.exit(f"supervisorUrls name \"{person}\" is not in supervisor \"{text}\"")
+        text = text.replace(person, f"\\href{{{url}}}{{{person}}}")
+    return text
 
 def sort_publications(publications, owner):
     """PDF order: papers where `owner` is first author come first, then the rest, each newest first.
@@ -74,11 +70,8 @@ def generate_latex(json_data):
     education = json_data.get('education', [])
     work = json_data.get('work', [])
     publications = json_data.get('publications', [])
-    skills = json_data.get('skills', [])
     languages = json_data.get('languages', [])
     awards = json_data.get('awards', [])
-    interests = json_data.get('interests', [])
-    interests_keywords = interests[0].get('keywords', []) if interests else []
     additional_languages = json_data.get('additionalLanguages', [])
 
     name = basics.get('name', '')
@@ -146,7 +139,7 @@ def generate_latex(json_data):
         end = format_date(edu.get('endDate', 'Now'))
         location = escape_latex(edu.get('location', ''))
         score = escape_latex(edu.get('score', ''))
-        supervisor = escape_latex(edu.get('supervisor', ''))
+        supervisor = linked_supervisor(edu)
         courses = edu.get('courses', [])
 
         if end == "Now" and start:
@@ -189,7 +182,7 @@ def generate_latex(json_data):
         start = format_date(job.get('startDate', ''))
         end = format_date(job.get('endDate', 'Now'))
         location = escape_latex(job.get('location', ''))
-        supervisor = escape_latex(job.get('supervisor', ''))
+        supervisor = linked_supervisor(job)
         description = escape_latex(job.get('description', '').strip())
 
         latex_content += f"""\\textbf{{{position}}} \\hfill \\textbf{{{start} - {end}}} \\\\
@@ -238,17 +231,16 @@ def generate_latex(json_data):
 
     latex_content += r"""\end{enumerate}
 
-\section*{SKILLS}
+\section*{HOBBIES \& SKILLS}
 """
-
-    skill_rows = [(s.get('name', ''), s.get('keywords', [])) for s in skills]
 
     lang_list = [f"{lang.get('language', '')} ({lang.get('fluency', '').lower()})" for lang in languages]
     lang_list += [f"{lang.get('language', '')} ({lang.get('fluency', '')})" for lang in additional_languages]
-    skill_rows.append(('Language skills', lang_list))
-    skill_rows.append(('Interests', interests_keywords))
-
-    latex_content += two_column_list(skill_rows)
+    latex_content += (
+        f"\\textbf{{Hobbies}}: I make Hiphop Music in my spare time,"
+        f" two \\href{{{MUSIC_URL}}}{{mixtapes}} released."
+        f" \\hfill \\textbf{{Languages}}: {', '.join(escape_latex(l) for l in lang_list)}.\n"
+    )
 
     latex_content += r"""
 \end{document}

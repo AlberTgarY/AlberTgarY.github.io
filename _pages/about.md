@@ -27,7 +27,7 @@ latest_posts:
   limit: 3 # leave blank to include all the blog posts
 ---
 
-I am Yicheng Zhan (战弈诚), a Ph.D. candidate at University College London in the <a href="https://complightlab.com/" target="_blank">Computational Light Laboratory</a>, advised by Dr. Kaan Akşit. I received my M.Sc. from University College London and my B.Sc. from King's College London.
+I am Yicheng Zhan (战弈诚), a Ph.D. candidate at University College London in the <a href="https://complightlab.com/" target="_blank">Computational Light Laboratory</a>, advised by <a href="https://www.kaanaksit.com/" target="_blank">Dr. Kaan Akşit</a>. I received my M.Sc. from University College London and my B.Sc. from King's College London.
 
 My research lies at the intersection of computer vision, generative models, and neural rendering, with a focus on photorealistic 3D content for holographic AR/VR displays. I build learned 3D representations, such as Gaussian splatting and radiance fields, and generative models that bring the wave nature of light, including polarization, interference, and diffraction, into how scenes are captured, represented, and displayed. I also develop wave-optics renderers to simulate these light phenomena.
 

@@ -48,6 +48,7 @@
       "endDate": "2026-10-01",
       "location": "Redmond, United States",
       "supervisor": "Dr. Yijing Fu and Dr. Changwon Jang",
+      "supervisorUrls": {"Dr. Changwon Jang": "https://scholar.google.com/citations?user=s2uBMgkAAAAJ"},
       "description": "Fine-tuned a flow-matching JiT foundation model for novel light phenomena synthesis, with the Display Systems Research."
     },
     {
@@ -58,6 +59,7 @@
       "endDate": "2025-09-01",
       "location": "London, United Kingdom",
       "supervisor": "Dr. Arthur Moreau",
+      "supervisorUrls": {"Dr. Arthur Moreau": "https://scholar.google.com/citations?user=fMmoHX0AAAAJ"},
       "description": "Research on feed-forward 3D reconstruction with Gaussian splatting and VGGT, with the 3D Imaging Group."
     },
     {
@@ -68,6 +70,7 @@
       "endDate": "2025-01-01",
       "location": "London, United Kingdom",
       "supervisor": "Assoc. Prof. Dalal Alrajeh",
+      "supervisorUrls": {"Assoc. Prof. Dalal Alrajeh": "https://www.doc.ic.ac.uk/~da04/"},
       "description": "Developed a Siamese network for serial crime linkage analysis, first-author paper published at AAAI 2026."
     },
     {
@@ -104,6 +107,7 @@
       "startDate": "2024-01-01",
       "score": "",
       "supervisor": "Assoc. Prof. Kaan Akşit",
+      "supervisorUrls": {"Assoc. Prof. Kaan Akşit": "https://www.kaanaksit.com/"},
       "courses": ["Computer Vision", "Computer Graphics", "Computational Imaging", "Augmented Reality"]
     },
     {
@@ -116,6 +120,7 @@
       "endDate": "2022-09-01",
       "score": "First Class Distinction",
       "supervisor": "Assoc. Prof. Melinos Averkiou",
+      "supervisorUrls": {"Assoc. Prof. Melinos Averkiou": "https://melinos.github.io/"},
       "courses": []
     },
     {
@@ -128,6 +133,7 @@
       "endDate": "2021-09-01",
       "score": "First Class Honors",
       "supervisor": "Prof. Jose Such",
+      "supervisorUrls": {"Prof. Jose Such": "https://scholar.google.com/citations?user=xNr_IMUAAAAJ"},
       "courses": []
     }
   ],
