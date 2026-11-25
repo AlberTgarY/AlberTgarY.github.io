@@ -151,27 +151,26 @@ def generate_latex(json_data):
 
         latex_content += f"""\\textbf{{{study_type}}} \hfill \\textbf{{{date_range}}} \\\\
 """
-        latex_content += f"""\\textbf{{{institution}}} \\hfill \\textbf{{{location}}}"""
+        # the supervisor sits after the institution, as in work entries (Ph.D. calls it Mentor)
+        label = "Mentor" if courses else "Supervisor"
+        supervisor_note = f" ({label}: {supervisor})" if supervisor else ""
+        latex_content += f"""\\textbf{{{institution}}}{supervisor_note} \\hfill \\textbf{{{location}}}"""
 
         if courses:
             latex_content += f"""\\begin{{itemize}}
 \\item \\textbf{{Core Fields}}: {', '.join([escape_latex(c) for c in courses])}.
 """
             if 'Ph.D' in study_type or 'candidate' in study_type.lower():
-                latex_content += f"""\\item \\textbf{{Thesis Title}}: {area}. (\\textbf{{Mentor}}: {supervisor})
+                latex_content += f"""\\item \\textbf{{Thesis Title}}: {area}.
 """
             latex_content += "\\end{itemize}\n\n"
         else:
+            # result and dissertation share one line, split by the gray bar of the contact line
             latex_content += f"""\\begin{{itemize}}
-\\item \\textbf{{Graduate Result}}: {score}
+\\item \\textbf{{Graduate Result}}: {score}\\enspace\\textcolor{{gray}}{{\\textbar}}\\enspace \\textbf{{Dissertation Title}}: {area}.
+\\end{{itemize}}
+
 """
-            if 'M.Sc' in study_type or 'MSc' in study_type:
-                latex_content += f"""\\item \\textbf{{Dissertation Title}}: {area}. (\\textbf{{Supervisor}}: {supervisor})
-"""
-            elif 'B.Sc' in study_type or 'BS' in study_type:
-                latex_content += f"""\\item \\textbf{{Dissertation}}: {area}. (\\textbf{{Supervisor}}: {supervisor})
-"""
-            latex_content += "\\end{itemize}\n\n"
 
     latex_content += r"""\section*{WORK EXPERIENCE}
 """
@@ -183,7 +182,7 @@ def generate_latex(json_data):
         end = format_date(job.get('endDate', 'Now'))
         location = escape_latex(job.get('location', ''))
         supervisor = linked_supervisor(job)
-        description = escape_latex(job.get('description', '').strip())
+        description = [escape_latex(line.strip()) for line in job.get('description', [])]
 
         latex_content += f"""\\textbf{{{position}}} \\hfill \\textbf{{{start} - {end}}} \\\\
 """
@@ -195,9 +194,9 @@ def generate_latex(json_data):
             latex_content += f"""{company_name} \\hfill \\textbf{{{location}}}"""
 
         if description:
-            latex_content += f""" \\\\
-{description}"""
-        latex_content += "\n\\vspace{0.01em}\n\n"
+            items = ''.join(f"\\item {line}\n" for line in description)
+            latex_content += f"\n\\begin{{itemize}}\n{items}\\end{{itemize}}"
+        latex_content += "\n\n"
 
     latex_content += r"""\section*{PUBLICATIONS}
 \begin{enumerate}[label={[\arabic*]}, leftmargin=*, before=\raggedright]
